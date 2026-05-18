@@ -34,6 +34,9 @@ Thumbs.db
 .env
 *.env.local
 
+# Private working notes (not for public repo)
+CLAUDE.md
+
 # Ollama / model weights (do not commit)
 *.gguf
 *.bin
