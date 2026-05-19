@@ -1,0 +1,13 @@
+# DAVE RPG Engine — Python dependencies
+#
+# Install with:
+#   pip3 install -r requirements.txt
+#
+# Phase 1 (Claude backend):
+anthropic>=0.25.0
+
+# Phase 2 (Ollama backend):
+# requests>=2.31.0
+#
+# The requests package is only needed when DAVE_LLM_BACKEND=ollama.
+# Uncomment when switching to the Ollama backend.

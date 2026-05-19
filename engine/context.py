@@ -110,7 +110,7 @@ def build_pass1_packet(
     location_summary = {
         "id": location["id"],
         "name": location["name"],
-        "description": location["description"],
+        "description": location["description_skeleton"],
     } if location else {}
 
     # ------------------------------------------------------------------
@@ -376,7 +376,7 @@ def build_pass3_packet(
     location_summary = {
         "id": location["id"],
         "name": location["name"],
-        "description": location["description"],
+        "description": location["description_skeleton"],
     } if location else {}
 
     packet = {
@@ -430,12 +430,13 @@ def _build_character_profile(
     char_id = character["id"]
 
     # OCEAN personality traits (floats, 0.0–1.0).
+    # Schema columns are prefixed with ocean_ to avoid reserved-word collisions.
     ocean = {
-        "openness": character["openness"],
-        "conscientiousness": character["conscientiousness"],
-        "extraversion": character["extraversion"],
-        "agreeableness": character["agreeableness"],
-        "neuroticism": character["neuroticism"],
+        "openness": character["ocean_openness"],
+        "conscientiousness": character["ocean_conscientiousness"],
+        "extraversion": character["ocean_extraversion"],
+        "agreeableness": character["ocean_agreeableness"],
+        "neuroticism": character["ocean_neuroticism"],
     }
 
     # Goals: include hidden goals only for adjudication pass.
@@ -532,7 +533,6 @@ def _build_location_context(
             "name": item["name"],
             "description": item["description"],
             "quality": item["quality"],
-            "is_fixed": item["is_fixed"],
             "held_by_character_id": item["held_by_character_id"],
         }
         for item in items
@@ -541,9 +541,7 @@ def _build_location_context(
     return {
         "id": location["id"],
         "name": location["name"],
-        "description": location["description"],
-        "ambient_sound": location["ambient_sound"],
-        "ambient_light": location["ambient_light"],
+        "description": location["description_skeleton"],
         "witness_count": location["witness_count"],
         "situation_flags": location["situation_flags"],
         "generated_details": [d["detail"] for d in details],
