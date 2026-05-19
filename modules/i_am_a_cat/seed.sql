@@ -591,6 +591,35 @@ VALUES (3, 'sleepiness', 0.78, 'numeric');
 INSERT INTO internal_state (character_id, state_name, value, display_mode)
 VALUES (4, 'sleepiness', 0.88, 'numeric');
 
+-- Hairball pressure: an involuntary state for both cats. Builds gradually and
+-- through grooming. The engine computes per-turn probability as
+-- (value * involuntary_trigger_param) and rolls against it each turn.
+-- Grooming actions (self-grooming or grooming another cat) raise this value
+-- by the amount specified in involuntary_event_description.
+--
+-- Toulouse: moderate baseline. Less frantic groomer than Spook.
+INSERT INTO internal_state (
+    character_id, state_name, value, display_mode,
+    is_involuntary, involuntary_trigger_type, involuntary_trigger_param,
+    involuntary_event_description
+) VALUES (
+    1, 'hairball_pressure', 0.22, 'prose',
+    1, 'probabilistic', 0.15,
+    'Toulouse produces a hairball. This is involuntary and unpleasant — he does not enjoy it. Any human in earshot will wake and come to investigate. They will not be pleased. Their annoyance is genuine, not affectionate, regardless of their usual attitude toward the cat. ENGINE: raise hairball_pressure by 0.12 after each self-grooming session; raise by 0.10 after grooming another cat. Reset to 0.05 after a hairball event. Decay hairball_pressure by 0.02 per hour without grooming.'
+);
+
+-- Spook: higher baseline. He grooms himself frequently and also grooms Toulouse,
+-- making his hairball pressure accumulate faster.
+INSERT INTO internal_state (
+    character_id, state_name, value, display_mode,
+    is_involuntary, involuntary_trigger_type, involuntary_trigger_param,
+    involuntary_event_description
+) VALUES (
+    2, 'hairball_pressure', 0.31, 'prose',
+    1, 'probabilistic', 0.18,
+    'Spook produces a hairball. Involuntary. Humans in earshot wake and investigate; they are not pleased. ENGINE: raise hairball_pressure by 0.15 after self-grooming; raise by 0.12 after grooming another cat. Reset to 0.05 after a hairball event. Decay by 0.02 per hour without grooming.'
+);
+
 
 -- =============================================================================
 -- ITEMS
@@ -802,6 +831,46 @@ VALUES (36, 1, 'hair tie',
     'A small elastic hair tie left on the bathroom counter. Stretchy, flingable, and small enough to bat under the gap at the bottom of the door. A very good accidental toy.',
     9, NULL, 1);
 
+
+-- =============================================================================
+-- CHARACTER SKILLS
+-- =============================================================================
+
+-- Toulouse: fetch.
+-- He knows how to play fetch and genuinely enjoys it. His initiation method is
+-- specific: he picks up a toy and drops it in front of or directly on a human,
+-- then waits. This is not a random act — it is a deliberate play invitation with
+-- an established protocol. A human who does not respond will receive a second
+-- delivery. The intrinsic motivation is high: Toulouse will seek opportunities
+-- to play fetch spontaneously, especially when bored.
+INSERT INTO character_skill (character_id, skill_name, skill_level, intrinsic_motivation)
+VALUES (1, 'fetch', 0.85, 0.90);
+
+-- Toulouse: burrowing under blankets.
+-- Toulouse is skilled at locating and entering the warm space beneath the covers
+-- on the bed, particularly when a human is present. The combination of warmth
+-- and proximity to a human is the point. He will work at the edge of the covers
+-- until he has made an opening. High intrinsic motivation: he seeks this out.
+INSERT INTO character_skill (character_id, skill_name, skill_level, intrinsic_motivation)
+VALUES (1, 'burrowing under blankets', 0.90, 0.88);
+
+-- Update Toulouse's surface_motivation and context_beliefs to reflect the food
+-- preference nuance: dry food is actually preferred on its own merits, but
+-- canned food is worth pursuing because it means a human is present and
+-- engaged, which is independently valuable.
+UPDATE character
+SET
+    surface_motivation = 'Wants to find something interesting to do. Would also accept food — preferably dry food, which he actually likes, though canned food has the advantage of indicating a human is present and doing something, which is interesting in its own right.',
+    context_beliefs = json('{
+        "humans_will_respond_to_meowing":   0.55,
+        "food_available_from_humans":       0.35,
+        "canned_food_signals_human_activity": 0.80,
+        "interesting_things_to_discover":   0.50,
+        "spook_available_to_interact_with": 0.50,
+        "treats_accessible":                0.10,
+        "human_will_play_fetch_if_asked":   0.45
+    }')
+WHERE id = 1;
 
 -- =============================================================================
 -- PRE-SEEDED LOCATION DETAILS
