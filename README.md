@@ -44,6 +44,92 @@ Early development. The engine is currently in Phase 1: prototyping with Claude S
 
 ---
 
+## Setup and Running
+
+### Requirements
+
+- Python 3.10+
+- For Phase 1 (Claude backend): an [Anthropic API key](https://console.anthropic.com) with API credits
+- For Phase 2 (Ollama backend): [Ollama](https://ollama.com) installed and running
+
+**Hardware requirements for local inference (Phase 2 / Ollama):**
+Mistral 7B requires meaningful GPU or Apple Silicon to run at interactive speeds.
+On Intel CPUs or machines with less than 16GB RAM, inference will be very slow
+(2–5 minutes per LLM call; three calls per turn). Recommended minimum for
+acceptable play:
+
+- Apple Silicon Mac (M1 or later) with 16GB unified memory
+- Or a machine with a dedicated NVIDIA GPU (8GB VRAM+) running Ollama with CUDA
+
+Phase 1 (Claude API) has no local hardware requirements beyond running Python.
+
+### Installation
+
+```bash
+# Clone the repo
+git clone https://github.com/emdalton/dave-rpg.git
+cd dave-rpg
+
+# Create and activate a virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Install Python dependencies
+pip install -r requirements.txt
+```
+
+### Build a module database
+
+Each module ships with SQL files that must be applied in order to a fresh SQLite database:
+
+```bash
+sqlite3 modules/i_am_a_cat/i_am_a_cat.db < schema/schema.sql
+sqlite3 modules/i_am_a_cat/i_am_a_cat.db < schema/migrations/migrate_v1_to_v2.sql
+sqlite3 modules/i_am_a_cat/i_am_a_cat.db < modules/i_am_a_cat/seed.sql
+```
+
+### Run with Claude (Phase 1)
+
+```bash
+export ANTHROPIC_API_KEY=your_key_here
+DAVE_DB_PATH=modules/i_am_a_cat/i_am_a_cat.db python3 -m engine.engine
+```
+
+For debug-level logging (shows raw prompts and LLM responses on stderr):
+
+```bash
+DAVE_LOG_LEVEL=DEBUG DAVE_DB_PATH=modules/i_am_a_cat/i_am_a_cat.db python3 -m engine.engine
+```
+
+### Run with Ollama (Phase 2)
+
+Ollama must be installed, running, and have the target model pulled **before** starting the engine. These are separate steps:
+
+```bash
+# 1. Install Ollama (macOS)
+brew install ollama
+
+# 2. Start the Ollama server (run in a separate terminal and leave it running)
+ollama serve
+
+# 3. Pull the model (run in another terminal while the server is up)
+ollama pull mistral
+
+# 4. Run the engine
+DAVE_LLM_BACKEND=ollama DAVE_DB_PATH=modules/i_am_a_cat/i_am_a_cat.db python3 -m engine.engine
+```
+
+Note: `ollama pull` requires the server to be running. Running `ollama pull` before `ollama serve` will fail silently or error.
+
+### Where to find things
+
+- **Database schema and field semantics:** `schema/schema.sql` and `schema/migrations/` — these are the authoritative reference for all table structures. Read them before writing any code that touches the database.
+- **Engine configuration:** `engine/config.py` — all tunable parameters with documentation and environment variable overrides.
+- **Module seed data:** `modules/<module_name>/seed.sql` — character definitions, locations, items, and starting state for each module.
+- **Design document:** `docs/design_v05.md` — full architectural rationale.
+
+---
+
 ## Repository Structure
 
 ```
