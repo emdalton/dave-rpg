@@ -74,7 +74,9 @@ INSERT INTO game (
         "litter_box_standards": "A full or dirty litter box is an affront. Cats have opinions and will express them.",
         "territory": "High places confer status. The arm of the couch and the tiled overlook are premium locations.",
         "humans_asleep": "Sleeping humans are a challenge, not a barrier. Sufficient persistence overcomes rest goals.",
-        "pantry_rule": "Any human opening the pantry cupboard must be investigated immediately, without exception."
+        "pantry_rule": "Any human opening the pantry cupboard must be investigated immediately, without exception.",
+        "clutter_character": "The house is cluttered but clean. No food waste, no dirty dishes. Clutter is books, craft supplies, electronics, bags, and similar objects. Most items are not fragile; breakage should not be the default outcome of cat exploration. Some items are too heavy to move.",
+        "stray_treats": "Crunchy treats thrown during play sessions accumulate under and behind main-floor furniture. Finding one is plausible (~40%) when a cat investigates a furniture hiding spot for the first time."
     }')
 );
 
@@ -917,6 +919,30 @@ VALUES (7,
 -- The craft supplies are out, but whether string is accessible is lazy.
 -- This detail will be generated on first investigation.
 -- (No pre-seed for string: it is intentionally a lazy detail.)
+
+-- Clutter character: established world facts for adjudication.
+-- These details inform how the engine handles exploration and object interaction
+-- throughout the house. Pre-seeded on the game's primary location (living room)
+-- as world-level context; the engine should treat them as global.
+INSERT INTO location_detail (location_id, detail, is_valid, invalidation_condition)
+VALUES (1,
+    'WORLD NOTE — applies house-wide: The house is cluttered but kept clean. There are no dirty dishes left out, no spoiling food, and no food debris other than scattered treat crumbs. Clutter consists of books, craft projects, electronics, bags, clothing, and miscellaneous objects. Most clutter items are not fragile; knocking them over or moving them produces noise and minor disorder but is unlikely to cause damage. Some objects are too heavy for a cat to move easily. The engine should not generate fragile-object-breaking outcomes for ordinary cat exploration behavior.',
+    1, NULL  -- permanent world fact; no invalidation condition
+);
+
+-- Stray treats: because the humans throw crunchy treats across the room during
+-- play sessions, stray treats accumulate under and behind furniture on the main
+-- floor. When a cat investigates the space under or behind a piece of furniture
+-- on the main floor, there is a plausible chance of finding one.
+-- This is a lazy discovery mechanic: the engine generates the find on first
+-- investigation of a specific hiding spot, then stores it as a location_detail.
+-- The probability is moderate — treats are thrown often enough that finding one
+-- is genuinely plausible, but not guaranteed.
+INSERT INTO location_detail (location_id, detail, is_valid, invalidation_condition)
+VALUES (1,
+    'LAZY DISCOVERY MECHANIC — main floor: Crunchy treats are thrown across the room during play sessions. Stray treats accumulate under and behind furniture over time. When a cat investigates the space beneath or behind a main-floor furniture item for the first time, the engine should run a plausibility check (moderate probability: ~40%) and generate a treat discovery if it passes. Store the result as a new location_detail on that item''s location. A found treat is consumed immediately and its location_detail marked invalid.',
+    1, NULL  -- mechanic description; does not expire
+);
 
 
 -- =============================================================================
