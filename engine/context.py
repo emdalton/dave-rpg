@@ -30,7 +30,7 @@ import logging
 from typing import Any
 
 from engine import config
-from engine.db import Database
+from engine.db import Database, _format_game_time
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +114,18 @@ def build_pass1_packet(
     } if location else {}
 
     # ------------------------------------------------------------------
+    # Location directory: all locations by id and name.
+    # Pass 1 uses this to resolve destination names in move commands
+    # (e.g. "kitchen" → id=3) so the engine can invoke multi-step
+    # pathfinding. Without this, Pass 1 has no way to emit a numeric
+    # target_id for locations the player names explicitly.
+    # ------------------------------------------------------------------
+    known_locations = [
+        {"id": loc["id"], "name": loc["name"]}
+        for loc in db.get_all_locations()
+    ]
+
+    # ------------------------------------------------------------------
     # Recent action log (last N entries, oldest first)
     # ------------------------------------------------------------------
     recent_actions = db.get_recent_actions(game_id, limit=config.PASS1_RECENT_ACTIONS)
@@ -140,6 +152,8 @@ def build_pass1_packet(
         "game": game_summary,
         "player": player_summary,
         "current_location": location_summary,
+        # All locations in the game, for resolving destination names → IDs.
+        "known_locations": known_locations,
         "recent_actions": recent_summaries,
     }
 
@@ -162,6 +176,7 @@ def build_pass2_packet(
     game_id: int,
     action_record: dict[str, Any],
     involuntary_events: list[dict] | None = None,
+    instance_id: int | None = None,
 ) -> dict[str, Any]:
     """
     Build the context packet for Pass 2 (outcome adjudication).
@@ -267,6 +282,30 @@ def build_pass2_packet(
                 "event_description": state.get("involuntary_event_description"),
             })
 
+    # ------------------------------------------------------------------
+    # In-game clock (v5+)
+    # Gives Pass 2 the current time of day so it can reason about
+    # time-sensitive behaviour (NPC sleep depth, time-of-day plausibility,
+    # how long an action took in context). Optional: only included when an
+    # instance_id is provided and the instance has a valid clock value.
+    # ------------------------------------------------------------------
+    current_game_time: dict | None = None
+    if instance_id is not None:
+        try:
+            minutes = db.get_game_clock(instance_id)
+            current_game_time = {
+                "minutes_past_midnight": minutes,
+                "label": _format_game_time(minutes),
+            }
+        except ValueError:
+            # Unseeded sentinel or missing instance — omit the clock field
+            # rather than crashing. The engine logs the underlying error.
+            logger.warning(
+                "Could not fetch game clock for instance_id=%d; "
+                "current_game_time omitted from Pass 2 packet.",
+                instance_id,
+            )
+
     packet = {
         "pass": 2,
         "description": (
@@ -281,6 +320,10 @@ def build_pass2_packet(
         "characters_present": characters_present,
         "involuntary_events_this_turn": inv_event_summaries,
     }
+
+    # Add clock only when available (backwards-compatible with pre-v5 databases).
+    if current_game_time is not None:
+        packet["current_game_time"] = current_game_time
 
     logger.debug(
         "Pass 2 packet built: game=%d player=%d location=%d chars_present=%d involuntary=%d",

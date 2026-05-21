@@ -63,12 +63,18 @@ Rules:
   the player's current location and recent actions.
 - Valid action types: move, interact, speak, examine, take, drop, use, wait,
   involuntary (used only when the action is not player-initiated).
+- For move actions: look up the destination name in known_locations and set
+  target_id to the matching location id. Do NOT leave target_id null when
+  the destination appears in known_locations, even if it is far away.
+  The engine handles multi-step pathfinding — your only job is to resolve
+  the name to the correct integer id.
 
 Required output fields:
   action_type   (string, one of the types above)
   verb          (string, the player's intended verb in plain English)
   target        (string or null, the primary object or character of the action)
-  target_id     (integer or null, resolved database id if determinable)
+  target_id     (integer or null, resolved database id if determinable;
+                 for move actions this MUST be the location id from known_locations)
   location_id   (integer, the player's current location)
   detail        (string or null, any additional qualifying information)
   raw_input     (string, the player's unmodified input text)
@@ -120,6 +126,11 @@ Required output fields:
   narrative_beat       (string: 1–2 sentences describing what happened, player-visible,
                         no hidden information. For routed moves, briefly list rooms
                         passed through, then describe arrival or interruption.)
+  elapsed_minutes      (integer: estimated in-game minutes this action took. Use your
+                        knowledge of the game world and action type to estimate realistically.
+                        Examples: examining an item ~1 min, moving one room ~1–2 min,
+                        a short conversation ~3–5 min, grooming ~5–10 min,
+                        a nap ~20–60 min, waiting ~5–15 min. Minimum 1.)
   attitude_deltas      (list of {{character_id, target_id, delta, attitude_type}})
   internal_state_deltas (list of {{character_id, state_name, delta}})
   emotional_state_updates (list of {{character_id, emotional_state}})
@@ -212,15 +223,42 @@ class GameEngine:
                 f"Check that the seed data includes a character with role='player'."
             )
 
+        # Locate the active game_instance (v5+). May be None for pre-v5 databases
+        # or unseeded modules; the engine degrades gracefully (no clock, no passive
+        # ticks) rather than refusing to start.
+        instance = db.get_active_instance(game_id)
+        if instance is None:
+            logger.warning(
+                "No ready/active game_instance found for game_id=%d. "
+                "Clock and passive state ticks will be disabled. "
+                "Run seed_instance.sql to enable these features.",
+                game_id,
+            )
+        else:
+            # Validate the sentinel values have been replaced by real data.
+            if instance["start_time_minutes"] == -1 or instance["current_time_minutes"] == -1:
+                logger.warning(
+                    "game_instance id=%d has unseeded time values (-1). "
+                    "Clock and passive state ticks will be disabled.",
+                    instance["id"],
+                )
+                instance = None
+            else:
+                # Transition instance to 'active' now that a session is starting.
+                db.set_instance_status(instance["id"], "active")
+
+        self._instance = instance  # None if pre-v5 or unseeded
+
         # Initialise the LLM client (validates config, opens connection).
         self.llm: LLMClient = get_llm_client()
 
         logger.info(
-            "GameEngine ready: game=%d (%s) player=%s backend=%s",
+            "GameEngine ready: game=%d (%s) player=%s backend=%s instance=%s",
             game_id,
             self._game.get("name", "untitled"),
             self._player["name"],
             config.LLM_BACKEND,
+            instance["id"] if instance else "none",
         )
 
     # -------------------------------------------------------------------------
@@ -324,8 +362,12 @@ class GameEngine:
         logger.debug("Pass 1 prompt:\n%s", pass1_prompt)
 
         action_record = self.llm.call_json(pass1_prompt)
-        logger.info("Pass 1 result: action_type=%s target=%s",
-                    action_record.get("action_type"), action_record.get("target"))
+        logger.info(
+            "Pass 1 result: action_type=%s target=%s target_id=%s",
+            action_record.get("action_type"),
+            action_record.get("target"),
+            action_record.get("target_id"),
+        )
 
         # ------------------------------------------------------------------
         # Multi-step movement: if the action is a move to a non-adjacent
@@ -356,9 +398,11 @@ class GameEngine:
                     return route["no_path_reason"] or "There's no way to get there from here."
 
         # Pass 2 — Outcome Adjudication
+        instance_id = self._instance["id"] if self._instance else None
         pass2_packet = build_pass2_packet(
             self.db, self.game_id, action_record,
             involuntary_events=involuntary_fired,
+            instance_id=instance_id,
         )
         pass2_prompt = PASS2_PROMPT_TEMPLATE.format(
             context_json=json.dumps(pass2_packet, indent=2)
@@ -367,13 +411,33 @@ class GameEngine:
 
         outcome = self.llm.call_json(pass2_prompt)
         logger.info(
-            "Pass 2 result: outcome_type=%s narrative_beat=%.80s",
+            "Pass 2 result: outcome_type=%s elapsed_minutes=%s narrative_beat=%.80s",
             outcome.get("outcome_type"),
+            outcome.get("elapsed_minutes"),
             outcome.get("narrative_beat", ""),
         )
 
         # Write all adjudication results to the database.
         self._apply_outcome(action_record, outcome)
+
+        # ------------------------------------------------------------------
+        # Advance game clock and tick passive states (v5+).
+        # Done after _apply_outcome so that Pass 2's explicit internal_state
+        # deltas are already written before the passive tick runs. This means
+        # the passive tick operates on post-adjudication values, which is the
+        # correct order: adjudication first, background drift second.
+        # ------------------------------------------------------------------
+        if self._instance is not None:
+            elapsed = outcome.get("elapsed_minutes")
+            if isinstance(elapsed, (int, float)) and elapsed > 0:
+                self.db.advance_game_clock(self._instance["id"], int(elapsed))
+                self.db.tick_passive_states(self.game_id, float(elapsed))
+            else:
+                logger.warning(
+                    "Pass 2 outcome missing valid elapsed_minutes (got %r); "
+                    "clock not advanced this turn.",
+                    elapsed,
+                )
 
         # Pass 3 — Prose Rendering
         # Refresh the player record so the prose renderer sees the post-outcome state.

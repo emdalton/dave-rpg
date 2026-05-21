@@ -36,6 +36,27 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+def _format_game_time(minutes_past_midnight: int) -> str:
+    """
+    Convert a minutes-past-midnight value to a human-readable time string.
+
+    Examples:
+        180  → '3:00 AM'
+        495  → '8:15 AM'
+        720  → '12:00 PM'
+        1350 → '10:30 PM'
+
+    Handles values beyond 1439 (midnight) gracefully by applying modulo 1440,
+    so sessions that run past midnight display correctly.
+    """
+    total = minutes_past_midnight % 1440
+    hour_24 = total // 60
+    minute = total % 60
+    period = "AM" if hour_24 < 12 else "PM"
+    hour_12 = hour_24 % 12 or 12  # converts 0 → 12, 13 → 1, etc.
+    return f"{hour_12}:{minute:02d} {period}"
+
+
 class Database:
     """
     Wrapper around a SQLite connection providing typed query and write methods
@@ -276,6 +297,16 @@ class Database:
         if row:
             row["situation_flags"] = json.loads(row["situation_flags"] or "[]")
         return row
+
+    def get_all_locations(self) -> list[dict]:
+        """
+        Return a compact list of all locations in the database: id and name only.
+
+        Used by Pass 1 to resolve player-supplied location names (e.g. "kitchen")
+        to their database IDs so the engine can invoke multi-step pathfinding.
+        Each module has its own database, so all rows belong to the current game.
+        """
+        return self._rows("SELECT id, name FROM location ORDER BY id")
 
     def get_location_details(
         self, location_id: int, max_results: int = 10
@@ -783,6 +814,152 @@ class Database:
                     queue.append((neighbour, next_path))
 
         return None  # no path found within max_steps
+
+    # -------------------------------------------------------------------------
+    # Game instance management (v5+)
+    # -------------------------------------------------------------------------
+
+    def get_active_instance(self, game_id: int) -> dict | None:
+        """
+        Return the active game_instance record for game_id — the most recent
+        row with status 'ready' or 'active'.
+
+        Returns None if no such instance exists, which means the module has not
+        been seeded or the previous session reached a 'complete' state.
+        """
+        return self._row(
+            """SELECT * FROM game_instance
+               WHERE game_id = ?
+                 AND status IN ('ready', 'active')
+               ORDER BY id DESC
+               LIMIT 1""",
+            (game_id,),
+        )
+
+    def get_game_clock(self, instance_id: int) -> int:
+        """
+        Return the current in-game time in minutes past midnight for the given
+        instance. Raises ValueError if the instance does not exist or the clock
+        value is the unseeded sentinel (-1).
+        """
+        row = self._row(
+            "SELECT current_time_minutes FROM game_instance WHERE id = ?",
+            (instance_id,),
+        )
+        if row is None:
+            raise ValueError(f"No game_instance with id={instance_id}")
+        if row["current_time_minutes"] == -1:
+            raise ValueError(
+                f"game_instance {instance_id} has unseeded current_time_minutes (-1). "
+                "Run seed_instance.sql before starting a session."
+            )
+        return row["current_time_minutes"]
+
+    def advance_game_clock(self, instance_id: int, elapsed_minutes: int) -> int:
+        """
+        Add elapsed_minutes to the instance clock and return the new time.
+
+        elapsed_minutes is expected to be a non-negative integer supplied by
+        Pass 2's elapsed_minutes output field. Negative values are ignored with
+        a warning to guard against malformed LLM output.
+
+        The clock is not clamped — it can exceed 1439 (23:59) to represent
+        sessions that run past midnight without requiring modular arithmetic
+        on every caller. Time labels should use (current_time_minutes % 1440)
+        when displaying hour/minute.
+        """
+        if elapsed_minutes < 0:
+            logger.warning(
+                "advance_game_clock called with negative elapsed_minutes=%d; ignoring",
+                elapsed_minutes,
+            )
+            return self.get_game_clock(instance_id)
+
+        self._execute(
+            """UPDATE game_instance
+               SET current_time_minutes = current_time_minutes + ?,
+                   updated_at = datetime('now')
+               WHERE id = ?""",
+            (elapsed_minutes, instance_id),
+        )
+        new_time = self.get_game_clock(instance_id)
+        logger.debug(
+            "game clock advanced: instance=%d +%d min → %d min (%s)",
+            instance_id,
+            elapsed_minutes,
+            new_time,
+            _format_game_time(new_time),
+        )
+        return new_time
+
+    def tick_passive_states(self, game_id: int, elapsed_minutes: float) -> None:
+        """
+        Apply passive drift to all internal_state rows in the game that have a
+        non-null passive_rate_per_minute.
+
+        For each qualifying row:
+            new_value = clamp(value + passive_rate_per_minute * elapsed_minutes,
+                              0.0, 1.0)
+
+        Called once per turn after the game clock has been advanced and Pass 2
+        outcomes have been written, before Pass 3 runs.
+
+        elapsed_minutes is a float here (the same value used for clock advance)
+        to preserve sub-minute precision when rates are very small (e.g. 0.0003
+        for hairball_pressure). The value field is clamped to [0.0, 1.0] by
+        both the SQL CHECK constraint and the arithmetic below.
+        """
+        if elapsed_minutes <= 0:
+            return
+
+        # Fetch all states with a passive rate across all characters in this game.
+        states = self._rows(
+            """SELECT i.id, i.character_id, i.state_name, i.value,
+                      i.passive_rate_per_minute
+               FROM internal_state i
+               JOIN character c ON c.id = i.character_id
+               WHERE c.game_id = ?
+                 AND i.passive_rate_per_minute IS NOT NULL""",
+            (game_id,),
+        )
+
+        for state in states:
+            new_value = state["value"] + state["passive_rate_per_minute"] * elapsed_minutes
+            new_value = max(0.0, min(1.0, new_value))
+            if abs(new_value - state["value"]) < 1e-9:
+                continue  # no meaningful change; skip the write
+            self._execute(
+                """UPDATE internal_state
+                   SET value = ?, updated_at = datetime('now')
+                   WHERE id = ?""",
+                (new_value, state["id"]),
+            )
+            logger.debug(
+                "passive tick: char=%d %s %.4f → %.4f (rate=%+.5f × %.1f min)",
+                state["character_id"],
+                state["state_name"],
+                state["value"],
+                new_value,
+                state["passive_rate_per_minute"],
+                elapsed_minutes,
+            )
+
+    def set_instance_status(self, instance_id: int, status: str) -> None:
+        """
+        Update the lifecycle status of a game_instance.
+
+        Valid transitions: pending → ready → active → complete.
+        The CHECK constraint on the status column enforces valid values at the
+        database level; this method provides a named interface so callers don't
+        scatter raw SQL updates.
+        """
+        self._execute(
+            """UPDATE game_instance
+               SET status = ?, updated_at = datetime('now')
+               WHERE id = ?""",
+            (status, instance_id),
+        )
+        logger.debug("instance status: id=%d → %s", instance_id, status)
 
     # -------------------------------------------------------------------------
     # Involuntary event support
