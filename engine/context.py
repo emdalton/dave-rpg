@@ -538,6 +538,20 @@ def _build_location_context(
         for item in items
     ]
 
+    # Adjacent locations: explicitly connected neighbours, passable only.
+    # Pass 2 uses this to validate movement actions and to inform the LLM
+    # about which exits actually exist from the current location.
+    # Neighbour names are included so the LLM can refer to them in prose.
+    connections = db.get_location_connections(location_id)
+    adjacent_locations = []
+    for conn in connections:
+        neighbour = db.get_location(conn["neighbour_id"])
+        adjacent_locations.append({
+            "location_id": conn["neighbour_id"],
+            "name": neighbour["name"] if neighbour else "unknown",
+            "connection_type": conn["connection_type"],
+        })
+
     return {
         "id": location["id"],
         "name": location["name"],
@@ -546,4 +560,8 @@ def _build_location_context(
         "situation_flags": location["situation_flags"],
         "generated_details": [d["detail"] for d in details],
         "items": item_summaries,
+        # Reachable exits from this location (passable connections only).
+        # location_change in the outcome must target one of these location_ids
+        # (or remain at the current location).
+        "adjacent_locations": adjacent_locations,
     }
