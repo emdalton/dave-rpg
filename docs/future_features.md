@@ -58,6 +58,19 @@ import approach makes it distributable. These can be developed in parallel —
 build the engine mechanics against original content first, add the import/verify
 layer before any public release.
 
+**The "upgrade" effect:** Running any Infocom title through DAVE effectively
+upgrades it. The original games use a parser that matches player input against
+a fixed verb-noun vocabulary and resolves puzzles against hard-coded winning
+conditions. DAVE replaces the parser with LLM intent recognition and replaces
+hard-coded puzzle logic with contextual adjudication. This means a puzzle that
+originally required finding object X and using it in place Y might become
+solvable multiple ways — or might require more nuanced negotiation with NPCs
+who, in DAVE, have actual psychology. Winning conditions change because "winning"
+becomes an emergent outcome rather than a flag flip. This is a significant design
+challenge for faithful ports and a significant creative opportunity for homages.
+Players accustomed to the originals should be warned that DAVE versions play
+differently, not just look different.
+
 ---
 
 ## 6. "What if..." premise modifier
@@ -76,9 +89,27 @@ Implementation sketch:
 
 ## 1. Web host option
 
-Run the engine from a browser-based interface rather than a local terminal session. This would require a server layer (likely a thin Python web framework) wrapping the current `GameEngine` loop, with the player's input arriving via HTTP rather than `stdin` and the prose response returned as a JSON payload to the frontend.
+Run the engine from a browser-based interface rather than a local terminal session. The engine's turn loop is already stateless between calls (all state lives in the database), which makes it naturally suited to a request/response web model — each player turn is a self-contained transaction that requires no persistent server process.
 
-Architectural note: the engine's turn loop is already stateless between calls (all state lives in the database), which makes it naturally suited to a request/response web model.
+**Hosting target: Tiger Technologies (shared hosting)**
+
+Tiger Technologies does not support persistent applications (no long-running Python server process), but does provide MySQL database hosting. This shapes the architecture:
+
+- **Frontend:** HTML + JavaScript; handles player input and renders prose responses. No framework required — this is a simple form-submit-and-display loop.
+- **Backend intermediary:** A thin PHP script or CGI handler receives the player's input, calls the LLM API, writes the result to MySQL, and returns the prose. No persistent process; each request spawns and exits.
+- **Database:** SQLite → MySQL migration required. The schema is already relational, so translation should be straightforward; the main work is adapting db.py to use a MySQL connector and updating any SQLite-specific syntax (e.g., `PRAGMA`, `REAL` type affinities, `INSERT OR REPLACE`).
+- **LLM API calls:** Made server-side from the PHP/CGI layer; API key stays off the client.
+
+The three-pass engine loop maps cleanly onto three sequential API calls per HTTP request. Session state (which game_instance is active, current_time_minutes, etc.) lives entirely in MySQL — no server-side session memory needed.
+
+**SQLite → MySQL migration notes:**
+- SQLite `REAL` → MySQL `FLOAT` or `DECIMAL`; JSON fields → MySQL `JSON` type (available in MySQL 5.7+)
+- `PRAGMA foreign_keys = ON` → MySQL enforces foreign keys by default on InnoDB
+- `INSERT OR REPLACE` → `INSERT ... ON DUPLICATE KEY UPDATE`
+- `AUTOINCREMENT` → `AUTO_INCREMENT`
+- Schema migration scripts will need a MySQL variant alongside the SQLite originals
+
+E owns a Tiger Technologies account; hosting modules there is a near-term goal once the engine is stable enough for external play.
 
 ---
 
