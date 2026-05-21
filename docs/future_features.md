@@ -38,9 +38,25 @@ Why this works well for DAVE:
 - Fits the "serious game" framing: resource management, teamwork, systems
   thinking under time pressure
 
-Note: Infocom IP is owned by Activision. A homage with original scenario design
-is safer than a direct port. The robot sensory mechanic is the template, not the
-specific puzzles.
+**IP note:** Infocom IP is owned by Activision. Two viable paths:
+
+1. *Homage with original scenario design* — use the robot sensory mechanic and
+   general structure, but write original puzzles and setting. No IP issue.
+
+2. *Licensed import* — the standard approach for IP-sensitive content is an
+   import scheme that requires users to provide original game files to verify
+   their right to use the IP. DAVE could extract scenario data (room
+   descriptions, object names, puzzle logic) from a user-supplied Z-machine
+   binary and use it to seed the module database, rather than distributing the
+   content directly. E owns a physical copy of *Lost Treasures of Infocom*
+   (includes all Infocom titles); archive copies of the Z-machine files are
+   also available online for verified owners. The Z-machine file format is
+   well-documented and there are existing Python libraries for parsing it.
+
+A faithful port with the original scenario is the more interesting project; the
+import approach makes it distributable. These can be developed in parallel —
+build the engine mechanics against original content first, add the import/verify
+layer before any public release.
 
 ---
 
