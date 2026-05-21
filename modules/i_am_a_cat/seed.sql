@@ -318,9 +318,9 @@ INSERT INTO character (
     capability_beliefs, context_beliefs
 ) VALUES (
     3, 1, 'the mama', 'npc_active', 'human',
-    'An adult woman who is genuinely fond of the cats, shares food items that are surprisingly good (spinach, cucumber), and reads in bed late. She is asleep right now but not as deeply as guy. She has craft supplies in the basement that may or may not be put away properly.',
-    'Primary food-sharer; opener of the pantry; source of midnight snacks.',
-    10,  -- bedroom, asleep
+    'An adult woman who is genuinely fond of the cats and reads in bed late — she may have only recently fallen asleep at 3am, or may still be awake. Lighter sleeper than guy. Gets up occasionally for a midnight snack or bathroom trip. Shares interesting food items (spinach, cucumber) during waking hours. Has a firm and conscious policy of not feeding the cats in the middle of the night, specifically because she does not want to train them to pester her at 3am. The cats have not fully internalized this policy. Has craft supplies in the basement that may or may not be put away properly.',
+    'Primary food-sharer during waking hours; source of midnight snacks for herself; will not feed cats overnight by policy.',
+    10,  -- bedroom, asleep (possibly just recently)
 
     -- OCEAN: Open and flexible (O high), reasonably organized but sometimes careless
     -- with craft supplies (C moderate), warm and social (E moderate-high), very
@@ -328,26 +328,30 @@ INSERT INTO character (
     0.75, 0.62, 0.60, 0.85, 0.32,
 
     'safety',     -- asleep; physiological need for rest is dominant right now
-    'deeply_asleep',
+    'lightly_asleep',  -- lighter sleep than guy; may have been reading until recently
 
-    'Wants to sleep. Will occasionally get up for a snack or to use the bathroom.',
+    'Wants to sleep. Will get up for a bathroom trip or midnight snack if needed. Will not feed the cats overnight regardless of how persuasively they ask — this is a deliberate policy she maintains consistently.',
     NULL,
     0,
 
-    -- Voice when woken: warm but groggy. Short responses. May address the cat
-    -- directly and with more affection than the hour warrants.
+    -- Voice when woken: warm but groggy. Short responses. Addresses cats by name
+    -- with affection, then firmly declines food requests and attempts to return to sleep.
     'groggy_warm', 0.88, 0.30,
     0,
 
     json('{
-        "ignoring_persistent_cat": 0.40,
-        "falling_back_asleep":     0.75,
-        "finding_midnight_snack":  0.85
+        "ignoring_persistent_cat":          0.55,
+        "falling_back_asleep":              0.70,
+        "finding_midnight_snack":           0.85,
+        "refusing_cat_food_request":        0.95,
+        "getting_up_for_bathroom":          0.90
     }'),
 
     json('{
-        "cat_will_let_me_sleep": 0.50,
-        "something_is_wrong_if_cat_is_insistent": 0.60
+        "cat_will_let_me_sleep":                        0.45,
+        "feeding_cats_now_trains_bad_behavior":         0.95,
+        "something_is_wrong_if_cat_is_truly_insistent": 0.60,
+        "guy_will_feed_cats_in_the_morning":            0.99
     }')
 );
 
@@ -367,34 +371,42 @@ INSERT INTO character (
     capability_beliefs, context_beliefs
 ) VALUES (
     4, 1, 'guy', 'npc_active', 'human',
-    'An adult man who likes the cats and puts out canned food reliably. Gets up earlier than the mama. Harder to wake in the middle of the night. His presence in the kitchen is a meaningful signal that morning may have arrived.',
-    'Primary canned food provider; reliable morning anchor.',
-    10,  -- bedroom, deeply asleep
+    'An adult man and a morning person. Goes to bed at a reasonable hour and wakes naturally well before sunrise — usually sometime between 4am and 6am. The first things he does when he wakes are make coffee and feed the cats. He is a softie about cat food requests and has been thoroughly trained by the cats to respond to persistent meowing with canned food, often earlier than strictly necessary. He is harder to rouse in the early part of the night (before 2am or so) but his sleep lightens naturally as morning approaches. His presence in the kitchen at any hour is a meaningful signal that he considers it morning. He is reliable, routine-driven, and the cats have correctly identified him as the more negotiable of the two humans.',
+    'Primary canned food provider; morning anchor; thoroughly trained by cats; most likely to get up and feed them before sunrise.',
+    10,  -- bedroom, asleep
 
-    -- OCEAN: Moderate openness, high conscientiousness (reliable routines, gets up
-    -- early), moderate extraversion, agreeable toward cats, low neuroticism.
-    0.55, 0.75, 0.45, 0.75, 0.28,
+    -- OCEAN: Moderate openness, high conscientiousness (reliable routines, early riser),
+    -- moderate extraversion, high agreeableness toward cats (they have trained him well),
+    -- low neuroticism (calm, not easily rattled by 3am cat activity).
+    0.55, 0.78, 0.45, 0.82, 0.28,
 
-    'physiological',  -- asleep; deeper sleep state than the mama
-    'deeply_asleep',
+    'physiological',  -- asleep; sleep lightens naturally as morning approaches
+    'deeply_asleep',  -- deeply asleep now; will lighten over the course of the session
 
-    'Wants to sleep until morning. Will then make coffee and feed the cats.',
+    'Wants to sleep until his internal clock wakes him, then feed the cats and make coffee. Can be roused by persistent cat activity, especially as morning approaches, though he will resist being woken before he is ready.',
     NULL,
     0,
 
-    -- Voice when woken: gruff, minimal, mostly unintelligible. Hard to get
-    -- more than a syllable before he falls back asleep.
-    'gruff_sleepy', 0.70, 0.18,
+    -- Voice when woken mid-night: gruff, minimal, mostly unintelligible; falls back
+    -- asleep readily. Voice when waking naturally for morning: warm, mumbling, functional;
+    -- orients immediately toward coffee and cats.
+    'gruff_sleepy', 0.78, 0.22,
     0,
 
     json('{
-        "sleeping_through_disturbance": 0.80,
-        "getting_up_for_morning_routine": 0.95
+        "sleeping_through_disturbance_early_night": 0.82,
+        "sleeping_through_disturbance_near_morning": 0.35,
+        "getting_up_for_morning_routine":            0.97,
+        "feeding_cats_when_awake":                   0.98,
+        "resisting_cat_food_request_when_asleep":    0.75,
+        "getting_up_for_bathroom":                   0.70
     }'),
 
     json('{
-        "it_is_not_morning_yet": 0.85,
-        "cat_has_a_real_problem": 0.25
+        "it_is_not_morning_yet":                0.80,
+        "cats_will_be_fed_when_i_get_up":       0.99,
+        "persistent_meowing_means_feed_me":     0.85,
+        "mama_will_not_feed_cats_overnight":    0.99
     }')
 );
 

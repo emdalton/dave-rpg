@@ -116,17 +116,19 @@ SET wander_range       = '[1,2,3,4,5,6,7,8,9,10,11,12,13]',
 WHERE id = 2;
 
 -- Mama (character_id=3): sleeping human; low autonomous movement probability.
--- Range covers inhabited human areas; she'd use the hallway to reach kitchen.
--- Rare movement represents getting up briefly (bathroom, water in kitchen).
+-- Range is the whole house except the Tiled Overlook (8), which requires
+-- squeezing through the railing — not something humans do. The low
+-- wander_probability (not the range) is what keeps her in bed; if she wakes
+-- she can go anywhere accessible.
 UPDATE character
-SET wander_range       = '[1,2,3,5,9,10,12,13]',
+SET wander_range       = '[1,2,3,4,5,6,7,9,10,11,12,13]',
     wander_probability = 0.03
 WHERE id = 3;
 
 -- Guy (character_id=4): sleeping human; slightly more restless than Mama.
--- Range is upper floor + occasional main floor visit via hallway.
+-- Same physical access as Mama — everywhere except the Tiled Overlook.
 UPDATE character
-SET wander_range       = '[1,5,9,10,11,12,13]',
+SET wander_range       = '[1,2,3,4,5,6,7,9,10,11,12,13]',
     wander_probability = 0.05
 WHERE id = 4;
 
