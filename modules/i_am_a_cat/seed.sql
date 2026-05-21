@@ -171,6 +171,13 @@ VALUES (11, 1, 'Study', 'study',
     json('["night", "quiet", "scratching_available"]')
 );
 
+INSERT INTO location (id, game_id, name, location_type, description_skeleton, social_setting, witness_count, situation_flags)
+VALUES (12, 1, 'Upper Hallway', 'hallway',
+    'The carpeted corridor of the upper floor. Soft underfoot — genuinely excellent carpet that accepts a crouch. A small cat tree stands near the wall, its top platform surveying the hallway with commanding detachment. A charging cable dangles near the landing end, a matter for later. Doors lead off the hallway to the bathroom, bedroom, and study. At the far end, a thin stripe of light sometimes leaks under the bedroom door.',
+    'private', 0,
+    json('["night", "quiet", "carpeted", "small_cat_tree_present"]')
+);
+
 
 -- =============================================================================
 -- CHARACTERS (5 total)

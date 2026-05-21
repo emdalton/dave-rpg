@@ -39,4 +39,5 @@ VALUES
     (1, 8),   -- Toulouse: Tiled Overlook
     (1, 9),   -- Toulouse: Bathroom
     (1, 10),  -- Toulouse: Bedroom
-    (1, 11);  -- Toulouse: Study
+    (1, 11),  -- Toulouse: Study
+    (1, 12);  -- Toulouse: Upper Hallway
