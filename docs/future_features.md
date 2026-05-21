@@ -4,6 +4,46 @@
 
 ---
 
+## 7. Module: Suspended (Infocom port / homage)
+
+Port or homage to the Infocom game *Suspended* (1983, Michael Berlyn). In the
+original, the player is a human in a suspended animation capsule who must direct
+five robots — each with a completely different sensory profile — to diagnose and
+repair a planetary life-support system before it fails.
+
+This is the ideal stress test for the DAVE sensory profile system:
+
+- **Iris** — visual only; excellent sight, no other senses
+- **Waldo** — tactile; no sight, navigates and manipulates by touch
+- **Sensa** — audio; detects sounds and vibrations the others cannot
+- **Poet** — reads and communicates; makes no direct observations
+- **Whiz** — computational; processes data but has no sensory apparatus at all
+- **Fred** — generalist with degraded abilities across all senses (the "safe"
+  but limited robot)
+
+Each robot's sensory profile would be a distinct JSON object on their character
+record. The player issues commands to specific robots; the adjudication layer
+must reason about what each robot can and cannot perceive from their location.
+The human player in the capsule has no direct sensory access to the world at all
+— information arrives only through robot reports.
+
+Why this works well for DAVE:
+- Directly exercises species/character-specific perception (the engine's next
+  major design challenge after I Am a Cat)
+- Naturally multiplayer-ready: each robot could be a separate player character
+- High replayability: different robot combinations produce different information
+  pictures of the same world
+- Strong fan recognition: *Suspended* is a cult classic with a devoted following
+  who would appreciate a faithful, mechanically rich homage
+- Fits the "serious game" framing: resource management, teamwork, systems
+  thinking under time pressure
+
+Note: Infocom IP is owned by Activision. A homage with original scenario design
+is safer than a direct port. The robot sensory mechanic is the template, not the
+specific puzzles.
+
+---
+
 ## 6. "What if..." premise modifier
 
 An optional per-instance premise modifier entered by the player at the start of a new module. Examples: "What if Elizabeth Bennet is a vampire?" or "What if Toulouse's house is populated by small mischievous demons that only cats can see?"

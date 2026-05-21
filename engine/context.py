@@ -269,6 +269,33 @@ def build_pass2_packet(
         characters_present.append(char_profile)
 
     # ------------------------------------------------------------------
+    # Characters in adjacent locations (nearby but not present)
+    # Gives Pass 2 enough information to reason about what the player
+    # character can hear, smell, or otherwise sense through walls.
+    # Profile is intentionally minimal — species and emotional_state are
+    # the key cues for detectability. The LLM infers whether the player
+    # character notices them (a playful cat is audible; a deeply asleep
+    # human is not). Full profiles are reserved for characters_present.
+    # ------------------------------------------------------------------
+    adjacent_connections = db.get_location_connections(location_id)
+    characters_nearby = []
+    for conn in adjacent_connections:
+        adj_loc_id = conn["neighbour_id"]
+        adj_loc = db.get_location(adj_loc_id)
+        adj_chars = db.get_characters_at_location(
+            adj_loc_id, exclude_character_id=player["id"]
+        )
+        for char in adj_chars:
+            characters_nearby.append({
+                "id":              char["id"],
+                "name":            char["name"],
+                "species":         char["species"],
+                "emotional_state": char["emotional_state"],
+                "location_id":     adj_loc_id,
+                "location_name":   adj_loc["name"] if adj_loc else "unknown",
+            })
+
+    # ------------------------------------------------------------------
     # Involuntary events that fired this turn
     # ------------------------------------------------------------------
     inv_event_summaries = []
@@ -318,6 +345,7 @@ def build_pass2_packet(
         "player": player_profile,
         "current_location": location_context,
         "characters_present": characters_present,
+        "characters_nearby": characters_nearby,
         "involuntary_events_this_turn": inv_event_summaries,
     }
 
@@ -326,11 +354,13 @@ def build_pass2_packet(
         packet["current_game_time"] = current_game_time
 
     logger.debug(
-        "Pass 2 packet built: game=%d player=%d location=%d chars_present=%d involuntary=%d",
+        "Pass 2 packet built: game=%d player=%d location=%d "
+        "chars_present=%d chars_nearby=%d involuntary=%d",
         game_id,
         player["id"],
         location_id,
         len(characters_present),
+        len(characters_nearby),
         len(inv_event_summaries),
     )
     return packet

@@ -250,6 +250,15 @@ guard of its own.
 
 ## Lower-priority pending items
 
+- **Mama's wander range and sleep state**: "Lightly asleep" for the mama can
+  mean drowsy but ambulatory — she does get up for the bathroom at night, which
+  is realistic. However her current wander_range may be too broad; it should
+  probably be limited to Bedroom + Bathroom (and possibly the hallway between
+  them) to reflect genuine middle-of-the-night movement rather than wide
+  roaming. When she does move, her emotional_state should probably shift to
+  something like 'groggy' rather than staying 'lightly_asleep'. Review
+  wander_range in seed and consider whether sleepiness threshold should gate
+  wander probability (very deeply asleep characters shouldn't wander at all).
 - **Bedroom door**: Include all connections with `is_passable` flag in context
   (not passable-only), so the LLM can adjudicate door-opening. Engine validation
   stays passable-only for movement.
@@ -258,6 +267,45 @@ guard of its own.
 - **Null `item_id` on drop actions**: Add better prompt guidance.
 - **Character name drift** (guy → papa): Pass 2 sometimes uses "papa" instead
   of "guy." Add normalization note to prompt or seed.
+- **NPC wander suppression after interaction**: Wander fires at the top of each
+  turn before player input. A character the player just interacted with can
+  wander away before the next action is even typed, making multi-turn
+  interactions (bath, play session) impossible. Need a suppression mechanism:
+  characters should not wander on the turn immediately following an interaction
+  with the player. Simplest implementation: track `last_interaction_turn` on
+  character (or in the action log) and skip wander roll if the gap is < N turns.
+  Alternatively, suppress wander for any character in `characters_present` from
+  the previous turn's Pass 2 context.
+- **Spook's wander_probability too high**: Currently bouncing between adjacent
+  rooms every turn. Reduce wander_probability in seed (current value unknown —
+  check seed.sql). A playful cat roams, but not at teleport speed.
+- **Perception range — characters_nearby (fix scheduled)**: Pass 2 only
+  receives characters at Toulouse's current location. Characters in adjacent
+  rooms are invisible to adjudication, even when audible (Spook one room away
+  at 3am). Fix: add `characters_nearby` to Pass 2 context — characters in
+  adjacent locations with a minimal profile (id, name, species, location name,
+  emotional_state). No schema change needed; uses the existing location graph.
+  LLM reasons about detectability from species + emotional_state.
+
+- **Sensory profile system (future, medium scope)**: The `characters_nearby`
+  fix uses LLM inference for detectability. The full design needs explicit
+  sensory values: a per-character receiver profile (hearing, smell, dark vision,
+  etc.) and a per-character stimulus output (how detectable they are right now,
+  driven by species, activity, and emotional state). These interact: cat hearing
+  vs. human hearing; playful Spook vs. deeply asleep Guy.
+  This becomes much richer in multi-species or supernatural modules: a vampire
+  who senses heartbeats in adjacent rooms; a cat who perceives demons that
+  humans can't detect at all; a blind character who navigates entirely by sound
+  and smell; a "What if Toulouse's house is populated by small mischievous
+  demons only cats can see" scenario. Species-specific perception is one of the
+  things that makes non-human player characters feel genuinely alien rather than
+  just humans with different numbers. Design questions to resolve: does the
+  engine compute detection (stimulus × acuity > threshold → include in context),
+  or does it always include nearby stimuli and let the LLM decide what the
+  character notices? The second is more consistent with the "LLM handles
+  ambiguity" principle. Schema: small JSON profile on `character`
+  (e.g. `{"hearing": 0.85, "smell": 0.90, "dark_vision": 0.70}`) plus a
+  `sensory_output` float updated by the engine from emotional_state and species.
 - **Interaction history compression**: Long sessions will make the history section
   of context packets expensive. Plan a compression strategy.
 - **Haiku comparison run**: Run same seed/actions through Haiku to compare

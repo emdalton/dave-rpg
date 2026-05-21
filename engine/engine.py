@@ -101,6 +101,13 @@ Rules:
   Internal state deltas: constrained to the range that would move the value
   meaningfully without being implausible (e.g. a single grooming raises
   hairball_pressure by 0.04–0.10).
+- characters_nearby lists characters in adjacent locations with minimal profiles.
+  Use species and emotional_state to reason about whether the player character
+  can detect them through walls (sound, smell, etc.). A playful cat is audible;
+  a deeply asleep human is not. What the player character can perceive depends
+  on their species and the nearby character's current state — apply your
+  knowledge of the game world and the player character's sensory capabilities.
+  Do not treat nearby characters as present; they are in an adjacent room.
 - LOCATION IS AUTHORITATIVE: player.current_location_id in the context packet
   is the ground truth for where the player is. Do not infer location from
   narrative_beat text in recent_actions — those are prose summaries and may

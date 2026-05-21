@@ -108,11 +108,14 @@ VALUES (11, 12, 'door', 1);
 -- -----------------------------------------------------------------------------
 
 -- Spook (character_id=2): indoor-outdoor cat, uses the whole house freely.
--- High wander probability: cats are active at 3am and Spook is restless.
+-- Wander probability reduced to 0.08 (from original 0.20): the higher value
+-- caused Spook to relocate nearly every turn, making sustained interactions
+-- impossible. 0.08 gives roughly one spontaneous move per 12-13 turns —
+-- enough for Spook to feel restless without teleporting out of every scene.
 -- All 13 locations in range; Spook goes wherever curiosity leads.
 UPDATE character
 SET wander_range       = '[1,2,3,4,5,6,7,8,9,10,11,12,13]',
-    wander_probability = 0.20
+    wander_probability = 0.08
 WHERE id = 2;
 
 -- Mama (character_id=3): sleeping human; low autonomous movement probability.
