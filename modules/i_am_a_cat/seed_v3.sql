@@ -25,32 +25,54 @@ PRAGMA foreign_keys = ON;
 -- 1. Location connections
 -- -----------------------------------------------------------------------------
 
+-- =============================================================================
 -- Main floor connections
--- Living Room ↔ Dining Room: open plan; no barrier between them
+-- =============================================================================
+-- The main floor has a loop path: Living Room → Dining Room →
+-- Main Floor Hallway → Living Room (and back the same way).
+--
+-- Layout:
+--   Living Room (1): open stairwell in corner leads up (1↔5); half wall of
+--     cabinets separates it from Dining Room (1↔2); hallway opening at the
+--     back (1↔13).
+--   Dining Room (2): half wall to Living Room (1↔2); opening at far end into
+--     Main Floor Hallway (2↔13).
+--   Main Floor Hallway (13): runs along the side of the main floor; open to
+--     Kitchen (3↔13), door to Utility Room (4↔13), basement stairs (6↔13),
+--     and openings back to Living Room (1↔13) and Dining Room (2↔13).
+-- =============================================================================
+
+-- Living Room ↔ Dining Room: half wall of cabinets; cats go over or under
 INSERT INTO location_connection (location_a_id, location_b_id, connection_type, is_passable)
 VALUES (1, 2, 'open', 1);
 
--- Living Room ↔ Main Stairs: open archway at foot of stairs
+-- Living Room ↔ Main Stairs: open stairwell in the corner of the living room
 INSERT INTO location_connection (location_a_id, location_b_id, connection_type, is_passable)
 VALUES (1, 5, 'open', 1);
 
--- Dining Room ↔ Kitchen: open-plan pass-through (no door in this house)
+-- Living Room ↔ Main Floor Hallway: opening at the back of the living room
 INSERT INTO location_connection (location_a_id, location_b_id, connection_type, is_passable)
-VALUES (2, 3, 'open', 1);
+VALUES (1, 13, 'open', 1);
 
--- Kitchen ↔ Laundry Room: door between kitchen and laundry
--- Cats can push through when cracked open; default passable at 3am
+-- Dining Room ↔ Main Floor Hallway: opening at the far end of the dining room
 INSERT INTO location_connection (location_a_id, location_b_id, connection_type, is_passable)
-VALUES (3, 4, 'door', 1);
+VALUES (2, 13, 'open', 1);
 
--- Main Stairs ↔ Basement Main Room: stairs down to basement
+-- Kitchen ↔ Main Floor Hallway: open plan, no door
 INSERT INTO location_connection (location_a_id, location_b_id, connection_type, is_passable)
-VALUES (5, 6, 'stairs', 1);
+VALUES (3, 13, 'open', 1);
 
--- Main Stairs ↔ Upper Hallway: stairs up to the carpeted upper floor corridor.
--- The Tiled Overlook is a side platform off the hallway, not the main route.
+-- Utility Room ↔ Main Floor Hallway: door
+INSERT INTO location_connection (location_a_id, location_b_id, connection_type, is_passable)
+VALUES (4, 13, 'door', 1);
+
+-- Main Stairs ↔ Upper Hallway: stairs up from living room to upper floor
 INSERT INTO location_connection (location_a_id, location_b_id, connection_type, is_passable)
 VALUES (5, 12, 'stairs', 1);
+
+-- Main Floor Hallway ↔ Basement Main Room: door off hallway to basement stairs
+INSERT INTO location_connection (location_a_id, location_b_id, connection_type, is_passable)
+VALUES (6, 13, 'stairs', 1);
 
 -- Basement connections
 -- Basement Main Room ↔ Basement Storage Room: interior door
@@ -87,24 +109,24 @@ VALUES (11, 12, 'door', 1);
 
 -- Spook (character_id=2): indoor-outdoor cat, uses the whole house freely.
 -- High wander probability: cats are active at 3am and Spook is restless.
--- All 12 locations in range; Spook goes wherever curiosity leads.
+-- All 13 locations in range; Spook goes wherever curiosity leads.
 UPDATE character
-SET wander_range       = '[1,2,3,4,5,6,7,8,9,10,11,12]',
+SET wander_range       = '[1,2,3,4,5,6,7,8,9,10,11,12,13]',
     wander_probability = 0.20
 WHERE id = 2;
 
 -- Mama (character_id=3): sleeping human; low autonomous movement probability.
--- Range covers inhabited human areas on main and upper floors, including hallway.
+-- Range covers inhabited human areas; she'd use the hallway to reach kitchen.
 -- Rare movement represents getting up briefly (bathroom, water in kitchen).
 UPDATE character
-SET wander_range       = '[1,2,3,5,9,10,12]',
+SET wander_range       = '[1,2,3,5,9,10,12,13]',
     wander_probability = 0.03
 WHERE id = 3;
 
 -- Guy (character_id=4): sleeping human; slightly more restless than Mama.
--- Range is upper floor + occasional main floor visit, including hallway.
+-- Range is upper floor + occasional main floor visit via hallway.
 UPDATE character
-SET wander_range       = '[1,5,9,10,11,12]',
+SET wander_range       = '[1,5,9,10,11,12,13]',
     wander_probability = 0.05
 WHERE id = 4;
 

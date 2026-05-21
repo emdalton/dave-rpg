@@ -82,56 +82,63 @@ INSERT INTO game (
 
 
 -- =============================================================================
--- LOCATIONS (11 total)
--- IDs 1-11. Connections between locations are managed by the engine at
--- adjudication time based on location type and description; no explicit
--- connection table is needed for this module.
+-- LOCATIONS (13 total, IDs 1-13)
+--
+-- Flooring note: the house has smooth hard floors throughout (no wall-to-wall
+-- carpet). A cat moving at speed can slide on them. Exceptions:
+--   - Living Room (1): large area rug, fixed
+--   - Main Floor Hallway (13): long thin runner rug, can shift at speed
+--   - Basement Main Room (6): large area rug, fixed
+-- The Upper Hallway (12) has smooth floors like the rest of the upper floor.
+--
+-- Connections between locations are defined in seed_v3.sql via the
+-- location_connection table (schema v3+).
 -- =============================================================================
 
 -- Main floor -------------------------------------------------------------------
 
 INSERT INTO location (id, game_id, name, location_type, description_skeleton, social_setting, witness_count, situation_flags)
 VALUES (1, 1, 'Living Room', 'living_room',
-    'A comfortable room with a couch, an armchair, two coffee tables, and several plants the humans have inexplicably placed at cat level. A row of windows faces the street; an outside light means there is always something to observe if one is patient enough. The arm of the couch is a premium resting location: soft, flat, and positioned directly at the window. A short cat tree stands near the wall. A large dark rectangle (the TV) hangs on one wall and sometimes shows things that move. The female human occasionally leaves objects on the couch that are in the way and could theoretically be moved.',
+    'A comfortable room with a couch, an armchair, two coffee tables, and several plants the humans have inexplicably placed at cat level. The floor is smooth and good for sliding runs if approached correctly; a large area rug in the middle of the room provides traction and an excellent surface for kneading. A row of windows faces the street; an outside light means there is always something to observe if one is patient enough. The arm of the couch is a premium resting location: soft, flat, and positioned directly at the window. A short cat tree stands near the wall. A large dark rectangle (the TV) hangs on one wall and sometimes shows things that move. An open stairwell in the corner leads up to the upper floor. The female human occasionally leaves objects on the couch that are in the way and could theoretically be moved.',
     'private', 0,
-    json('["night", "quiet", "humans_asleep", "outside_light_on"]')
+    json('["night", "quiet", "humans_asleep", "outside_light_on", "rug_present", "open_stairwell"]')
 );
 
 INSERT INTO location (id, game_id, name, location_type, description_skeleton, social_setting, witness_count, situation_flags)
 VALUES (2, 1, 'Dining Room', 'dining_room',
-    'A room containing a large flat hard surface the humans do not want cats on (the table) and several shorter flat soft surfaces that are apparently acceptable (the chairs). The pantry cupboard is here — a tall cabinet whose contents include TREATS. Any sound of this cupboard opening requires immediate investigation. There is a large window and an outside light. The porch is accessible through a door here. It is rare to see humans outside this window at night, but other animals occasionally appear on the porch.',
+    'A room containing a large flat hard surface the humans do not want cats on (the table) and several shorter flat soft surfaces that are apparently acceptable (the chairs). The floor is smooth. A half wall of cabinets separates the dining room from the living room — cats can go over or under it. The pantry cupboard is here — a tall cabinet whose contents include TREATS. Any sound of this cupboard opening requires immediate investigation. There is a large window and an outside light. The porch is accessible through a door here. At the far end, an opening leads into the main floor hallway.',
     'private', 0,
-    json('["night", "quiet", "pantry_nearby"]')
+    json('["night", "quiet", "pantry_nearby", "porch_door_present"]')
 );
 
 INSERT INTO location (id, game_id, name, location_type, description_skeleton, social_setting, witness_count, situation_flags)
 VALUES (3, 1, 'Kitchen', 'kitchen',
-    'The room where human food activities happen. The canned cat food is stored here. If the male human enters this room at any hour, it is worth investigating whether he considers it to be morning yet. The female human has been known to share pieces of spinach or cucumber, which are unexpectedly delicious. There is a flat counter area with a water source (sink). A large window overlooks the back.',
+    'The room where human food activities happen. The floor is smooth. The kitchen opens directly onto the main floor hallway with no door. The canned cat food is stored here. If the male human enters this room at any hour, it is worth investigating whether he considers it to be morning yet. The female human has been known to share pieces of spinach or cucumber, which are unexpectedly delicious. There is a flat counter area with a water source (sink). A large window overlooks the back.',
     'private', 0,
     json('["night", "quiet", "canned_food_nearby"]')
 );
 
 INSERT INTO location (id, game_id, name, location_type, description_skeleton, social_setting, witness_count, situation_flags)
-VALUES (4, 1, 'Laundry Room', 'utility_room',
-    'A utilitarian room containing the automatic food dispenser, a water source (sink), and two large boxy appliances (the washer and dryer) that provide excellent hiding places behind them and sometimes harbor escaped toys. The food dispenser operates on a schedule regardless of whether anyone deserves it.',
+VALUES (4, 1, 'Utility Room', 'utility_room',
+    'A utilitarian room off the main floor hallway serving as laundry room, half bath, and cat feeding station. The floor is smooth. Contains the automatic food dispenser (operates on a schedule regardless of whether anyone deserves it), a water source (sink), a toilet, and two large boxy appliances (the washer and dryer) that provide excellent hiding places behind them and sometimes harbor escaped toys.',
     'private', 0,
     json('["night", "quiet", "auto_feeder_present"]')
 );
 
 INSERT INTO location (id, game_id, name, location_type, description_skeleton, social_setting, witness_count, situation_flags)
 VALUES (5, 1, 'Main Stairs', 'stairwell',
-    'The staircase connecting all three floors. A good vantage point. Toys placed at the top have interesting trajectories downward. The stairs to the basement are at one end; the stairs to the upper floor at the other.',
+    'The open stairwell in the corner of the living room, connecting the main floor to the upper hallway. Smooth wooden treads. A good vantage point from the landing halfway up. Toys placed at the top have interesting trajectories downward into the living room. The basement is accessed separately via a door off the main floor hallway.',
     'private', 0,
-    json('["night", "quiet"]')
+    json('["night", "quiet", "smooth_treads"]')
 );
 
 -- Basement --------------------------------------------------------------------
 
 INSERT INTO location (id, game_id, name, location_type, description_skeleton, social_setting, witness_count, situation_flags)
 VALUES (6, 1, 'Basement Main Room', 'basement_room',
-    'A large cluttered room with many places to hide. The bird cage is here — the bird is asleep and boring, but the cage itself is interesting to investigate. The female human has a chair here facing a strange window (a computer). There are many craft supplies stored here: fabric, yarn, and various containers. Whether any string has been left accessible depends on how carefully the female human put things away. There are boxes and furniture and excellent hiding spots behind most of it.',
+    'A large cluttered room with many places to hide. The floor is smooth concrete under a large area rug that covers most of the room — the rug is fixed and does not move. The bird cage is here — the bird is asleep and boring, but the cage itself is interesting to investigate. The female human has a chair here facing a strange window (a computer). There are many craft supplies stored here: fabric, yarn, and various containers. Whether any string has been left accessible depends on how carefully the female human put things away. There are boxes and furniture and excellent hiding spots behind most of it.',
     'private', 0,
-    json('["night", "quiet", "bird_asleep", "cluttered", "good_hiding_spots"]')
+    json('["night", "quiet", "bird_asleep", "cluttered", "good_hiding_spots", "rug_present"]')
 );
 
 INSERT INTO location (id, game_id, name, location_type, description_skeleton, social_setting, witness_count, situation_flags)
@@ -173,9 +180,9 @@ VALUES (11, 1, 'Study', 'study',
 
 INSERT INTO location (id, game_id, name, location_type, description_skeleton, social_setting, witness_count, situation_flags)
 VALUES (12, 1, 'Upper Hallway', 'hallway',
-    'The carpeted corridor of the upper floor. Soft underfoot — genuinely excellent carpet that accepts a crouch. A small cat tree stands near the wall, its top platform surveying the hallway with commanding detachment. A charging cable dangles near the landing end, a matter for later. Doors lead off the hallway to the bathroom, bedroom, and study. At the far end, a thin stripe of light sometimes leaks under the bedroom door.',
+    'The corridor of the upper floor. Smooth floor — good for a running start if the objective warrants it. A small cat tree stands near the wall, its top platform surveying the hallway with commanding detachment. A charging cable dangles near the stairwell end of the hallway, a matter for later. Doors lead off the hallway to the bathroom, bedroom, and study. At the far end, a thin stripe of light sometimes leaks under the bedroom door. The tiled overlook is accessible by squeezing through the railing near the stairwell end.',
     'private', 0,
-    json('["night", "quiet", "carpeted", "small_cat_tree_present"]')
+    json('["night", "quiet", "small_cat_tree_present", "charging_cable_present"]')
 );
 
 
@@ -839,6 +846,15 @@ INSERT INTO item (id, game_id, name, description, location_id, quality, is_visib
 VALUES (36, 1, 'hair tie',
     'A small elastic hair tie left on the bathroom counter. Stretchy, flingable, and small enough to bat under the gap at the bottom of the door. A very good accidental toy.',
     9, NULL, 1);
+
+-- Hallway runner rug: in the main floor hallway. Can and does move.
+-- This is a moveable item; its location_id tracks its current position.
+-- quality encodes how displaced it currently is (1.0 = flat and centred,
+-- lower = bunched or skewed from prior traffic). Starting value: 0.85.
+INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+VALUES (37, 1, 'hallway runner',
+    'A long thin rug running the length of the main floor hallway. The smooth floor beneath it means it can and does shift if a cat crosses it at speed. When it bunches or skews, it becomes a different kind of surface and also an interesting obstacle. The humans straighten it periodically.',
+    13, 0.85, 1);
 
 
 -- =============================================================================
