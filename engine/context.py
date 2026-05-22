@@ -26,6 +26,7 @@ call. The LLM never carries state between turns; the database is the only
 source of truth.
 """
 
+import json
 import logging
 from typing import Any
 
@@ -452,6 +453,56 @@ def build_pass3_packet(
         "description": location["description_skeleton"],
     } if location else {}
 
+    # ------------------------------------------------------------------
+    # Characters referenced in this outcome
+    # Extract all character IDs that appear in any outcome array so that
+    # Pass 3 has explicit gender and pronoun data. Without this the LLM
+    # infers pronouns from names and species, producing inconsistent results
+    # across turns. The player is excluded — their pronouns are already
+    # implicit in the second-person narrative voice.
+    # ------------------------------------------------------------------
+    referenced_ids: set[int] = set()
+
+    # attitude_deltas carries both actor and target; collect both
+    for entry in outcome.get("attitude_deltas") or []:
+        for key in ("character_id", "target_id"):
+            try:
+                referenced_ids.add(int(entry[key]))
+            except (KeyError, TypeError, ValueError):
+                pass
+
+    # remaining outcome arrays carry only character_id
+    for array_key in ("internal_state_deltas", "emotional_state_updates", "location_change"):
+        for entry in outcome.get(array_key) or []:
+            try:
+                referenced_ids.add(int(entry["character_id"]))
+            except (KeyError, TypeError, ValueError):
+                pass
+
+    # Remove the player — they speak in second person and need no pronoun entry
+    referenced_ids.discard(player["id"])
+
+    characters_referenced: list[dict] = []
+    for char_id in sorted(referenced_ids):
+        char = db.get_character(char_id)
+        if char is None:
+            continue
+        # Include only the fields needed for prose: name, gender, pronouns.
+        # The pronouns field is stored as a JSON string; parse it so the LLM
+        # receives a structured array rather than an escaped string.
+        raw_pronouns = char.get("pronouns")
+        try:
+            parsed_pronouns = json.loads(raw_pronouns) if raw_pronouns else None
+        except (TypeError, ValueError):
+            parsed_pronouns = None
+
+        characters_referenced.append({
+            "id": char_id,
+            "name": char["name"],
+            "gender": char.get("gender"),
+            "pronouns": parsed_pronouns,
+        })
+
     packet = {
         "pass": 3,
         "description": (
@@ -464,12 +515,14 @@ def build_pass3_packet(
         "game": game_summary,
         "player": player_summary,
         "current_location": location_summary,
+        "characters_referenced": characters_referenced,
     }
 
     logger.debug(
-        "Pass 3 packet built: game=%d player=%d",
+        "Pass 3 packet built: game=%d player=%d chars_referenced=%d",
         game_id,
         player["id"],
+        len(characters_referenced),
     )
     return packet
 

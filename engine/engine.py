@@ -174,6 +174,12 @@ Rules:
   character's direct perception.
 - Length: 2–5 sentences for routine actions; up to a short paragraph for
   dramatically significant moments. Involuntary events warrant their own beat.
+- Pronouns: use the pronouns supplied in the `characters_referenced` list for
+  any named character. Each entry gives an array of case–form pairs (nominative,
+  accusative, genitive, and any additional cases for the module's language).
+  Do NOT infer pronouns from a character's name or species — use only what is
+  provided. If a character does not appear in `characters_referenced`, or their
+  pronouns field is null, infer from context as a fallback.
 
 Context:
 {context_json}

@@ -190,6 +190,29 @@ CREATE TABLE character (
     -- physical capability, etc.) and for the speech filter in Pass 3.
     species     TEXT    NOT NULL DEFAULT 'human',
 
+    -- Gender label: 'male', 'female', 'nonbinary', 'neuter', or any
+    -- author-defined value. NULL = LLM infers from name/species/context.
+    -- Used as a hint to Pass 3 prose rendering; does not affect adjudication.
+    gender      TEXT    NULL,
+
+    -- Pronouns as a JSON array of {"case": <case_name>, "form": <pronoun>}
+    -- pairs in the module's target language. Case labels are English keywords
+    -- regardless of module language (language-neutral schema key). NULL = LLM
+    -- infers from gender field or name/species context.
+    --
+    -- English she/her: [{"case":"nominative","form":"she"},
+    --                    {"case":"accusative","form":"her"},
+    --                    {"case":"genitive","form":"her"}]
+    --
+    -- German masculine: [{"case":"nominative","form":"er"},
+    --                     {"case":"accusative","form":"ihn"},
+    --                     {"case":"dative","form":"ihm"},
+    --                     {"case":"genitive","form":"seiner"}]
+    --
+    -- Future multi-language extension: wrap in a locale-keyed dict without
+    -- breaking existing single-language data.
+    pronouns    TEXT    NULL,
+
     -- Visible description: what other characters can observe directly.
     description TEXT,
 
