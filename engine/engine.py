@@ -345,8 +345,55 @@ class GameEngine:
             print(textwrap.fill(prose, width=80))
             print()
 
-        # Log session token totals on exit, if the backend supports it.
-        # ClaudeLLMClient exposes token_totals(); other backends may not.
+        # ------------------------------------------------------------------
+        # Exit summary: game time, player boredom, token totals.
+        # All reported at INFO so they appear in normal (non-debug) runs.
+        # ------------------------------------------------------------------
+
+        # Game clock summary (v5+).
+        if self._instance is not None:
+            try:
+                current_min = self.db.get_game_clock(self._instance["id"])
+                start_min   = self._instance.get("start_time_minutes", 0)
+                elapsed_min = current_min - start_min
+                from engine.db import _format_game_time
+                logger.info(
+                    "Game time on exit: %s  (started %s, %d min elapsed)",
+                    _format_game_time(current_min),
+                    _format_game_time(start_min),
+                    elapsed_min,
+                )
+            except (ValueError, KeyError):
+                pass  # pre-v5 database or unseeded instance; skip gracefully
+
+        # Player boredom at exit — the primary pressure state for I Am a Cat.
+        # Reports the raw float and a brief qualitative label so the player
+        # has an intuitive sense of how the session went without needing to
+        # understand the internal scale. Other modules may track different
+        # primary states; boredom is not hardcoded — it is simply the first
+        # named state checked. Future: generalise via a module-level config
+        # field that names the primary outcome state.
+        if self._player is not None:
+            boredom_state = self.db.get_internal_state(self._player["id"], "boredom")
+            if boredom_state is not None:
+                boredom = boredom_state["value"]
+                if boredom < 0.20:
+                    label = "not bored at all"
+                elif boredom < 0.40:
+                    label = "mildly bored"
+                elif boredom < 0.60:
+                    label = "noticeably bored"
+                elif boredom < 0.80:
+                    label = "quite bored"
+                else:
+                    label = "severely bored"
+                logger.info(
+                    "Toulouse boredom at exit: %.3f (%s)",
+                    boredom,
+                    label,
+                )
+
+        # Token totals (Claude backend only; other backends may not track this).
         if hasattr(self.llm, "token_totals"):
             totals = self.llm.token_totals()
             logger.info(

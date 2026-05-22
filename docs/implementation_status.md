@@ -324,6 +324,29 @@ guard of its own.
 
 ## Lower-priority pending items
 
+- **Session exit: happiness/wellbeing score.** On exit the engine currently
+  reports game time elapsed and Toulouse's raw boredom float. A richer "how
+  well did the session go?" metric would combine: primary state value at exit
+  (boredom for I Am a Cat), goal achievement (did the player pursue Toulouse's
+  named goals?), need satisfaction (hunger managed, hairball avoided), and
+  any pending intents that were or weren't fulfilled. The boredom float is a
+  reasonable single-state proxy for now. The fuller score requires a
+  module-level config declaring which states and goals constitute the outcome
+  metric, and a weighted aggregation step at session end. This is also the
+  basis for a future "end-of-game score screen" (how bored was Toulouse at
+  sunrise? did he get his canned food?).
+
+- **Clock visibility as a module-level setting.** The engine tracks in-game
+  time via `game_instance.current_time_minutes` but deliberately withholds it
+  from Pass 1/2/3 context for I Am a Cat — cats don't read clocks, and the
+  behavior is correct. However, some modules need explicit time awareness: in
+  a Cinderella module, being able to ask "how long until midnight?" or having
+  the clock strike audibly are plot-critical mechanics. Design: add a
+  `clock_visible_to_player` flag to `module_flags` JSON on `game` (consistent
+  with the `what_if_enabled` flag sketched in future_features.md §6). When
+  true, the engine includes current_game_time in Pass 1 context and allows
+  time-query actions; when false (default), time is withheld as now.
+
 - **Mama's wander range and sleep state**: "Lightly asleep" for the mama can
   mean drowsy but ambulatory — she does get up for the bathroom at night, which
   is realistic. However her current wander_range may be too broad; it should
