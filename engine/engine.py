@@ -393,15 +393,25 @@ class GameEngine:
                     label,
                 )
 
-        # Token totals (Claude backend only; other backends may not track this).
+        # Token totals and cost estimate (Claude backend only).
         if hasattr(self.llm, "token_totals"):
             totals = self.llm.token_totals()
-            logger.info(
-                "Session token totals: input=%d output=%d total=%d",
-                totals["input_tokens"],
-                totals["output_tokens"],
-                totals["total"],
-            )
+            cost = totals.get("cost_usd")
+            if cost is not None:
+                logger.info(
+                    "Session token totals: input=%d output=%d total=%d  est. cost=$%.4f USD",
+                    totals["input_tokens"],
+                    totals["output_tokens"],
+                    totals["total"],
+                    cost,
+                )
+            else:
+                logger.info(
+                    "Session token totals: input=%d output=%d total=%d  (cost unknown — model not in pricing table)",
+                    totals["input_tokens"],
+                    totals["output_tokens"],
+                    totals["total"],
+                )
 
     # -------------------------------------------------------------------------
     # Turn processing

@@ -137,16 +137,56 @@ class ClaudeLLMClient(LLMClient):
         )
         return response_text.strip()
 
-    def token_totals(self) -> dict[str, int]:
-        """
-        Return the session-level token usage accumulated across all calls.
+    # Anthropic API pricing per million tokens (USD), keyed by model name prefix.
+    # Prefix matching is used because model strings carry version/date suffixes
+    # (e.g. "claude-haiku-4-5-20251001"). The longest matching prefix wins.
+    # Last verified: 2026-05-22. Check https://www.anthropic.com/pricing when
+    # updating models; prices change and this table will drift.
+    _PRICING_PER_MTOK: dict[str, tuple[float, float]] = {
+        # (input $/MTok, output $/MTok)
+        "claude-haiku-4-5":  (0.80,  4.00),
+        "claude-haiku-3":    (0.25,  1.25),
+        "claude-sonnet-4":   (3.00, 15.00),
+        "claude-sonnet-3-7": (3.00, 15.00),
+        "claude-sonnet-3-5": (3.00, 15.00),
+        "claude-opus-4":    (15.00, 75.00),
+        "claude-opus-3":    (15.00, 75.00),
+    }
 
-        Returns a dict with keys 'input_tokens', 'output_tokens', and 'total'
-        (their sum). Intended for end-of-session reporting. Resets are not
-        supported — create a new client instance to start a fresh count.
+    def _cost_usd(self) -> float | None:
+        """
+        Compute estimated session cost in USD from accumulated token counts.
+
+        Returns None if the model is not in the pricing table, so callers
+        can distinguish "cost unknown" from "cost is zero".
+        """
+        # Find the longest prefix in _PRICING_PER_MTOK that matches self._model.
+        model_lower = self._model.lower()
+        match = None
+        for prefix, rates in self._PRICING_PER_MTOK.items():
+            if model_lower.startswith(prefix):
+                if match is None or len(prefix) > len(match[0]):
+                    match = (prefix, rates)
+        if match is None:
+            return None
+        input_rate, output_rate = match[1]
+        return (
+            self._total_input_tokens  * input_rate  / 1_000_000
+            + self._total_output_tokens * output_rate / 1_000_000
+        )
+
+    def token_totals(self) -> dict:
+        """
+        Return session-level token usage and estimated cost.
+
+        Keys: 'input_tokens', 'output_tokens', 'total', 'cost_usd'.
+        'cost_usd' is a float if the model is in the pricing table, or None
+        if the model is unknown. Intended for end-of-session reporting.
+        Resets are not supported — create a new client instance for a fresh count.
         """
         return {
-            "input_tokens": self._total_input_tokens,
+            "input_tokens":  self._total_input_tokens,
             "output_tokens": self._total_output_tokens,
-            "total": self._total_input_tokens + self._total_output_tokens,
+            "total":         self._total_input_tokens + self._total_output_tokens,
+            "cost_usd":      self._cost_usd(),
         }
