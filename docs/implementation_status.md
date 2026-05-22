@@ -1,7 +1,7 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-05-21, session 4 (completed).*
+*Last updated: 2026-05-22, session 5 (in progress).*
 
 ---
 
@@ -42,6 +42,8 @@ RPG/
 │   │   ├── seed.sql           — full seed data (characters, locations, items, etc.)
 │   │   ├── seed_v3.sql        — v3 additions (location_connection; NPC wander params)
 │   │   ├── seed_v4.sql        — v4 additions (character_visited_location for Toulouse)
+│   │   ├── seed_v5.sql        — v5 additions (game_instance record; passive rates)
+│   │   ├── seed_v6.sql        — v6 additions (gender + pronouns for all characters)
 │   │   └── sample_transcript_01.md  — first full play session transcript
 │   └── Netherfield_Ball/      — placeholder; not yet implemented
 ├── schema/
@@ -50,7 +52,9 @@ RPG/
 │   └── migrations/
 │       ├── migrate_v1_to_v2.sql
 │       ├── migrate_v2_to_v3.sql
-│       └── migrate_v3_to_v4.sql
+│       ├── migrate_v3_to_v4.sql
+│       ├── migrate_v4_to_v5.sql
+│       └── migrate_v5_to_v6.sql
 └── tests/                     — empty; test suite is future work
 ```
 
@@ -77,7 +81,11 @@ Core tables: `schema_version`, `game`, `location`, `location_detail`,
 (BFS, Option C): player can name any previously-visited destination and the engine
 computes the path. NPCs are not subject to this restriction.
 
-**Current version: 5.** Next migration will be v6 (module/instance split — see pending work §4).
+**v5** — `game_instance` table (per-playthrough metadata: status, start/current time, premise_modifier). `passive_rate_per_minute` (REAL, NULL) on `internal_state` for background state drift. In-game clock advanced by Pass 2's `elapsed_minutes` output each turn.
+
+**v6** — `gender` (TEXT, NULL) and `pronouns` (TEXT/JSON, NULL) on `character`. Gender label and case-indexed pronoun array for Pass 3 prose rendering. Case labels are English regardless of module language (language-neutral schema key); form values are in the module's target language.
+
+**Current version: 6.** Next migration will be v7 (module/instance split — see pending work §3).
 
 ---
 
@@ -96,6 +104,8 @@ computes the path. NPCs are not subject to this restriction.
 | Pass 1 location name→ID resolution | ✅ Complete | `known_locations` dict in packet |
 | In-game clock | ✅ Complete | `game_instance.current_time_minutes`; advanced by Pass 2's `elapsed_minutes` |
 | Passive state decay | ✅ Complete | `passive_rate_per_minute` on `internal_state`; `db.tick_passive_states()` |
+| Gender + pronouns | ✅ Complete | `character.gender` and `character.pronouns` (JSON); passed to Pass 3 via `characters_referenced` |
+| Token usage logging | ✅ Complete | Per-call debug log + session total (INFO) in `claude.py`; `token_totals()` method |
 | Search mode (`search` action type) | ⬜ Not started | See pending work #2 |
 | Wander mode (`wander` action type) | ⬜ Not started | See pending work #3 |
 
@@ -103,42 +113,31 @@ computes the path. NPCs are not subject to this restriction.
 
 ## I Am a Cat — live game state
 
-*As of end of session 3 (2026-05-21).*
+*As of session 5 (2026-05-22). Clock has drifted to ~7:00 AM from accumulated testing turns.*
+*⚠️ Game needs a clean reset before next serious play session. Run `reset_instance.sql` (see below).*
 
-**Toulouse** (player) — Upper Hallway (loc 12), emotional state: attentive.
+**Canonical starting state (3:00 AM):**
 
-**Spook** (cat NPC) — Main Stairs (loc 5), emotional state: playful.
-Fled from Toulouse's bath attempt at the end of session 3.
-Note: Spook has elevated `hairball_pressure` (0.31) — involuntary event possible.
-
-**Guy** (human) — Upper Hallway (loc 12), emotional state: deeply_asleep.
-Wandered out of bedroom during session 3; exact location confirmed as Upper Hallway.
-
-**The mama** (human) — Bedroom (loc 10), emotional state: lightly_asleep.
-
-**Lillis** (cockatiel) — Basement Main Room (loc 6), emotional state: asleep.
-
-**Game instance:** id=1, status=ready, clock at 3:00 AM (180 min).
-
-**Toulouse's internal states:**
-
-| State | Value | Notes |
-|---|---|---|
-| boredom | 0.00 | Primary time-pressure mechanic; failure condition approaches 1.0 |
-| hairball_pressure | 0.05 | Low; involuntary event possible but unlikely |
-| hunger | 0.45 | Moderate; becoming relevant |
-| mildly_frustrated | 0.08 | Residual from session 3 |
-| sleep | 0.08 | Low sleepiness |
-
-**NPC internal states (sleep-relevant):**
-
-| Character | State | Value | Notes |
+| Character | Location | Emotional state | Notes |
 |---|---|---|---|
-| Guy | sleepiness | 0.88 | Deeply asleep; doubles as sleep depth for sleeping NPCs |
-| The mama | sleepiness | 0.22 | Lightly asleep; may have only recently fallen asleep |
-| Spook | boredom | 0.03 | |
-| Spook | hairball_pressure | 0.31 | Elevated |
-| Spook | hunger | 0.38 | |
+| Toulouse (player) | Living Room (1) | restless | |
+| Spook | Living Room (1) | playful | male; wander_probability=0.08 |
+| Guy | Bedroom (10) | deeply_asleep | |
+| The mama | Bedroom (10) | lightly_asleep | |
+| Lillis | Basement Main Room (6) | asleep | female Senegal parrot; immobile |
+
+**Starting internal states:**
+
+| Character | State | Starting value | Rate/min | Notes |
+|---|---|---|---|---|
+| Toulouse | boredom | 0.00 | +0.002 | Failure condition approaches 1.0 |
+| Toulouse | hairball_pressure | 0.05 | +0.0003 | |
+| Toulouse | hunger | 0.45 | +0.002 | Reaches ~0.63 by 4:30 AM; see hunger mechanic note below |
+| Guy | sleepiness | 0.88 | -0.006 | Wakes ~5:27 AM if undisturbed |
+| Mama | sleepiness | 0.22 | -0.004 | Wakes ~3:55 AM if undisturbed; light sleeper |
+| Spook | boredom | 0.03 | — | |
+| Spook | hairball_pressure | 0.31 | +0.0003 | Elevated; involuntary event possible |
+| Spook | hunger | 0.38 | — | |
 
 ---
 
@@ -195,7 +194,82 @@ into a unified state-hierarchy system where any state with a passive rate can
 also declare trigger thresholds. Not tonight — handle after the passive rate
 mechanism is stable.
 
-### 1. Search mode (next up)
+### 1. NPC pending intent (`pending_intent` field)
+
+**Observed need:** When Toulouse grooms Spook and then asks Spook to reciprocate,
+Pass 2 has no memory of the earlier social exchange. By the next turn, Spook's
+profile shows nothing about the obligation — the LLM re-derives his motivation
+from scratch and Spook behaves as though the grooming never happened. This makes
+multi-turn social exchanges (reciprocal grooming, negotiated cooperation, deferred
+requests) difficult to sustain.
+
+**Design:** Add `pending_intent TEXT NULL` to the `character` table. A natural-language
+string describing a deferred social obligation or queued intention, set and cleared
+by Pass 2 outcome JSON, visible to Pass 2 in the NPC profile. Consistent with how
+`emotional_state` works: the LLM writes it, the LLM reads it, no engine logic
+interprets it.
+
+Examples:
+- `"owes reciprocal grooming to Toulouse (ears)"` — cleared when Spook grooms Toulouse
+- `"intends to investigate the noise from the basement"` — cleared on arrival or distraction
+- `"waiting for Toulouse to approach before engaging"` — cleared on contact
+
+This is distinct from `emotional_state` (short-term mood), `internal_state` floats
+(physiological), and goals (stable motivational weights). It is closer to a
+working-memory slot for social and behavioral commitments — a concept present in
+the Ford-Nichols framework under equity and belonging goals.
+
+**Migration sketch (v7 candidate, or bundle with another small change):**
+```sql
+ALTER TABLE character ADD COLUMN pending_intent TEXT NULL;
+-- NULL = no pending intent; LLM ignores field if absent.
+-- Set by Pass 2 outcome: add "pending_intent_updates": [{"character_id": N, "intent": "..."}]
+-- to the outcome schema. Empty string or explicit null clears the field.
+```
+
+Pass 2 context: include `pending_intent` in the NPC profile block (already built
+by `_build_character_profile()`). Pass 2 prompt: add `pending_intent_updates` to
+required output fields with a note that the LLM should set or clear it based on
+whether social obligations are created or fulfilled this turn.
+
+**Also applies to:** conversation commitments ("Guy said he'd get up if Toulouse
+persisted"), promised actions by the player character, and anything else that
+constitutes a deferred behavioral obligation across turn boundaries.
+
+---
+
+### 2. Hunger-driven wake mechanic (4:30 AM trigger)
+
+**Design:** By approximately 4:30 AM, Toulouse's hunger becomes compelling enough
+that he goes to wake Guy for canned food. This is one of the defining daily
+rituals of the module — the whole night's arc builds toward it. It should feel
+inevitable once hunger crosses a threshold, not random.
+
+**Calibration:** With hunger starting at 0.45 and a rate of +0.002/min, hunger
+reaches ~0.63 at 4:30 AM (90 minutes of game time). Whether 0.63 feels compelling
+depends on what Pass 2 does with it — but for a dedicated involuntary trigger,
+a threshold around 0.70 is more reliable. Options:
+
+1. *Raise starting hunger slightly* (0.55 → reaches 0.73 at 4:30 AM). Simple.
+2. *Raise the rate* (+0.003/min → 0.45 → 0.72 at 4:30 AM). Increases urgency
+   across the whole session, which may be too much.
+3. *Add a hunger involuntary event* at threshold 0.68 with probability 0.25/turn.
+   Once hunger crosses 0.68, there's a ~1-in-4 chance each turn that the event
+   fires: "Toulouse's hunger becomes urgent; he feels a strong pull toward Guy's
+   bedroom and the promise of canned food." Pass 2 incorporates this as a strong
+   behavioral pressure — not a forced move, but a compelling one. This is the
+   most consistent with the existing involuntary event architecture.
+
+Option 3 is recommended. It makes the wake-Guy sequence an emergent behavior that
+the player can lean into or resist, rather than a hard trigger. The involuntary
+event description should name Guy specifically so Pass 2 understands the target.
+
+**Reset note:** Starting hunger needs to be recalibrated when the game is reset.
+Check seed values before next play session.
+
+---
+
+### 3. Search mode (next up)
 
 New Pass 1 action type `search`. "Go look for Spook" triggers directed traversal
 of ~3 adjacent locations, brief prose per room checked, LLM adjudicates whether
@@ -208,7 +282,7 @@ New Pass 1 action type `wander`. "Wander around" triggers random non-repeating
 
 ---
 
-### 3. Module / instance architectural split (v6 migration — do before public release)
+### 4. Module / instance architectural split (v7 migration — do before public release)
 
 **Known limitation:** The current schema conflates module definition (static)
 with playthrough state (dynamic) throughout — not just in `game` but in
@@ -233,7 +307,7 @@ Split seed SQL into two files:
 - `seed_instance.sql` — starting playthrough state: character locations, internal
   state values, item positions, instance record. Re-running this resets the game.
 
-*Phase B (v6 — future):* Add `instance_id` to every state table (`character`,
+*Phase B (v7 — future):* Add `instance_id` to every state table (`character`,
 `internal_state`, `item_location`, `action_log`, `character_visited_location`).
 Enables multiple concurrent instances, true save slots, and the "What if..."
 premise modifier feature. Design in conjunction with session management UI.
