@@ -609,8 +609,21 @@ class GameEngine:
 
         # ------------------------------------------------------------------
         # Quick-move restriction: destination must have been visited.
+        #
+        # Exception: if the target is directly adjacent (one passable step
+        # away from the current location), the visited check is skipped.
+        # This lets the player move into any neighbouring room they haven't
+        # been to yet — which is how exploration works. The visited-location
+        # requirement only makes sense for multi-step BFS pathfinding, where
+        # the engine needs to know the player recognises the named destination.
         # ------------------------------------------------------------------
-        if not self.db.is_location_visited(player_id, target_location_id):
+        adjacent_ids = {
+            conn["neighbour_id"]
+            for conn in self.db.get_location_connections(current_loc_id)
+        }
+        is_adjacent = target_location_id in adjacent_ids
+
+        if not is_adjacent and not self.db.is_location_visited(player_id, target_location_id):
             dest = self.db.get_location(target_location_id)
             dest_name = dest["name"] if dest else f"location {target_location_id}"
             logger.info(
