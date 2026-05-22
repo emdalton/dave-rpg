@@ -62,6 +62,11 @@ class ClaudeLLMClient(LLMClient):
         self._model = config.CLAUDE_MODEL
         self._max_tokens = config.CLAUDE_MAX_TOKENS
 
+        # Session-level token accumulators. Updated after every API call.
+        # Exposed via token_totals() for end-of-session reporting.
+        self._total_input_tokens: int = 0
+        self._total_output_tokens: int = 0
+
         logger.info("ClaudeLLMClient initialised: model=%s max_tokens=%d",
                     self._model, self._max_tokens)
 
@@ -113,9 +118,35 @@ class ClaudeLLMClient(LLMClient):
                 response_text = block.text
                 break
 
+        # Extract and accumulate token usage. The usage object is present on
+        # every non-streaming response from the Anthropic API.
+        in_tok = getattr(message.usage, "input_tokens", 0) or 0
+        out_tok = getattr(message.usage, "output_tokens", 0) or 0
+        self._total_input_tokens += in_tok
+        self._total_output_tokens += out_tok
+
         logger.debug(
-            "Claude response: stop_reason=%s response_len=%d",
+            "Claude response: stop_reason=%s response_len=%d "
+            "tokens=in:%d/out:%d  session_total=in:%d/out:%d",
             message.stop_reason,
             len(response_text),
+            in_tok,
+            out_tok,
+            self._total_input_tokens,
+            self._total_output_tokens,
         )
         return response_text.strip()
+
+    def token_totals(self) -> dict[str, int]:
+        """
+        Return the session-level token usage accumulated across all calls.
+
+        Returns a dict with keys 'input_tokens', 'output_tokens', and 'total'
+        (their sum). Intended for end-of-session reporting. Resets are not
+        supported — create a new client instance to start a fresh count.
+        """
+        return {
+            "input_tokens": self._total_input_tokens,
+            "output_tokens": self._total_output_tokens,
+            "total": self._total_input_tokens + self._total_output_tokens,
+        }

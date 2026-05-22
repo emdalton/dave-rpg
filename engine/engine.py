@@ -345,6 +345,17 @@ class GameEngine:
             print(textwrap.fill(prose, width=80))
             print()
 
+        # Log session token totals on exit, if the backend supports it.
+        # ClaudeLLMClient exposes token_totals(); other backends may not.
+        if hasattr(self.llm, "token_totals"):
+            totals = self.llm.token_totals()
+            logger.info(
+                "Session token totals: input=%d output=%d total=%d",
+                totals["input_tokens"],
+                totals["output_tokens"],
+                totals["total"],
+            )
+
     # -------------------------------------------------------------------------
     # Turn processing
     # -------------------------------------------------------------------------
