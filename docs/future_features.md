@@ -4,6 +4,99 @@
 
 ---
 
+## 11. Fate Point economy
+
+Suggested by playtest observation (2026-05-23): the `partial_success` outcome on the Spook social-correction turn was a textbook Fate compel — an NPC aspect (Spook's incorrigible playfulness) complicated the player's action in an entertaining way, and in the Fate RPG system that moment would award the player a Fate Point. The `partial_success` and `failure` outcome types are already doing the adjudication work; a Fate Point system would add a resource currency on top.
+
+**Mechanic sketch:**
+
+- A named resource pool (e.g. `fate_points`) stored on `game_instance` (or a `player_resource` table for generality across module types).
+- Pass 2 issues a `fate_point_award: true` flag in its outcome JSON when it generates a `partial_success` or `failure` with a strong, entertaining narrative beat — i.e., when the complication makes the story better rather than just worse.
+- Pass 1 detects spend intent from player input and adds `spend_fate_point: true` to the action record. The engine checks for available points before honoring it; if none are available, Pass 2 is not told the spend was requested.
+- Pass 2 prompt: when `spend_fate_point: true` is in the action record, the player has paid a resource for a better outcome — lean toward success or at least reduce the cost of failure. The spend does not guarantee success but shifts the probability.
+
+**Natural-language spend signals for Pass 1 to recognize:**
+
+The signal must come from character voice or explicit effort language — player asides ("I really hope this works") should not trigger a spend. Clear signals:
+
+- *Effort intensifiers* in character voice: "try harder," "push," "give it everything," "strain to," "force it through," "with everything I have"
+- *Stakes declarations* in character: "I need this to work," "I cannot afford to fail here," "this matters"
+- *Explicit trait invocations*: "use my dignity," "as the senior cat I insist," "I invoke my authority" — natural for Fate-familiar players and intuitive for anyone leaning into character
+- *Narrative declarations*: "I declare that..." — classic Fate story-detail spend
+
+Pass 1 prompt note: require that the signal be in-character or clearly about the action, not a player aside. "I really hope this works" is ambiguous and should not trigger a spend unless paired with an effort intensifier.
+
+**Module-level opt-in:** Not all modules use a Fate Point economy. Add a `fate_points_enabled` flag to the `module_flags` JSON on `game` (alongside the `what_if_enabled` flag sketched in feature 6). Starting pool size and award/spend rates are module-level config.
+
+---
+
+## 12. Scene-close segmenting and narrative arc
+
+Playtest observation (2026-05-23): the closing line of the Spook-correction turn ("You did the thing. It is not your fault he is like this.") felt like a natural scene-close — a beat that wraps one narrative unit before the next opens. This suggests a possible feature around detecting or generating explicit scene boundaries.
+
+Undeveloped as of capture. Possible directions:
+
+- Pass 3 could be prompted to signal when it believes a scene has closed (a structured flag alongside the prose), allowing the engine to insert a brief visual/textual break in the output.
+- A scene log could track named scenes as discrete narrative units, enabling transcript mode (feature 2) to produce chapter-structured output rather than a flat turn log.
+- Scene boundaries might interact with the Fate Point economy (feature 11) — scene close is a natural moment to tally awards, as in the Fate tabletop system.
+
+Not yet clear where this goes. Capturing the observation for later.
+
+---
+
+## 8. MUSH integration
+
+Suggested by a playtester (2026-05-23), who noted that DAVE's prose quality was reminiscent of good MUSH play and proposed wiring the engine to a MUSH server for networked multi-player access.
+
+**What this would require:**
+
+DAVE's turn loop is already structured like a MUSH world engine: it takes a player action, updates world state, and returns prose. The gap is concurrency — DAVE currently assumes one player and one active session. Full MUSH integration needs:
+
+1. *Multi-session world state* — the v7 module/instance architectural split (see implementation_status.md §4) is the prerequisite. Once `instance_id` is threaded through all state tables, multiple concurrent player sessions sharing one world instance become architecturally possible.
+
+2. *Turn coordination* — in a shared world, two players may act simultaneously on the same target. Options: sequential turns with a queue; simultaneous resolution where all pending actions for a game-time tick are adjudicated together in a single Pass 2 call; or a hybrid where independent actions resolve independently and conflicting ones trigger a combined adjudication.
+
+3. *Network transport* — a MUSH protocol layer (or a simpler telnet/websocket server) that routes player input to the engine and returns prose. This is separate from the web-host option (feature 1), which uses HTTP; MUSH clients expect a persistent TCP connection.
+
+**Simpler intermediate path:** Run DAVE as the NPC/world-simulation engine behind a traditional MUSH, rather than as a full replacement. The MUSH handles connection management, player routing, and room/exit bookkeeping; DAVE handles adjudication and prose for NPC interactions and complex world events. This defers the concurrency problem while still providing the NPC quality improvement that makes MUSH play richer.
+
+**Relationship to other features:** Overlaps significantly with feature 5 (multiplayer) and feature 1 (web host). The three are the same architectural need approached from different interfaces: HTTP browser client, multi-user MUSH client, and eventually a desktop/mobile client. Design the session and concurrency layer once; the transport is a skin on top.
+
+---
+
+## 9. Module: Barsoom (Edgar Rice Burroughs)
+
+Suggested as a strong module candidate (playtest 2026-05-23), particularly in a MUSH context where the planetary romance setting and large cast of alien species naturally support multi-player factions.
+
+**Why it works for DAVE:**
+
+- Radically non-human player characters (Red Martians, Green Martians, Tharks, Warhoons) stress-test the species-specific perception and sensory profile systems
+- Faction mechanics (Heliumite, Zodangan, Thark tribal politics) are first-class; DAVE's reputation and attitude systems were designed for exactly this
+- The social dynamics of Barsoomian honor culture (challenges, debts, alliances) are a natural fit for the Ford-Nichols motivational framework
+- A MUSH version with multiple players each playing a different species would be a compelling proof-of-concept for both DAVE and the Barsoom setting
+
+**IP status:**
+
+The early Barsoom novels are in the US public domain — *A Princess of Mars* was published in 1912 (book form 1917), well past the copyright threshold. However, ERB Inc. remains active and holds trademarks on character names, species names, and setting terms; they have historically been aggressive about enforcement. This means:
+
+- *Public domain text* — the novels themselves can be quoted and adapted freely for non-commercial use
+- *Trademarks* — "John Carter," "Barsoom," "Tharks," and similar marks may require licensing even when the underlying text is public domain; this distinction matters for any commercial or widely-distributed release
+- *Practical path* — for a hobbyist/open-source project, a faithful Barsoom module is likely defensible; for any commercial release or wide distribution, consult the trademark landscape before investing heavily in module design
+
+**Comparison to Amber:** More tractable than the Amber Chronicles (Zelazny died 1995; Amber is still under copyright and requires active estate permission regardless of intent). Barsoom's public-domain status gives a stronger foundation.
+
+---
+
+## 10. Module: Amber Chronicles (Roger Zelazny)
+
+Suggested as a module candidate (playtest 2026-05-23), with the note that the Zelazny estate may have authorized use in MUSH-style games.
+
+**IP caution:** The Amber Chronicles are still under copyright — Zelazny died in 1995 and copyright extends 70 years post-mortem in the US, meaning the works remain protected until at least 2065. Any use requires active estate permission. The claim that MUSH use has been authorized is plausible (the Amber MUSH community has been active for decades and the estate has historically tolerated fan games), but "tolerated" is not the same as "authorized," and explicit permission should be confirmed before investing significant design effort.
+
+**If authorization is confirmed:** Amber is an excellent DAVE module candidate. The pattern system (each Amberite has a unique ability profile) maps naturally onto DAVE's skill taxonomy; the family politics of the Courts of Chaos are exactly the kind of social-diplomatic complexity the engine was designed for; and the multiverse structure (Shadows) supports lazy world generation at a conceptual level — Shadow worlds are, by definition, generated on demand.
+
+---
+
 ## 7. Module: Suspended (Infocom port / homage)
 
 Port or homage to the Infocom game *Suspended* (1983, Michael Berlyn). In the

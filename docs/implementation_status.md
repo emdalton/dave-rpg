@@ -1,7 +1,33 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-05-22, session 5 (closed).*
+*Last updated: 2026-05-23, session 6 (closed).*
+
+---
+
+## Session 6 closing notes (2026-05-23)
+
+**This session:** Playtest with a friend (skilled programmer, cat person, Fate system fan).
+
+**Playtest outcome:**
+- Rating: "Very amusing"
+- The playtester said it reminded them of good games played on a MUSH — specifically that it "passes the Turing test" in that context. This is a strong signal from a MUSH veteran that the three-pass architecture is achieving its intended effect.
+
+**Design threads raised by the playtester:**
+
+1. **MUSH integration** — The playtester proposed wiring DAVE to a MUSH to allow networked play. The engine's architecture is a natural fit (stateless turn loop, DB as canonical state). The main gap is concurrent multi-session support; the v7 instance/session split is the prerequisite. See `future_features.md` for the full design note (feature 8).
+
+2. **Module candidates from licensed/public-domain IP:**
+   - *Amber Chronicles* (Roger Zelazny) — the playtester believes the estate has authorized use in MUSH-style games; needs verification before investing design effort. Still under copyright (Zelazny died 1995). See `future_features.md` for IP caution note.
+   - *Barsoom* (Edgar Rice Burroughs) — strong module candidate. Early novels (from 1912) are US public domain. ERB Inc. holds trademarks and is active; situation is more complex than copyright alone but more tractable than Amber. See `future_features.md`.
+
+**Completed this session:**
+- Added `engine/__main__.py` so the engine can be launched with `python -m engine`
+- Ran `reset_instance.sql` to restore 3:00 AM starting state before playtest
+
+**Planned next session:** Prioritize based on playtest observations. Consider:
+- NPC pending intent (§1) — likely most impactful for multi-turn social exchanges
+- Characters nearby / perception range fix — affects how interesting the world feels when NPCs are off-screen
 
 ---
 
@@ -31,9 +57,9 @@ Haiku-hosted with Patreon access to cover API costs — was discussed and is
 viable. The three-pass architecture makes backend swapping transparent to the
 rest of the engine.
 
-**Planned next session:** Playtest with Charlie (friend, skilled programmer,
+**Planned next session:** Playtest with a friend (skilled programmer,
 cat person, Fate system fan) on laptop. Run `reset_instance.sql` before the
-session to restore 3:00 AM starting state. Charlie may have design suggestions —
+session to restore 3:00 AM starting state. The playtester may have design suggestions —
 Fate's approach to player agency and outcome granularity (succeed at a cost, etc.)
 is potentially relevant to Pass 2 outcome types. Worth discussing after the playtest.
 
