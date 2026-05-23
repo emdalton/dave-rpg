@@ -1,7 +1,7 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-05-22, session 5 (in progress).*
+*Last updated: 2026-05-22, session 5 (closing).*
 
 ---
 
@@ -269,7 +269,95 @@ Check seed values before next play session.
 
 ---
 
-### 3. Search mode (next up)
+### 3. Post-Pass-2 validation / retry layer
+
+**Design principle:** The game engine owns all object and character locations.
+If Pass 2 adjudication proposes a change that is physically impossible (moving an
+NPC to a non-adjacent room, referencing an item the player cannot perceive, moving
+a character who is not in `characters_at_location`), the engine must catch it before
+applying the outcome and before Pass 3 runs. Pass 3 must only narrate what the engine
+has already confirmed and written to the database — it must not describe events that
+failed validation.
+
+**Validation layer (between Pass 2 and `_apply_outcome`):**
+
+1. For each entry in `location_change`, verify:
+   - The character exists in the DB.
+   - `new_location_id` is adjacent to the character's current location
+     (already partially enforced in `_apply_outcome`; should be promoted to
+     a pre-apply check that can trigger a retry).
+   - For NPCs: the character appears in `characters_at_location` in the Pass 2
+     context (not hallucinated from an adjacent room or from past turns).
+
+2. For each entry in `item_changes` / `item_location_change` (see §3a below), verify:
+   - The item exists in the DB.
+   - The item is currently at a location that makes the proposed change reachable.
+   - If an NPC is moving an item, the NPC must be in `characters_at_location`.
+
+3. If any violation is found, the engine does NOT apply the outcome. Instead:
+   - Rebuild the Pass 2 prompt with a preamble: `"CORRECTION: your previous
+     response proposed [X], which is not possible because [Y]. Please re-adjudicate
+     the same action with this constraint."` Append the impossibility description.
+   - Resend to the LLM (one retry only).
+   - If the retry also fails validation, strip the offending fields and apply the
+     remainder. Log a warning for post-session review.
+
+**Scope note:** This is medium complexity — it requires a validation function that
+mirrors the guards already in `_apply_outcome`, plus retry plumbing in `_process_turn`.
+Design validation logic first; retry scaffolding is additive. Do not combine with
+the item_location_change work in the same session.
+
+---
+
+### 3a. Item location change and NPC item movement
+
+**Current limitation:** The outcome schema has `item_changes` (updating fields on
+existing items) but no mechanism for *moving* an item from one location to another.
+This blocks two important gameplay features: NPC item movement (Spook knocking a
+toy into another room) and lazy item discovery (Toulouse finding a toy in the hallway
+that he passed by earlier without noticing).
+
+**New outcome field: `item_location_change`**
+
+Add to the Pass 2 required output schema:
+
+```json
+item_location_change  (list of {item_id, new_location_id, moved_by_character_id};
+                       one entry per item that changes physical location this turn.
+                       new_location_id must be a valid location_id in the DB.
+                       moved_by_character_id must be a character currently in the
+                       item's current location. Empty list if no items move.)
+```
+
+Engine validation (via the §3 retry layer): confirm item exists, confirm the moving
+character is at the item's current location, confirm new_location_id exists.
+
+**Lazy item discovery:** Some items in a location are not immediately visible
+(`is_visible = 0` in the item table, or simply not present in the Pass 2 context
+because they haven't been discovered yet). When the player searches a room or the
+LLM determines the player character would notice the item given their species/state,
+Pass 2 can issue an `item_changes` entry setting `is_visible = 1`. This makes the
+item appear in subsequent context packets without any schema change. No new table
+needed; the existing `is_visible` flag and `item_changes` mechanism are sufficient.
+The design question is whether Pass 2 should *always* be given invisible items in
+the context so it can adjudicate discovery, or whether the engine should only expose
+them under specific conditions (search action, high sensory acuity, etc.).
+
+**NPC item movement:** Spook knocking a toy down the hallway requires `item_location_change`
+with `moved_by_character_id = Spook.id`. The engine applies this before Pass 3 runs,
+so Pass 3's `characters_present` and location context reflect the new item positions.
+For this to work correctly, Spook must be in `characters_at_location` when the move
+is adjudicated — the validation layer enforces this.
+
+**Schema note:** No schema change required for `item_location_change`. The engine
+implements it as: validate → `UPDATE item SET location_id = ? WHERE id = ?` (if
+`location_id` is a direct field) or `UPDATE item_location SET location_id = ? WHERE
+item_id = ?` (if items use the `item_location` join table). Check schema.sql for the
+current item location storage pattern before implementing.
+
+---
+
+### 4. Search mode (next up)
 
 New Pass 1 action type `search`. "Go look for Spook" triggers directed traversal
 of ~3 adjacent locations, brief prose per room checked, LLM adjudicates whether
@@ -335,6 +423,14 @@ guard of its own.
   metric, and a weighted aggregation step at session end. This is also the
   basis for a future "end-of-game score screen" (how bored was Toulouse at
   sunrise? did he get his canned food?).
+
+- **Pricing table maintenance cadence.** `_PRICING_PER_MTOK` in `engine/llm/claude.py`
+  carries Anthropic's per-token rates with a "last verified" date. Prices change
+  but not on a per-session or per-module schedule. Suggested practice: review
+  quarterly (add a calendar reminder), and always when adding a new model string
+  to the table. The "last verified" comment in the source is the check — if it's
+  more than a few months old at the start of a session, spend 30 seconds
+  confirming against https://www.anthropic.com/pricing before a long play run.
 
 - **Clock visibility as a module-level setting.** The engine tracks in-game
   time via `game_instance.current_time_minutes` but deliberately withholds it
@@ -403,6 +499,20 @@ guard of its own.
   ambiguity" principle. Schema: small JSON profile on `character`
   (e.g. `{"hearing": 0.85, "smell": 0.90, "dark_vision": 0.70}`) plus a
   `sensory_output` float updated by the engine from emotional_state and species.
+- **Room content consistency (lazy world gen detail reuse).** Pass 3 currently
+  generates room descriptions from the location `description_skeleton` plus
+  whatever narrative context it infers. It does not receive the `location_detail`
+  records that were generated and stored by earlier turns. As a result, specific
+  room contents — the shape of the dining room table, the titles on the living
+  room bookshelf, the particular clutter on the coffee table — are regenerated
+  fresh each time Pass 3 describes a room, producing inconsistent details across
+  turns and sessions. The fix is to include the current valid `location_detail`
+  records for the player's current location in the Pass 3 context packet, so
+  prose rendering draws from canonical stored facts rather than re-inventing them.
+  Pass 2 already receives and generates these details; Pass 3 just isn't getting
+  them. This is purely a context packet assembly change in `context.py`
+  (`build_pass3_packet`) — no schema or engine changes required.
+
 - **Interaction history compression**: Long sessions will make the history section
   of context packets expensive. Plan a compression strategy.
 - **Haiku comparison run**: Run same seed/actions through Haiku to compare
