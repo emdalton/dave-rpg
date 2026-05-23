@@ -1,7 +1,44 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-05-22, session 5 (closing).*
+*Last updated: 2026-05-22, session 5 (closed).*
+
+---
+
+## Session 5 closing notes (2026-05-22)
+
+**Completed this session:**
+- Gender + pronouns schema (v6 migration), seeded for all I Am a Cat characters
+- `characters_referenced` in Pass 3 context (pronoun consistency)
+- `characters_present` in Pass 3 context (NPC presence authority)
+- NPC authority rules added to both Pass 2 and Pass 3 prompt templates
+- Pass 2 `location_change` spec strengthened: movement consistency rule +
+  NPC authority note (only issue entries for NPCs in characters_at_location)
+- Token usage logging per call + session total with cost estimate (claude.py)
+- Named-location move pre-apply fix: all moves now go through
+  `_resolve_multistep_move` regardless of adjacency; staircase navigation fixed
+- `reset_instance.sql` written for clean game resets
+- Design notes captured: validation/retry layer (§3), item_location_change +
+  lazy item discovery + NPC item movement (§3a), pending_intent (§1),
+  hunger-driven wake mechanic (§2)
+- CLAUDE.md updated with "Engine owns all state; LLM does not" principle
+
+**Active LLM backend clarification:** The game is being run on Haiku (not
+Sonnet), which serves as a working lower bound for Phase 2 local model
+feasibility. If I Am a Cat is playable on Haiku, a well-prompted Mistral 7B
+or similar local model is a realistic target. An alternative deployment path —
+Haiku-hosted with Patreon access to cover API costs — was discussed and is
+viable. The three-pass architecture makes backend swapping transparent to the
+rest of the engine.
+
+**Planned next session:** Playtest with Charlie (friend, skilled programmer,
+cat person, Fate system fan) on laptop. Run `reset_instance.sql` before the
+session to restore 3:00 AM starting state. Charlie may have design suggestions —
+Fate's approach to player agency and outcome granularity (succeed at a cost, etc.)
+is potentially relevant to Pass 2 outcome types. Worth discussing after the playtest.
+
+⚠️ **Before next play session:** Run `reset_instance.sql` to reset the clock and
+all character state. Current game clock has drifted to ~7:00 AM from testing.
 
 ---
 
