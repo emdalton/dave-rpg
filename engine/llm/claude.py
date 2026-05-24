@@ -142,6 +142,9 @@ class ClaudeLLMClient(LLMClient):
     # (e.g. "claude-haiku-4-5-20251001"). The longest matching prefix wins.
     # Last verified: 2026-05-22. Check https://www.anthropic.com/pricing when
     # updating models; prices change and this table will drift.
+    # Suggested update cadence: quarterly, or whenever a new model is added.
+    # Not every session, but not just at module creation either — somewhere
+    # in between, driven by calendar rather than game events.
     _PRICING_PER_MTOK: dict[str, tuple[float, float]] = {
         # (input $/MTok, output $/MTok)
         "claude-haiku-4-5":  (0.80,  4.00),

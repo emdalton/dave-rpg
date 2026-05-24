@@ -503,6 +503,29 @@ def build_pass3_packet(
             "pronouns": parsed_pronouns,
         })
 
+    # ------------------------------------------------------------------
+    # Characters physically present at the player's current location
+    #
+    # The engine — not the LLM — owns location state. Pass 3 must only
+    # describe NPCs as present, acting, or reacting if they appear in this
+    # list. Describing an NPC who is elsewhere, or inventing NPC movement
+    # that was not in the outcome's location_change array, contradicts the
+    # database and breaks continuity on subsequent turns.
+    # ------------------------------------------------------------------
+    location_id = player["current_location_id"]
+    present_npcs = db.get_characters_at_location(
+        location_id, exclude_character_id=player["id"]
+    )
+    characters_present = [
+        {
+            "id": npc["id"],
+            "name": npc["name"],
+            "species": npc["species"],
+            "emotional_state": npc["emotional_state"],
+        }
+        for npc in present_npcs
+    ]
+
     packet = {
         "pass": 3,
         "description": (
@@ -515,13 +538,15 @@ def build_pass3_packet(
         "game": game_summary,
         "player": player_summary,
         "current_location": location_summary,
+        "characters_present": characters_present,
         "characters_referenced": characters_referenced,
     }
 
     logger.debug(
-        "Pass 3 packet built: game=%d player=%d chars_referenced=%d",
+        "Pass 3 packet built: game=%d player=%d chars_present=%d chars_referenced=%d",
         game_id,
         player["id"],
+        len(characters_present),
         len(characters_referenced),
     )
     return packet
