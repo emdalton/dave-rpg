@@ -41,3 +41,4 @@ CLAUDE.md
 *.gguf
 *.bin
 models/
+modules/**/.fuse_hidden*
