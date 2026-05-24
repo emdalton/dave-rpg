@@ -4,6 +4,51 @@
 
 ---
 
+## 15. Module: The Three Musketeers (Alexandre Dumas)
+
+Suggested 2026-05-24 as the best first test case for combat mechanics.
+Dumas died 1870; the novel (1844) is completely public domain worldwide —
+no IP concerns.
+
+**Why this works better than Barsoom for introducing combat:**
+Barsoom combat is constant and culturally central — you cannot build a
+meaningful Barsoom module without designing combat as a primary mechanic.
+Three Musketeers allows combat to be developed as *one resolution path
+among many*, embedded in rich social and political context. A duel is
+preceded by an insult, a challenge, negotiation over seconds and location,
+and an audience — all interactions the engine already handles well. The
+sword fight itself is the least interesting part mechanically; the social
+scaffolding around it is where DAVE's strengths lie.
+
+**Player character:** D'Artagnan arriving in Paris — a young Gascon outsider
+with high swordsmanship, low court manners, and low political awareness.
+Structurally similar to Elizabeth Bennet at the assembly: low status, high
+capability, navigating an established social order that doesn't yet take him
+seriously. Strong starting arc.
+
+**Faction system workout:**
+- King's Musketeers (Athos, Porthos, Aramis, de Tréville)
+- Cardinal's Guards (Richelieu, Rochefort)
+- The Court (Louis XIII, Anne of Austria)
+- Various noble houses and agents
+
+**Hidden motivation showcase:** Milady de Winter is one of the great
+hidden-motivation characters in literature — her visible persona and actual
+agenda are almost entirely opposed. Rochefort and Richelieu similarly.
+
+**Combat mechanics needed:**
+- Skill floats: `swordsmanship`, relevant physical attributes
+- Injury as internal_state (wound severity: 0.0 = unhurt, 1.0 = mortally
+  wounded; passive rate = healing over time with rest)
+- Pass 2 adjudicates combat outcomes from skill floats + situational factors;
+  same pattern as social adjudication
+- Duels have social preconditions (challenge issued, seconds agreed) that
+  the engine tracks before combat resolves
+
+**IP:** Completely clear. Public domain worldwide.
+
+---
+
 ## 13. Module chapters / act structure with state forwarding
 
 Observation (2026-05-23): modules don't all need to be published as monolithic single-session experiences. A chapter structure would allow a module to be developed and released incrementally, with each chapter forwarding relevant state (character attitudes, reputation changes, item positions, pending intents) into the next chapter's starting seed.
