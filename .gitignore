@@ -37,6 +37,10 @@ Thumbs.db
 # Private working notes (not for public repo)
 CLAUDE.md
 
+# Reference material (local copies for module development; not for publication)
+# Published modules include a references.md in the module directory listing sources with URLs.
+references/
+
 # Ollama / model weights (do not commit)
 *.gguf
 *.bin
