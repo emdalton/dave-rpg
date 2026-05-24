@@ -5,6 +5,50 @@
 
 ---
 
+## Session 7 closing notes (2026-05-24)
+
+**This session:** Meryton module design — location graph, character seeding,
+faction system design. No engine code written.
+
+**Completed this session:**
+- `engine/__main__.py` added (carried over from session 6)
+- Playtest transcript reviewed; prose quality confirmed strong on Haiku
+- Module directory renamed from `Netherfield_Ball` to `Meryton` (reflects
+  broader scope: Chapter 3 assembly first, Netherfield Ball as Chapter 2)
+- `regency_dance_mechanics.md` — dance card rules, set structure, supper
+  dance significance, social observation as gameplay
+- `location_graph_sketch.md` — 10 locations; 6 navigable, 4 non-passable;
+  barrier types distinguished (locked vs. convention); connections summary;
+  open questions resolved against chapter_03.txt
+- `character_design.md` — OCEAN values, motivations, starting emotional
+  states, internal states for full Chapter 3 cast
+- `faction_design.md` — faction system schema design; proposed tables
+  (`faction`, `character_faction_reputation`); engine changes required;
+  starting reputation values for Elizabeth
+
+**Key design decisions this session:**
+- Chapter 3 (first Meryton assembly) precedes Netherfield Ball as Chapter 1
+  of the module — more player agency, unformed relationships, introduction
+  mechanic exercised
+- Factions designed now rather than retrofitting: `bennet_family`,
+  `meryton_neighborhood`, `bingley_circle` for Chapter 3
+- Darcy's Openness is the primary arc float; player may shift it faster than
+  canonical — this is an intentional test of the mechanic
+- NPC behavior is honest to character, not constrained to canonical plot
+  outcomes; minor catastrophes emerge from seeded values (Lydia C=0.08,
+  Mrs. Bennet N=0.88)
+- `passage_note` TEXT field needed on `location_connection` to distinguish
+  locked vs. convention barriers
+- Supper room present but unused at Chapter 3; activates in Chapter 2
+
+**Planned next session:**
+- Schema migration for faction tables (new version, after v6)
+- `passage_note` field on `location_connection`
+- Begin seed.sql for Meryton Chapter 3
+- Read chapter_17_18.txt for Netherfield Ball character/location analysis
+
+---
+
 ## Session 6 closing notes (2026-05-23)
 
 **This session:** Playtest with a friend (skilled programmer, cat person, Fate system fan).
