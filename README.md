@@ -32,7 +32,7 @@ For full architectural detail, see [docs/design_v05.md](docs/design_v05.md).
 
 ## Status
 
-Early development. The engine is currently in Phase 1: prototyping with Claude Sonnet to validate data structures and query templates before porting to a local model (target: Mistral 7B via Ollama).
+Early development. The engine is currently in Phase 1: prototyping with Claude Haiku as the game loop backend to validate that the three-pass architecture is viable at a model capability level close to the Phase 2 local model target. Claude Sonnet is used separately for module construction — seeding character data, writing location graphs, and generating ground-truth adjudication examples. The distinction matters: Haiku running the game is the test; Sonnet building the module is the tooling.
 
 ### Planned test modules
 
@@ -80,25 +80,26 @@ pip install -r requirements.txt
 
 ### Build a module database
 
-Each module ships with SQL files that must be applied in order to a fresh SQLite database:
+Each module database is created from two files: the canonical schema and the module seed. No migration scripts are needed for a fresh install — `schema/schema.sql` incorporates all schema versions.
 
 ```bash
 sqlite3 modules/i_am_a_cat/i_am_a_cat.db < schema/schema.sql
-sqlite3 modules/i_am_a_cat/i_am_a_cat.db < schema/migrations/migrate_v1_to_v2.sql
 sqlite3 modules/i_am_a_cat/i_am_a_cat.db < modules/i_am_a_cat/seed.sql
 ```
+
+Migration scripts in `schema/migrations/` are only needed when upgrading an existing database to a newer schema version. For a new database, always start from `schema/schema.sql`.
 
 ### Run with Claude (Phase 1)
 
 ```bash
 export ANTHROPIC_API_KEY=your_key_here
-DAVE_DB_PATH=modules/i_am_a_cat/i_am_a_cat.db python3 -m engine.engine
+DAVE_DB_PATH=modules/i_am_a_cat/i_am_a_cat.db python3 -m engine
 ```
 
 For debug-level logging (shows raw prompts and LLM responses on stderr):
 
 ```bash
-DAVE_LOG_LEVEL=DEBUG DAVE_DB_PATH=modules/i_am_a_cat/i_am_a_cat.db python3 -m engine.engine
+DAVE_LOG_LEVEL=DEBUG DAVE_DB_PATH=modules/i_am_a_cat/i_am_a_cat.db python3 -m engine
 ```
 
 ### Run with Ollama (Phase 2)
@@ -150,7 +151,7 @@ The engine targets local inference for privacy, offline capability, and cost. Al
 - **Primary:** Mistral 7B via [Ollama](https://ollama.com) — ~90% first-try JSON accuracy, 6–7 GB RAM, Apache 2.0
 - **Fallback/upgrade:** Llama 3.3 8B — 128K context window, stronger instruction-following
 
-Phase 1 development uses Claude Sonnet for its superior handling of underspecified situations, generating ground-truth adjudication examples that will be used to evaluate local model parity.
+Phase 1 development uses Claude Haiku as the game loop backend — the three-pass architecture is validated at a capability level close to the Phase 2 local model target. Claude Sonnet is used separately as a construction tool for seeding module data and generating ground-truth adjudication examples.
 
 ---
 

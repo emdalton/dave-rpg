@@ -1,7 +1,66 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-05-24, session 8 (closed).*
+*Last updated: 2026-05-24, session 9 (closed).*
+
+---
+
+## Session 9 closing notes (2026-05-24)
+
+**This session:** Engine v7 changes, schema.sql canonicalization, and module
+database setup. All seven §1a engine items completed.
+
+**Completed this session:**
+
+**Schema fixes:**
+- `schema.sql` corrected — v2 columns missing from the canonical file were
+  added: `is_involuntary`, `involuntary_trigger_type`, `involuntary_trigger_param`,
+  `involuntary_event_description` on `internal_state`; `intrinsic_motivation` on
+  `character_skill`. These were in the migration chain but had not been folded
+  in when schema.sql was made canonical.
+- `schema.sql` now inserts a schema_version row at the bottom so fresh-install
+  databases correctly report MAX(version)=7.
+- `migrate_v6_to_v7.sql` made idempotent: `CREATE TABLE IF NOT EXISTS`,
+  `CREATE INDEX IF NOT EXISTS`, and `WHERE NOT EXISTS` guard on the
+  schema_version INSERT. `ALTER TABLE ADD COLUMN` statements still emit a
+  harmless message on re-run (SQLite has no IF NOT EXISTS for columns).
+- Migration script headers for v1→v2 updated to match the canonical-file
+  convention established in v2→v3 and v3→v4.
+
+**Module databases:**
+- `modules/i_am_a_cat/i_am_a_cat.db`: v7 was already applied in a prior
+  session. Cleaned up duplicate schema_version v7 row. No further migration needed.
+- `modules/Meryton/meryton.db`: created fresh from `schema/schema.sql` +
+  `modules/Meryton/seed.sql`.
+
+**Engine v7 changes (all §1a items):**
+- `db.py`: four new methods — `get_character_faction_reputations`,
+  `update_faction_reputation`, `get_or_create_faction`,
+  `update_character_pending_intent`. Also: `get_location_connections` now
+  returns `passage_note`.
+- `context.py`: `faction_reputations` added to player profile block in
+  `build_pass2_packet`; `pending_intent` added to `_build_character_profile`
+  (appears for player and all NPCs); `passage_note` included in
+  `adjacent_locations` when non-null.
+- `engine.py`: Pass 2 prompt template documents `faction_reputation_changes`
+  and `pending_intent_updates` output fields; `_apply_outcome` handles both;
+  `_check_npc_wandering` suppresses wander roll when `pending_intent` is
+  non-null or sleepiness ≥ threshold.
+- `config.py`: `WANDER_SLEEPINESS_THRESHOLD = 0.60` (env-overridable as
+  `DAVE_WANDER_SLEEPINESS_THRESHOLD`).
+
+**Pending from this session:**
+- Re-seed Guy and Mama's `wander_probability` to honest values now that
+  sleepiness suppression is implemented — currently near-zero as a proxy for
+  the missing suppression.
+
+**Planned next session:**
+
+- Tweak I Am a Cat `wander_probability` for Guy and Mama (seed_v3.sql or
+  direct DB update) — now safe to use honest values; sleepiness suppression
+  handles the rest
+- Begin engine testing against Meryton DB (first Meryton play session or
+  targeted action testing)
 
 ---
 
@@ -45,16 +104,6 @@ code written; no seed work yet.
 - Directory naming convention for new directories: lowercase kebab-case.
   Existing module directories (Netherfield_Ball, Meryton) retain mixed case;
   rename deferred.
-
-**Planned next session:**
-
-- Apply v7 migration to `modules/i_am_a_cat/i_am_a_cat.db`
-- Discuss and finalize location graph for Meryton Chapter 3 seed
-- Begin `seed.sql` for Meryton Chapter 3
-- Engine changes for v7 fields: `faction_reputation_changes` in
-  `_apply_outcome()`; `faction_reputations` in Pass 2 context packet;
-  `pending_intent_updates` in `_apply_outcome()`; `pending_intent` in
-  NPC profile block of Pass 2 context
 
 ---
 
@@ -213,22 +262,24 @@ RPG/
 │   │   ├── seed_v6.sql        — v6 additions (gender + pronouns for all characters)
 │   │   └── sample_transcript_01.md  — first full play session transcript
 │   ├── Meryton/               — active module; Chapter 3 (first Meryton assembly)
+│   │   ├── meryton.db              — live SQLite database (schema.sql + seed.sql)
+│   │   ├── seed.sql                — full module seed (13 locations, 13 chars, 3 factions)
 │   │   ├── character_design.md     — OCEAN, motivations, emotional states for cast
 │   │   ├── faction_design.md       — faction system design and starting reputations
-│   │   ├── location_graph_sketch.md — 10 locations; connections and barrier types
-│   │   ├── references.md           — committed list of sources with URLs
-│   │   └── regency_dance_mechanics.md — dance card rules, set structure (in docs/)
+│   │   ├── location_graph_sketch.md — 13 locations; connections, barrier types, passage_notes
+│   │   └── references.md           — committed list of sources with URLs
 │   └── Netherfield_Ball/      — future chapter placeholder (P&P Ch. 18);
 │                                 dormant until inter-chapter carry is designed
 ├── schema/
-│   ├── schema.sql             — canonical schema with full field-semantic comments;
-│   │                            reference this before adding any new fields
+│   ├── schema.sql             — canonical fresh-install schema through v7; run this
+│   │                            + seed.sql only for new databases (no migrations needed)
 │   └── migrations/
 │       ├── migrate_v1_to_v2.sql
 │       ├── migrate_v2_to_v3.sql
 │       ├── migrate_v3_to_v4.sql
 │       ├── migrate_v4_to_v5.sql
-│       └── migrate_v5_to_v6.sql
+│       ├── migrate_v5_to_v6.sql
+│       └── migrate_v6_to_v7.sql   — idempotent (IF NOT EXISTS throughout)
 └── tests/                     — empty; test suite is future work
 ```
 
@@ -326,30 +377,35 @@ convention-closed connections). `pending_intent` TEXT NULL on `character`
 
 ## Pending work — priority queue
 
-### ✅ Schema v7: faction, character_faction_reputation, passage_note, pending_intent (completed session 8)
+### ✅ Schema v7: faction, character_faction_reputation, passage_note, pending_intent (completed sessions 8–9)
 
-Migration written (`schema/migrations/migrate_v6_to_v7.sql`) and `schema/schema.sql`
-updated. Not yet applied to `i_am_a_cat.db` — do this before next Meryton seed work.
-Engine changes still required (see item §1a below).
+Migration written (`schema/migrations/migrate_v6_to_v7.sql`) and made idempotent.
+`schema/schema.sql` is canonical through v7. Applied to `i_am_a_cat.db`; Meryton
+DB created fresh. All engine changes wired (see §1a below — all completed).
 
 ---
 
-### §1a. Engine changes for v7 fields (next up)
+### ✅ §1a. Engine changes for v7 fields (completed session 9)
 
-Four additions to wire the new schema fields into the engine loop:
+All seven items complete:
 
-1. `_apply_outcome()` in `engine.py`: handle `faction_reputation_changes`
-   list — apply deltas, clamp to [0.0, 1.0], update `notes` field, write
-   `updated_at`. Same pattern as `internal_state_delta`.
-2. `_apply_outcome()` in `engine.py`: handle `pending_intent_updates` list —
-   set or clear `pending_intent` on the named character rows.
-3. `context.py` — Pass 2 packet: include `faction_reputations` in the player
-   character profile block (faction slug, reputation float, notes).
-4. `context.py` — Pass 2 packet: include `pending_intent` in each NPC profile
-   block (already built by `_build_character_profile()`).
-5. Pass 2 prompt template: document `faction_reputation_changes` and
-   `pending_intent_updates` as available output fields with structure and
-   clamping behavior. Instruct when to issue each.
+1. `_apply_outcome()` handles `faction_reputation_changes` — applies deltas,
+   clamps to [0.0, 1.0], updates `notes`, uses `get_or_create_faction` for
+   dynamic faction creation during play.
+2. `_apply_outcome()` handles `pending_intent_updates` — sets or clears
+   `pending_intent` on named character rows.
+3. `context.py` Pass 2 packet: `faction_reputations` in player profile block
+   (faction slug, reputation, notes, description).
+4. `context.py` Pass 2 packet: `pending_intent` in every character profile
+   via `_build_character_profile()`.
+5. `context.py`: `passage_note` included in `adjacent_locations` when non-null.
+6. Pass 2 prompt template documents both new output fields.
+7. Wander loop: suppressed when `pending_intent` non-null (social commitment).
+8. Wander loop: suppressed when sleepiness ≥ `WANDER_SLEEPINESS_THRESHOLD`
+   (0.60, env-overridable). I Am a Cat sleeping NPCs can now be re-seeded
+   with honest base wander values.
+
+**Still pending:** Re-seed Guy and Mama `wander_probability` to honest values.
 
 ---
 
@@ -727,8 +783,12 @@ guard of its own.
   of context packets expensive. Plan a compression strategy.
 - **Haiku comparison run**: Run same seed/actions through Haiku to compare
   output quality with Sonnet.
-- **Test suite**: Currently empty. At minimum, smoke tests for db.py methods
-  and context packet assembly.
+- **Test suite**: Currently empty. Planned: a basic automated test runner that
+  cycles through a designated sequence of typical player commands against one or
+  more module databases, verifying that each turn completes without engine errors
+  and that DB state changes are plausible (location updated, attitudes clamped,
+  etc.). Not a full LLM output evaluator — just an integration smoke test that
+  catches regressions in db.py, context.py, and _apply_outcome(). Details TBD.
 
 ---
 

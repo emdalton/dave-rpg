@@ -4,6 +4,54 @@
 
 ---
 
+## 16. What-if: "Elizabeth Bennet, Agent of the Crown"
+
+A `what_if` premise modifier for the Meryton module. Elizabeth is working
+undercover for British intelligence — hunting free traders and foreign agents
+operating through Hertfordshire society. Her social position (a gentleman's
+daughter, welcome at every assembly, unremarkable to anyone who doesn't look
+closely) is the cover. Her intelligence, boldness, and powers of observation
+are the qualifications.
+
+Arose in the context of the Meryton location graph: the locked doors in the
+civic building (corn market, magistrate's room) would make sense to attempt if
+Elizabeth had a reason to be in restricted areas. An Agent of the Crown would
+have that reason and the skills — lock-picking, surveillance, reading people —
+that a well-bred young lady would otherwise not plausibly possess.
+
+**What this exercises:**
+- `what_if` premise modifier system (feature 6) — the canonical delivery mechanism
+- Hidden motivation on Elizabeth: her visible purpose is attending the assembly;
+  her actual purpose is surveillance or contact with an asset
+- The locked location connections become meaningful obstacles rather than set
+  dressing — the engine adjudicates capability (does she have the skill?) and
+  consequence (was she seen?) rather than simply refusing entry
+- Service passages become operationally useful rather than socially forbidden
+- Wickham as a suspect rather than a love interest — or both
+
+**Tone:** Adventure rather than comedy, though Austen's irony survives the
+genre shift. Miss Bingley's condescension is still insufferable; Mrs. Bennet
+is still a hazard to any covert operation; Darcy is still watching Elizabeth
+with unsettling attention, for reasons that may not be romantic.
+
+**The Darcy twist:** It will eventually emerge that Darcy is also an Agent
+of the Crown. This reframes the entire dynamic: his inscrutability is
+tradecraft, not arrogance; his obsessive attention to propriety is
+operational discipline; he cannot expose Wickham without revealing how he
+knows what he knows. His famous letter to Elizabeth stops being a wounded
+gentleman's self-defense and becomes an intelligence briefing he has been
+trying to find a way to deliver for three chapters. Neither agent can
+acknowledge the other without blowing their cover — which gives their
+antagonism an entirely new engine. Elizabeth's refusal of Collins reads
+differently too: a woman running an active operation cannot afford to be
+installed at the Hunsford parsonage under the thumb of Lady Catherine's
+household.
+
+*Not scoped. Depends on what_if modifier system (feature 6) and the Meryton
+module reaching a stable playable state first.*
+
+---
+
 ## 15. Module: The Three Musketeers (Alexandre Dumas)
 
 Suggested 2026-05-24 as the best first test case for combat mechanics.
