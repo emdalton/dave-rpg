@@ -1,7 +1,60 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-05-23, session 6 (closed).*
+*Last updated: 2026-05-24, session 8 (closed).*
+
+---
+
+## Session 8 closing notes (2026-05-24)
+
+**This session:** Repository reorganization and schema v7 migration. No engine
+code written; no seed work yet.
+
+**Completed this session:**
+
+- Repository file organization established (see design decisions below)
+- `schema/migrations/migrate_v6_to_v7.sql` written — faction tables,
+  passage_note, pending_intent
+- `schema/schema.sql` updated to reflect full v7 state (location_connection
+  appended; pending_intent in character; faction and
+  character_faction_reputation appended)
+
+**Key design decisions this session:**
+
+- `references/` directory created and gitignored. Local research copies
+  (Wikipedia pages, source texts, images) are not published. Each module
+  has a committed `references.md` in its module directory listing sources
+  with URLs — this is the published record of what was consulted.
+- Reference subdirectories: `references/regency/` (general Regency-era
+  material, reusable across modules), `references/pride-and-prejudice/`
+  (novel text and character articles), `references/netherfield-ball/`
+  (Basildon Park / Netherfield location research),
+  `references/meryton/` (assembly rooms location research, floorplan).
+- `docs/regency_dance_mechanics.md` moved from Netherfield_Ball module
+  folder; noted as engine-level design though somewhat module-specific —
+  may be subsumed into Meryton/Netherfield_Ball docs later.
+- Faction allegiance is modeled via MST goals in `character_goal` (e.g. a
+  'belonging' goal scoped to a specific faction by its description), not as
+  a separate field. `character_faction_reputation` tracks how a faction views
+  a character; allegiance (how the character relates to the faction) is
+  motivational and belongs in the goal framework.
+- Factions may be created dynamically during play (new family unit on
+  marriage, political alliances, etc.) — the schema supports this without
+  modification; Pass 2 issues a `create_faction` outcome and the engine
+  inserts the row before applying reputation changes.
+- Directory naming convention for new directories: lowercase kebab-case.
+  Existing module directories (Netherfield_Ball, Meryton) retain mixed case;
+  rename deferred.
+
+**Planned next session:**
+
+- Apply v7 migration to `modules/i_am_a_cat/i_am_a_cat.db`
+- Discuss and finalize location graph for Meryton Chapter 3 seed
+- Begin `seed.sql` for Meryton Chapter 3
+- Engine changes for v7 fields: `faction_reputation_changes` in
+  `_apply_outcome()`; `faction_reputations` in Pass 2 context packet;
+  `pending_intent_updates` in `_apply_outcome()`; `pending_intent` in
+  NPC profile block of Pass 2 context
 
 ---
 
@@ -143,6 +196,13 @@ RPG/
 │       ├── base.py            — LLMClient abstract base class; LLMError, LLMJSONError
 │       ├── claude.py          — Claude (Anthropic API) backend
 │       └── ollama.py          — Ollama (local model) backend stub
+├── references/                — gitignored; local research copies for module
+│   │                            development. Each module has a committed
+│   │                            references.md listing sources with URLs.
+│   ├── regency/               — general Regency-era material (reusable)
+│   ├── pride-and-prejudice/   — P&P novel text and character articles
+│   ├── netherfield-ball/      — Basildon Park / Netherfield location research
+│   └── meryton/               — Meryton assembly rooms research, floorplan
 ├── modules/
 │   ├── i_am_a_cat/
 │   │   ├── i_am_a_cat.db      — live SQLite database for this module
@@ -152,7 +212,14 @@ RPG/
 │   │   ├── seed_v5.sql        — v5 additions (game_instance record; passive rates)
 │   │   ├── seed_v6.sql        — v6 additions (gender + pronouns for all characters)
 │   │   └── sample_transcript_01.md  — first full play session transcript
-│   └── Netherfield_Ball/      — placeholder; not yet implemented
+│   ├── Meryton/               — active module; Chapter 3 (first Meryton assembly)
+│   │   ├── character_design.md     — OCEAN, motivations, emotional states for cast
+│   │   ├── faction_design.md       — faction system design and starting reputations
+│   │   ├── location_graph_sketch.md — 10 locations; connections and barrier types
+│   │   ├── references.md           — committed list of sources with URLs
+│   │   └── regency_dance_mechanics.md — dance card rules, set structure (in docs/)
+│   └── Netherfield_Ball/      — future chapter placeholder (P&P Ch. 18);
+│                                 dormant until inter-chapter carry is designed
 ├── schema/
 │   ├── schema.sql             — canonical schema with full field-semantic comments;
 │   │                            reference this before adding any new fields
@@ -192,7 +259,16 @@ computes the path. NPCs are not subject to this restriction.
 
 **v6** — `gender` (TEXT, NULL) and `pronouns` (TEXT/JSON, NULL) on `character`. Gender label and case-indexed pronoun array for Pass 3 prose rendering. Case labels are English regardless of module language (language-neutral schema key); form values are in the module's target language.
 
-**Current version: 6.** Next migration will be v7 (module/instance split — see pending work §3).
+**v7** — `faction` table (module-scoped named social groups with LLM-facing
+descriptions). `character_faction_reputation` table (character standing with
+a faction, 0.0–1.0, updated by Pass 2 `faction_reputation_changes` outcome
+field). `passage_note` TEXT NULL on `location_connection` (semantic barrier
+description for Pass 2 — distinguishes physically locked from
+convention-closed connections). `pending_intent` TEXT NULL on `character`
+(working-memory slot for deferred social obligations; set/cleared by Pass 2
+`pending_intent_updates` outcome field).
+
+**Current version: 7.** Next migration will be v8 (module/instance split — see pending work §4).
 
 ---
 
@@ -249,6 +325,33 @@ computes the path. NPCs are not subject to this restriction.
 ---
 
 ## Pending work — priority queue
+
+### ✅ Schema v7: faction, character_faction_reputation, passage_note, pending_intent (completed session 8)
+
+Migration written (`schema/migrations/migrate_v6_to_v7.sql`) and `schema/schema.sql`
+updated. Not yet applied to `i_am_a_cat.db` — do this before next Meryton seed work.
+Engine changes still required (see item §1a below).
+
+---
+
+### §1a. Engine changes for v7 fields (next up)
+
+Four additions to wire the new schema fields into the engine loop:
+
+1. `_apply_outcome()` in `engine.py`: handle `faction_reputation_changes`
+   list — apply deltas, clamp to [0.0, 1.0], update `notes` field, write
+   `updated_at`. Same pattern as `internal_state_delta`.
+2. `_apply_outcome()` in `engine.py`: handle `pending_intent_updates` list —
+   set or clear `pending_intent` on the named character rows.
+3. `context.py` — Pass 2 packet: include `faction_reputations` in the player
+   character profile block (faction slug, reputation float, notes).
+4. `context.py` — Pass 2 packet: include `pending_intent` in each NPC profile
+   block (already built by `_build_character_profile()`).
+5. Pass 2 prompt template: document `faction_reputation_changes` and
+   `pending_intent_updates` as available output fields with structure and
+   clamping behavior. Instruct when to issue each.
+
+---
 
 ### ✅ In-game clock + generalized passive state decay (completed session 4)
 
