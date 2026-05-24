@@ -234,6 +234,15 @@ def build_pass2_packet(
 
     player_profile = _build_character_profile(db, player, include_hidden=True)
 
+    # Faction reputations (v7+): how each faction in this module currently
+    # regards the player character. Included only when faction rows exist for
+    # this game; the I Am a Cat module has none and this will be an empty list.
+    # The faction_description is included so Pass 2 can reason about what kinds
+    # of actions raise or lower standing with each faction.
+    player_profile["faction_reputations"] = db.get_character_faction_reputations(
+        player["id"]
+    )
+
     # ------------------------------------------------------------------
     # Current location (full: description, details, items)
     # ------------------------------------------------------------------
@@ -640,6 +649,12 @@ def _build_character_profile(
     if include_hidden and character.get("access_hidden_motivation"):
         profile["hidden_motivation"] = character.get("hidden_motivation")
 
+    # pending_intent (v7+): working-memory slot for unfulfilled social
+    # obligations. Included in Pass 2 profiles so the LLM knows which NPCs
+    # are mid-obligation and can adjudicate their behaviour accordingly.
+    # None when the character has no outstanding intent.
+    profile["pending_intent"] = character.get("pending_intent")
+
     return profile
 
 
@@ -697,11 +712,17 @@ def _build_location_context(
     adjacent_locations = []
     for conn in connections:
         neighbour = db.get_location(conn["neighbour_id"])
-        adjacent_locations.append({
+        entry = {
             "location_id": conn["neighbour_id"],
             "name": neighbour["name"] if neighbour else "unknown",
             "connection_type": conn["connection_type"],
-        })
+        }
+        # passage_note (v7+): semantic barrier description for Pass 2.
+        # Distinguishes physically locked passages from convention-closed ones.
+        # Omitted from context when null (no special note needed).
+        if conn.get("passage_note"):
+            entry["passage_note"] = conn["passage_note"]
+        adjacent_locations.append(entry)
 
     return {
         "id": location["id"],

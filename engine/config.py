@@ -100,6 +100,16 @@ ACTION_LOG_MAX_ROWS: int = int(os.environ.get("DAVE_ACTION_LOG_MAX_ROWS", "50"))
 # preserving narrative unpredictability.
 INVOLUNTARY_MAX_PROB: float = float(os.environ.get("DAVE_INVOLUNTARY_MAX_PROB", "0.25"))
 
+# Sleepiness threshold above which the NPC wander roll is suppressed.
+# An NPC with sleepiness >= this value is too drowsy to wander autonomously;
+# the engine skips their wander roll for the turn. This complements the
+# pending_intent suppression: both represent states where wandering 'just
+# isn't done'. Typical value: 0.60. 0.0 disables the suppression entirely.
+# Override with env var: DAVE_WANDER_SLEEPINESS_THRESHOLD
+WANDER_SLEEPINESS_THRESHOLD: float = float(
+    os.environ.get("DAVE_WANDER_SLEEPINESS_THRESHOLD", "0.60")
+)
+
 
 # =============================================================================
 # DATABASE

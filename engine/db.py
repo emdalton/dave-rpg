@@ -346,7 +346,8 @@ class Database:
                        ELSE location_a_id
                    END AS neighbour_id,
                    connection_type,
-                   is_passable
+                   is_passable,
+                   passage_note
                FROM location_connection
                WHERE (location_a_id = ? OR location_b_id = ?)
                  AND is_passable = 1""",
@@ -1014,3 +1015,154 @@ class Database:
             return value >= trigger_param
 
         return False
+
+    # -------------------------------------------------------------------------
+    # Faction reputation (v7+)
+    # -------------------------------------------------------------------------
+
+    def get_character_faction_reputations(self, character_id: int) -> list[dict]:
+        """
+        Return all faction reputation records for a character, joined with the
+        faction name and description so the context packet has everything it
+        needs without a separate faction lookup.
+
+        Returns a list of dicts with keys:
+            faction_id, faction_name, faction_description, reputation, notes
+
+        An empty list is returned for characters with no faction records (e.g.
+        NPCs in modules that don't use factions, or the I Am a Cat module).
+        """
+        return self._rows(
+            """SELECT
+                   cfr.faction_id,
+                   f.name    AS faction_name,
+                   f.description AS faction_description,
+                   cfr.reputation,
+                   cfr.notes
+               FROM character_faction_reputation cfr
+               JOIN faction f ON f.id = cfr.faction_id
+               WHERE cfr.character_id = ?
+               ORDER BY f.name""",
+            (character_id,),
+        )
+
+    def update_faction_reputation(
+        self,
+        character_id: int,
+        faction_id: int,
+        delta: float,
+        reason: str | None = None,
+    ) -> float:
+        """
+        Apply a delta to a character's standing with a faction and return the
+        new value. Clamps to [0.0, 1.0].
+
+        If no reputation record exists for this (character, faction) pair, the
+        record is created at 0.5 (neutral) before the delta is applied.
+
+        Args:
+            character_id: The character whose reputation changes.
+            faction_id:   The faction whose opinion of the character changes.
+            delta:        Signed float to add. Typical range: ±0.05 to ±0.15.
+            reason:       Optional human-readable note written to the notes field.
+                          Pass 2 supplies this from the outcome's reason string.
+
+        Returns:
+            The new reputation float after clamping.
+        """
+        # Ensure a record exists (default 0.5) before reading current value.
+        self._execute(
+            """INSERT OR IGNORE INTO character_faction_reputation
+                   (character_id, faction_id, reputation)
+               VALUES (?, ?, 0.5)""",
+            (character_id, faction_id),
+        )
+
+        row = self._row(
+            """SELECT reputation FROM character_faction_reputation
+               WHERE character_id = ? AND faction_id = ?""",
+            (character_id, faction_id),
+        )
+        current = row["reputation"] if row else 0.5
+        new_value = max(0.0, min(1.0, current + delta))
+
+        self._execute(
+            """UPDATE character_faction_reputation
+               SET reputation = ?,
+                   notes      = COALESCE(?, notes),
+                   updated_at = datetime('now')
+               WHERE character_id = ? AND faction_id = ?""",
+            (new_value, reason, character_id, faction_id),
+        )
+        logger.debug(
+            "faction reputation: char=%d faction=%d %+.3f → %.3f",
+            character_id, faction_id, delta, new_value,
+        )
+        return new_value
+
+    def get_or_create_faction(
+        self, game_id: int, name: str, description: str = ""
+    ) -> dict:
+        """
+        Return the faction record matching (game_id, name), creating it if it
+        does not yet exist.
+
+        This is used when Pass 2 issues a create_faction outcome during play
+        (e.g. a new alliance forms, a family is founded). The schema requires
+        no modification for this use case — factions are data, not schema.
+
+        Args:
+            game_id:     The module's game id (faction names are scoped per game).
+            name:        Snake_case slug, e.g. 'wickham_militia_circle'.
+            description: LLM-facing description of the faction's values and
+                         judgment criteria. May be empty for dynamically created
+                         factions; Pass 2 should supply it from the outcome JSON.
+
+        Returns:
+            The faction row dict (id, game_id, name, description, created_at).
+        """
+        existing = self._row(
+            "SELECT * FROM faction WHERE game_id = ? AND name = ?",
+            (game_id, name),
+        )
+        if existing:
+            return existing
+
+        cursor = self._execute(
+            "INSERT INTO faction (game_id, name, description) VALUES (?, ?, ?)",
+            (game_id, name, description),
+        )
+        logger.info(
+            "Faction created: game=%d name=%s id=%d", game_id, name, cursor.lastrowid
+        )
+        return self._row("SELECT * FROM faction WHERE id = ?", (cursor.lastrowid,))
+
+    def update_character_pending_intent(
+        self, character_id: int, intent_text: str | None
+    ) -> None:
+        """
+        Set or clear the pending_intent working-memory slot on a character.
+
+        pending_intent is a short natural-language description of a social
+        obligation the character has not yet fulfilled (e.g. 'owes Bingley a
+        response to his dinner invitation'). When non-null it suppresses the
+        NPC's autonomous wander roll — convention forbids simply wandering off
+        mid-obligation.
+
+        Pass None to clear the intent (obligation fulfilled or abandoned).
+
+        Args:
+            character_id: The NPC whose pending_intent to update.
+            intent_text:  The new intent string, or None to clear.
+        """
+        self._execute(
+            """UPDATE character
+               SET pending_intent = ?, updated_at = datetime('now')
+               WHERE id = ?""",
+            (intent_text, character_id),
+        )
+        logger.debug(
+            "pending_intent updated: char=%d → %r",
+            character_id,
+            intent_text[:60] if intent_text else None,
+        )
