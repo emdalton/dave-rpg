@@ -1,12 +1,14 @@
-# Netherfield Ball — Reference Sources
+# Meryton — Reference Sources
 
 Local copies of these references are kept in `references/` (gitignored) for use during module development. This file is the committed record of what was consulted and where to find it.
+
+The Meryton module covers the first assembly at the Meryton public rooms (P&P novel Chapter 3). For the later Netherfield Ball chapter, see `modules/Netherfield_Ball/references.md`.
 
 ---
 
 ## Regency Era (`references/regency/`)
 
-General background on Regency-era society, culture, and aesthetics — potentially reusable across other modules set in this period.
+General background on Regency-era society, culture, and aesthetics. Shared with other modules set in this period.
 
 - [Regency era](https://en.wikipedia.org/wiki/Regency_era)
 - [Regency architecture](https://en.wikipedia.org/wiki/Regency_architecture)
@@ -14,7 +16,7 @@ General background on Regency-era society, culture, and aesthetics — potential
 - [Georgian architecture](https://en.wikipedia.org/wiki/Georgian_architecture)
 - [Georgian society in Jane Austen's novels](https://en.wikipedia.org/wiki/Georgian_society_in_Jane_Austen%27s_novels)
 - [1795–1820 in Western fashion](https://en.wikipedia.org/wiki/1795%E2%80%931820_in_Western_fashion)
-- [Ball (dance event)](https://en.wikipedia.org/wiki/Ball_(dance_event))
+- [Ball (dance event)](https://en.wikipedia.org/wiki/Ball_(dance_event)) — covers partner commitment conventions, set structure, and supper dance significance
 - [High society](https://en.wikipedia.org/wiki/High_society_(social_class))
 - [The Ton](https://en.wikipedia.org/wiki/Ton_(society))
 - [Social season](https://en.wikipedia.org/wiki/Social_season)
@@ -25,7 +27,7 @@ General background on Regency-era society, culture, and aesthetics — potential
 
 ## Pride and Prejudice (`references/pride-and-prejudice/`)
 
-Source text and character references for the Pride and Prejudice setting.
+Source text and character references. Chapter 3 is the primary source for this module.
 
 - [Pride and Prejudice](https://en.wikipedia.org/wiki/Pride_and_Prejudice) — novel overview
 - [Styles and themes of Jane Austen](https://en.wikipedia.org/wiki/Styles_and_themes_of_Jane_Austen)
@@ -35,19 +37,14 @@ Source text and character references for the Pride and Prejudice setting.
 - [Mr. Collins](https://en.wikipedia.org/wiki/Mr._Collins)
 - [Bennet family](https://en.wikipedia.org/wiki/Bennet_family)
 - *Pride and Prejudice* full text (Project Gutenberg): https://www.gutenberg.org/ebooks/1342
-  - Local copies: `pride_and_prejudice.txt`, `chapter_03.txt`, `chapter_17_18.txt`
-  - Chapters 17–18 are the Netherfield Ball chapters; Chapter 3 introduces the ball at Meryton Assembly Rooms
+  - Local copies: `pride_and_prejudice.txt`, `chapter_03.txt`
+  - Chapter 3 is the primary source for the Meryton assembly: Darcy's snub, Elizabeth's first impression, the social dynamics that seed all subsequent chapters
 
 ---
 
-## Netherfield Ball Locations (`references/netherfield-ball/`)
+## Meryton Assembly Rooms (`references/meryton/`)
 
-Location research for Netherfield Park and real-world analogues used in scene design.
-Meryton Assembly Rooms location research is in `modules/Meryton/references.md` and `references/meryton/`.
+Location research for the assembly hall setting.
 
-- [Basildon Park](https://www.nationaltrust.org.uk/basildon-park) — used as Netherfield in the 2005 film adaptation
-  - [History of Basildon Park](https://www.nationaltrust.org.uk/visit/berkshire/basildon-park/history-of-basildon-park)
-  - [The house at Basildon Park](https://www.nationaltrust.org.uk/visit/berkshire/basildon-park/the-house-at-basildon-park)
-  - [The garden at Basildon Park](https://www.nationaltrust.org.uk/visit/berkshire/basildon-park/the-garden-at-basildon-park)
-  - [Basildon Park parkland](https://www.nationaltrust.org.uk/visit/berkshire/basildon-park/visit-basildon-parks-parkland)
-- [Pride & Prejudice filming locations in England](https://www.thebrokebackpacker.com/pride-and-prejudice-filming-locations/) — full location list with map
+- [Shire Hall, Hertford](https://en.wikipedia.org/wiki/Shire_Hall,_Hertford) — candidate for the Meryton Assembly Rooms; Hertford is the county town of Hertfordshire, the novel's setting
+- `floorplan.jpg` — assembly hall floor plan sketch used for location graph design (not a game asset)
