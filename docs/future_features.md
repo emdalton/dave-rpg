@@ -4,6 +4,26 @@
 
 ---
 
+## 13. Module chapters / act structure with state forwarding
+
+Observation (2026-05-23): modules don't all need to be published as monolithic single-session experiences. A chapter structure would allow a module to be developed and released incrementally, with each chapter forwarding relevant state (character attitudes, reputation changes, item positions, pending intents) into the next chapter's starting seed.
+
+This connects naturally to the module/instance architectural split (pending v7): once per-playthrough state is properly separated from module definition, "forwarding state to the next chapter" becomes a defined export/import operation on instance state rather than a hack against the seed. The "What if..." premise modifier (feature 6) would also attach per-chapter, enabling branching.
+
+Undeveloped as of capture.
+
+---
+
+## 14. Multiple playable characters per module
+
+Observation (2026-05-23): modules could support a choice of player character rather than a single fixed protagonist. The simplest proof-of-concept is allowing a player to play as Spook in *I Am a Cat* — the world state and NPC cast already exist, and Spook's psychology is established. This would test whether the engine handles a non-default player character cleanly, including: different starting location, different emotional state and internal states, different perception of Toulouse as an NPC.
+
+In the Netherfield Ball context, playing as Darcy, Wickham, or Jane rather than Elizabeth would produce radically different experiences from the same seed — each character has different information, different goals, and different social constraints.
+
+Implementation sketch: a `playable` flag on the `character` table, plus a pre-session character selection step. The engine's existing `role='player'` logic already centralizes player-character handling; the change is making which character holds that role a runtime choice rather than a seed constant.
+
+---
+
 ## 11. Fate Point economy
 
 Suggested by playtest observation (2026-05-23): the `partial_success` outcome on the Spook social-correction turn was a textbook Fate compel — an NPC aspect (Spook's incorrigible playfulness) complicated the player's action in an entertaining way, and in the Fate RPG system that moment would award the player a Fate Point. The `partial_success` and `failure` outcome types are already doing the adjudication work; a Fate Point system would add a resource currency on top.

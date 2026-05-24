@@ -633,3 +633,116 @@ to the LLM in the context packet.
 **Schema comments are the field reference.** `schema.sql` has full semantic
 comments on every field, including float range and behavioral meaning. Read it
 before adding or modifying fields.
+
+---
+
+## Netherfield Ball — pre-implementation design tasks
+
+*Added 2026-05-23. Design work required before schema or seed work begins.*
+
+The Netherfield Ball module will exercise mechanics that I Am a Cat deliberately
+avoided. The following design questions must be resolved before coding starts.
+None of these are scoped yet; this is a checklist to work through in order.
+
+### A. Source document analysis
+
+Primary sources for schema design:
+
+- **P&P Chapters 17–18** — the Netherfield Ball itself. Extract from the full
+  text already in `modules/Netherfield_Ball/`. Chapter 17 is setup; Chapter 18
+  is the event. These establish the event sequence, who dances with whom, when
+  supper occurs, and the social confrontations that constitute the module's
+  dramatic spine.
+- **P&P Chapter 3** — the first Meryton assembly. Establishes prior relationship
+  state (Darcy's snub, Elizabeth's first impression) that all characters carry
+  into the Netherfield Ball.
+- **Basildon Park floorplan** — already in `References/`. Room layout and
+  connections drive the location graph. Map rooms to game locations before
+  seeding.
+- **Character Wikipedia articles** — already in `References/`. Use for seeding
+  OCEAN traits and motivations *at the time of the Netherfield Ball*, before
+  later revelations. Darcy's attraction is present but suppressed; Wickham's
+  agenda is entirely hidden from Elizabeth.
+- **Ball (dance event) article** — already in `References/`. Verify that it
+  covers the mechanically-relevant Regency specifics: partner commitment for a
+  full set, the rule that declining a set means sitting it out entirely, supper
+  partner conventions, significance of first and last dances.
+
+The LLM can be relied on for general Regency customs, fashion description,
+period food, and period-appropriate dialogue without explicit seeding. Austen
+is among the most thoroughly trained-on authors; the Netherfield Ball
+specifically is well-covered. Add reference material only where gameplay
+mechanics require canonical specificity.
+
+### B. Reputation and faction system design
+
+I Am a Cat has no faction or reputation mechanics. The Netherfield Ball is
+driven by them. Design questions:
+
+- Is reputation a single float or a per-faction set of floats? (Bingley's
+  circle, the Meryton neighborhood, Lady Catherine's set are meaningfully
+  distinct audiences for Elizabeth's behavior.)
+- How does reputation interact with the failure condition? Pure humiliation
+  approaching 1.0, or a composite of reputation damage + unmet goals?
+- Does the schema need a `faction` table, or is the existing `character_attitude`
+  table sufficient if attitudes are tracked bidirectionally between all
+  characters, not just toward the player?
+
+### C. Dance card mechanics
+
+Dances are structured social commitments — the core resource allocation mechanic
+of the module. Design questions:
+
+- Schema: a `dance_commitment` table linking character pairs to a set number
+  within the evening's schedule? Or model as `pending_intent` entries on
+  characters?
+- Engine: does the engine enforce the "sit out a set you declined" rule, or does
+  Pass 2 adjudicate it?
+- How does the dance schedule interact with the in-game clock?
+
+### D. Timed event schedule
+
+The ball has a known structure: arrival, opening dances, supper, later dances,
+departure. This is a sequence of scheduled world events, not player-driven
+actions. Design questions:
+
+- Represent as a table of events with `trigger_time_minutes` thresholds?
+- Does the engine fire these as a variant of the involuntary event mechanism,
+  or is a new scheduled-event concept needed?
+- Which events are hard-triggered (supper is announced at a fixed time) vs.
+  soft (departure depends on player state)?
+
+### E. Inter-NPC relationship modeling
+
+Darcy and Wickham have history that neither will disclose to Elizabeth. Other
+NPC pairs also have established relationships (Bingley–Darcy, Jane–Bingley,
+Collins–Lady Catherine). The current schema tracks `character_attitude` between
+any two characters, which covers this — but the context packet only currently
+surfaces attitudes toward the player.
+
+- Pass 2 context: should NPC-to-NPC attitudes be included? At minimum,
+  characters in the same scene should know about each other's presence and
+  general disposition.
+- Hidden information: Wickham's goals are almost entirely hidden from Elizabeth.
+  This is the first real test of the `hidden_motivation` access-control flag
+  in the schema.
+
+### F. Pending intent implementation (prerequisite)
+
+The `pending_intent` field on `character` (pending work §1) is a prerequisite
+for the dance card and inter-NPC relationship mechanics. Wickham's concealed
+agenda and dance commitments both need a durable per-character intent slot.
+Implement this before seeding the Netherfield Ball.
+
+### G. Failure condition and win state
+
+What does Elizabeth want from the Netherfield Ball, and what constitutes
+failure? Candidates:
+- Social reputation float (humiliation approaching 1.0)
+- A goal-satisfaction composite: avoid Collins, manage Jane's interests,
+  navigate Wickham/Darcy tension without social damage
+- An open emergent outcome where the LLM assesses Elizabeth's state at
+  session end rather than a hard threshold
+
+The "boredom as hit points" principle from I Am a Cat generalizes here, but
+the specific mechanic needs design before the `internal_state` seed can be written.
