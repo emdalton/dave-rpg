@@ -24,7 +24,9 @@
 -- Usage (existing database at v2):
 --   sqlite3 your_game.db < schema/migrations/migrate_v2_to_v3.sql
 --
--- For a fresh install, run schema.sql then all migrations then seed.sql.
+-- For a fresh install, run schema.sql (which incorporates all fields through
+-- the current version) then the module seed file. Migrations are only needed
+-- when upgrading an existing database.
 -- After applying this migration, also run the module-specific seed_v3.sql
 -- to populate location connections and wander parameters for each module.
 -- =============================================================================

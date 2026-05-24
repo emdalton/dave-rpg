@@ -19,8 +19,9 @@
 -- Usage (existing database at v3):
 --   sqlite3 your_game.db < schema/migrations/migrate_v3_to_v4.sql
 --
--- For a fresh install, run schema.sql then all migrations in order, then the
--- module seed files.
+-- For a fresh install, run schema.sql (which incorporates all fields through
+-- the current version) then the module seed file. Migrations are only needed
+-- when upgrading an existing database.
 -- =============================================================================
 
 PRAGMA foreign_keys = ON;

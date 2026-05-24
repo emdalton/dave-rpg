@@ -54,6 +54,18 @@
 
 PRAGMA foreign_keys = ON;
 
+-- =============================================================================
+-- Idempotency note:
+--   CREATE TABLE IF NOT EXISTS and CREATE INDEX IF NOT EXISTS ensure the table
+--   and index statements are safe to re-run. ALTER TABLE ADD COLUMN has no
+--   IF NOT EXISTS equivalent in SQLite; those statements will produce a harmless
+--   "duplicate column name" error if the migration was already partially applied,
+--   but will not corrupt the database — SQLite ignores the failed ALTER and
+--   continues. The schema_version INSERT uses WHERE NOT EXISTS to avoid duplicate
+--   version rows. It is therefore safe (if noisy) to run this script more than
+--   once on a database that is already at v7.
+-- =============================================================================
+
 -- -----------------------------------------------------------------------------
 -- 1. faction
 -- -----------------------------------------------------------------------------
@@ -72,7 +84,7 @@ PRAGMA foreign_keys = ON;
 -- The engine handles dynamic creation by accepting a create_faction entry
 -- in Pass 2 outcome JSON and inserting a row here before writing reputation
 -- changes.
-CREATE TABLE faction (
+CREATE TABLE IF NOT EXISTS faction (
     id          INTEGER PRIMARY KEY,
     game_id     INTEGER NOT NULL REFERENCES game(id),
 
@@ -92,7 +104,7 @@ CREATE TABLE faction (
     UNIQUE(game_id, name)
 );
 
-CREATE INDEX idx_faction_game ON faction(game_id);
+CREATE INDEX IF NOT EXISTS idx_faction_game ON faction(game_id);
 
 
 -- -----------------------------------------------------------------------------
@@ -117,7 +129,7 @@ CREATE INDEX idx_faction_game ON faction(game_id);
 --
 -- Rows may be added mid-play when new factions form or when a character
 -- first becomes relevant to a faction that was previously out of scope.
-CREATE TABLE character_faction_reputation (
+CREATE TABLE IF NOT EXISTS character_faction_reputation (
     character_id    INTEGER NOT NULL REFERENCES character(id),
     faction_id      INTEGER NOT NULL REFERENCES faction(id),
 
@@ -137,7 +149,7 @@ CREATE TABLE character_faction_reputation (
     PRIMARY KEY (character_id, faction_id)
 );
 
-CREATE INDEX idx_faction_rep_character ON character_faction_reputation(character_id);
+CREATE INDEX IF NOT EXISTS idx_faction_rep_character ON character_faction_reputation(character_id);
 
 
 -- -----------------------------------------------------------------------------
@@ -166,6 +178,10 @@ CREATE INDEX idx_faction_rep_character ON character_faction_reputation(character
 --   Supper room door: 'Closed by convention — door unlocked, room unlit and
 --     unused. Entering would be considered improper without compelling reason.'
 --   Corn market passage: 'Locked during the evening assembly.'
+--
+-- Note: SQLite does not support ALTER TABLE ADD COLUMN IF NOT EXISTS. If this
+-- column already exists, the statement below will produce a harmless error and
+-- the script will continue.
 ALTER TABLE location_connection
     ADD COLUMN passage_note TEXT DEFAULT NULL;
 
@@ -179,8 +195,8 @@ ALTER TABLE location_connection
 -- do, or is socially obligated to do, as a result of a prior interaction.
 --
 -- Set and cleared by Pass 2 via 'pending_intent_updates' in outcome JSON:
---   [{"character_id": N, "intent": "owes reciprocal grooming to Toulouse"}]
--- An empty string or explicit null clears the field (obligation discharged).
+--   [{"character_id": N, "pending_intent": "owes reciprocal gesture to Toulouse"}]
+-- A null value clears the field (obligation discharged or abandoned).
 --
 -- Included in the NPC profile block of the Pass 2 context packet, so the LLM
 -- reads the obligation when adjudicating subsequent turns. This makes social
@@ -196,6 +212,10 @@ ALTER TABLE location_connection
 --   internal_state   — quantitative physiological floats with passive rates
 --   character_goal   — stable motivational weights (Ford-Nichols taxonomy)
 -- This field is a short-term behavioral commitment, not a stable trait.
+--
+-- Note: SQLite does not support ALTER TABLE ADD COLUMN IF NOT EXISTS. If this
+-- column already exists, the statement below will produce a harmless error and
+-- the script will continue.
 ALTER TABLE character
     ADD COLUMN pending_intent TEXT DEFAULT NULL;
 
@@ -204,5 +224,8 @@ ALTER TABLE character
 -- Schema version
 -- -----------------------------------------------------------------------------
 
+-- WHERE NOT EXISTS guard prevents a duplicate v7 row if this migration is
+-- run more than once (e.g. after a partial prior application).
 INSERT INTO schema_version (version, description)
-VALUES (7, 'Add faction and character_faction_reputation tables; add passage_note to location_connection; add pending_intent to character');
+SELECT 7, 'Add faction and character_faction_reputation tables; add passage_note to location_connection; add pending_intent to character'
+WHERE NOT EXISTS (SELECT 1 FROM schema_version WHERE version = 7);

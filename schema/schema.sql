@@ -1,6 +1,6 @@
 -- =============================================================================
 -- DAVE RPG Engine — Core Database Schema
--- Version 1
+-- Current version: 7
 --
 -- Digitally Adjudicated Virtual Environment
 -- Developed with the assistance of Claude (model: claude-sonnet-4-6, Anthropic)
@@ -9,9 +9,11 @@
 -- permanently. All adjudication results are written here before prose
 -- rendering runs.
 --
--- This schema supports Module 1 (I Am a Cat) and is designed for extension
--- via migrations. Tables not needed for Module 1 — factions, art objects,
--- reference objects, revelation records — are deferred to later migrations.
+-- This file is the canonical schema for fresh installs. It incorporates all
+-- changes through the current schema version. For fresh install, run this
+-- file followed by the module seed file — no migration scripts needed.
+-- Migration scripts in schema/migrations/ are only needed when upgrading an
+-- existing database from an older version.
 --
 -- Foreign key enforcement must be enabled per connection:
 --   PRAGMA foreign_keys = ON;
@@ -316,6 +318,26 @@ CREATE TABLE character (
     teaching_capability REAL CHECK(teaching_capability BETWEEN 0.0 AND 1.0),
 
     -- -------------------------------------------------------------------------
+    -- NPC wandering parameters (added v3)
+    -- Engine-driven autonomous background movement, separate from LLM-driven
+    -- reactive movement in Pass 2 outcomes.
+    -- -------------------------------------------------------------------------
+
+    -- JSON array of location_ids this character may inhabit during autonomous
+    -- wandering. The engine will only move an NPC to a location within this
+    -- range AND adjacent to their current location. NULL = no autonomous movement.
+    -- Example: [1, 2, 3, 5] for a character who circulates among four rooms.
+    wander_range TEXT DEFAULT NULL,
+
+    -- Per-turn probability that this character moves autonomously to an adjacent
+    -- location within their wander_range. Checked once per turn before player input.
+    -- 0.0 = never moves autonomously (default; includes all player characters).
+    -- NOTE: the wander roll is skipped for any character with a non-null
+    -- pending_intent — social engagements are commitments, and wandering off
+    -- mid-conversation is not done.
+    wander_probability REAL NOT NULL DEFAULT 0.0,
+
+    -- -------------------------------------------------------------------------
     -- Pending intent (added v7)
     -- A working-memory slot for deferred social obligations and queued
     -- intentions. Natural language string describing what this character
@@ -442,6 +464,15 @@ CREATE TABLE character_skill (
     -- how deeply established the skill is (i.e. by skill_level itself).
     last_practiced_at TEXT,
 
+    -- How much this character enjoys exercising this skill for its own sake,
+    -- independent of any external goal it serves. (Added v2.)
+    -- NULL  = no intrinsic motivation recorded (skill is purely instrumental)
+    -- 0.0   = the character actively dislikes this skill but may still use it
+    -- 0.5   = mild preference for using this skill when it is relevant
+    -- 1.0   = deep hobby; the character will seek opportunities to exercise this
+    --          skill spontaneously, without external prompting
+    intrinsic_motivation REAL DEFAULT NULL,
+
     updated_at      TEXT    NOT NULL DEFAULT (datetime('now')),
 
     UNIQUE(character_id, skill_name)
@@ -508,6 +539,32 @@ CREATE TABLE internal_state (
     -- 'numeric' = displayed as a raw float. Useful for dev/testing contexts.
     display_mode    TEXT    NOT NULL DEFAULT 'prose'
         CHECK(display_mode IN ('prose', 'numeric')),
+
+    -- Involuntary event support (added v2).
+    -- Some internal states can trigger events the character does not control —
+    -- hairballs being the canonical example. The engine rolls each turn against a
+    -- probability computed from the state value; if it fires, the event is injected
+    -- into Pass 2 as an additional constraint on the outcome.
+    --
+    -- is_involuntary: 1 = can fire an involuntary event; 0 = adjudication-only (default).
+    is_involuntary          INTEGER NOT NULL DEFAULT 0,
+
+    -- How the trigger fires.
+    -- 'threshold'     = event fires when value >= involuntary_trigger_param
+    -- 'probabilistic' = per-turn probability = value * involuntary_trigger_param,
+    --                   capped at INVOLUNTARY_MAX_PROB in config.py
+    -- NULL when is_involuntary = 0
+    involuntary_trigger_type TEXT DEFAULT NULL,
+
+    -- Trigger parameter. Interpretation depends on involuntary_trigger_type:
+    --   threshold:    the value at which the event fires (e.g. 0.85)
+    --   probabilistic: scale factor → per-turn probability (e.g. 0.15 means
+    --                  at value=1.0 there is a 15% chance per turn)
+    involuntary_trigger_param REAL DEFAULT NULL,
+
+    -- Instruction to the adjudication layer when the event fires. Describes
+    -- what happens, its consequences, and what actions affect this state.
+    involuntary_event_description TEXT DEFAULT NULL,
 
     -- Rate of passive change per elapsed in-game minute.
     -- Positive = accumulates toward 1.0; negative = decays toward 0.0.
@@ -720,6 +777,33 @@ CREATE INDEX idx_internal_state     ON internal_state(character_id, state_name);
 
 
 -- =============================================================================
+-- CHARACTER_VISITED_LOCATION  (added v4)
+-- Record of locations a character has previously entered. Used to validate
+-- quick-move pathfinding (BFS, Option C): the player may name any previously
+-- visited location as a destination; the engine computes the path. NPCs are
+-- not subject to this restriction.
+--
+-- Each (character, location) pair is unique; subsequent visits do not create
+-- new rows. Pre-populate in seed for characters who know the whole map at
+-- the start of play (e.g. a cat who lives in the house).
+-- =============================================================================
+
+CREATE TABLE character_visited_location (
+    id              INTEGER PRIMARY KEY,
+    character_id    INTEGER NOT NULL REFERENCES character(id),
+    location_id     INTEGER NOT NULL REFERENCES location(id),
+
+    -- Timestamp of first visit. Used for ordering and future analytics;
+    -- not used for gameplay logic.
+    first_visited_at DATETIME NOT NULL DEFAULT (datetime('now')),
+
+    UNIQUE(character_id, location_id)
+);
+
+CREATE INDEX idx_visited_character ON character_visited_location(character_id);
+
+
+-- =============================================================================
 -- LOCATION_CONNECTION  (added v3)
 -- Explicit adjacency graph between locations. Each row is a bidirectional
 -- connection; by convention location_a_id < location_b_id. Queries must
@@ -860,3 +944,15 @@ CREATE TABLE character_faction_reputation (
 );
 
 CREATE INDEX idx_faction_rep_character ON character_faction_reputation(character_id);
+
+
+-- =============================================================================
+-- SCHEMA VERSION — CURRENT
+-- This INSERT records the version of this file. Migration scripts each append
+-- their own row; this entry represents the version at which schema.sql was last
+-- updated and is what fresh-install databases will report as their version.
+-- The engine reads MAX(version) from schema_version to determine the schema version.
+-- =============================================================================
+
+INSERT INTO schema_version (version, description)
+VALUES (7, 'Fresh install at v7: faction, character_faction_reputation, passage_note on location_connection, pending_intent on character, wander_range/wander_probability on character, character_visited_location');

@@ -24,8 +24,9 @@
 -- Usage (existing database at v1):
 --   sqlite3 your_game.db < schema/migrations/migrate_v1_to_v2.sql
 --
--- For a fresh install, run schema.sql then seed.sql — the seed already
--- includes all v2 fields.
+-- For a fresh install, run schema.sql (which incorporates all fields through
+-- the current version) then the module seed file. Migrations are only needed
+-- when upgrading an existing database.
 -- =============================================================================
 
 PRAGMA foreign_keys = ON;
