@@ -315,6 +315,26 @@ CREATE TABLE character (
     -- Float 0.0 (cannot teach effectively) to 1.0 (exceptional teacher).
     teaching_capability REAL CHECK(teaching_capability BETWEEN 0.0 AND 1.0),
 
+    -- -------------------------------------------------------------------------
+    -- Pending intent (added v7)
+    -- A working-memory slot for deferred social obligations and queued
+    -- intentions. Natural language string describing what this character
+    -- intends to do, or is socially obligated to do, as a result of a prior
+    -- interaction. Set and cleared by Pass 2 via 'pending_intent_updates' in
+    -- outcome JSON. Included in the NPC profile block of the Pass 2 context
+    -- packet so commitments persist across turn boundaries without relying on
+    -- action log recall.
+    --
+    -- Distinct from emotional_state (mood), internal_state (physiology), and
+    -- character_goal (stable MST weights). This is a short-term behavioral
+    -- commitment slot, not a stable trait.
+    --
+    -- Examples: 'owes reciprocal grooming to Toulouse (ears)'
+    --           'has agreed to open the next set with Elizabeth'
+    --           'intends to maneuver toward Wickham before supper'
+    -- -------------------------------------------------------------------------
+    pending_intent TEXT DEFAULT NULL,
+
     created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
     updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
 );
@@ -697,3 +717,146 @@ CREATE INDEX idx_action_log_recent  ON action_log(game_id, created_at DESC);
 CREATE INDEX idx_character_goal     ON character_goal(character_id);
 CREATE INDEX idx_character_attitude ON character_attitude(character_id, target_id);
 CREATE INDEX idx_internal_state     ON internal_state(character_id, state_name);
+
+
+-- =============================================================================
+-- LOCATION_CONNECTION  (added v3)
+-- Explicit adjacency graph between locations. Each row is a bidirectional
+-- connection; by convention location_a_id < location_b_id. Queries must
+-- check both directions: WHERE location_a_id = ? OR location_b_id = ?
+--
+-- Added because the engine had no explicit model of adjacency in v1–v2: the
+-- LLM could move characters to unreachable locations via prose-context drift
+-- (observed in first play session). This table validates all movement and
+-- informs Pass 2 of what is reachable from the current location.
+-- =============================================================================
+
+CREATE TABLE location_connection (
+    id              INTEGER PRIMARY KEY,
+
+    -- The two locations this connection links. Canonical order: a_id < b_id.
+    location_a_id   INTEGER NOT NULL REFERENCES location(id),
+    location_b_id   INTEGER NOT NULL REFERENCES location(id),
+
+    -- How the connection is traversed.
+    -- 'open'    = no barrier; characters move freely (open-plan rooms, archways)
+    -- 'door'    = a door that may be open or closed; cats may be blocked
+    -- 'stairs'  = a staircase; passable by all but noted for context
+    -- 'squeeze' = requires physical effort (e.g. cat squeezing through railing)
+    connection_type TEXT NOT NULL DEFAULT 'door'
+        CHECK(connection_type IN ('open', 'door', 'stairs', 'squeeze')),
+
+    -- Whether this connection is currently passable. Doors can be closed by
+    -- world events; this flag tracks current state.
+    -- 1 = passable (default), 0 = blocked
+    is_passable     INTEGER NOT NULL DEFAULT 1
+        CHECK(is_passable IN (0, 1)),
+
+    -- Natural language description of the barrier type, for Pass 2 context.
+    -- (Added v7.) is_passable is the engine's binary movement gate; this field
+    -- gives the LLM semantic context to adjudicate what kind of barrier applies
+    -- and what it costs to attempt passage.
+    --
+    -- Key distinction:
+    --   'locked' — physically impassable; requires a key or forced entry.
+    --   'closed by convention' — unlocked but socially impassable; entry is
+    --       possible at reputational cost. Pass 2 adjudicates the consequence.
+    -- NULL = no special note needed; connection_type and is_passable suffice.
+    passage_note    TEXT DEFAULT NULL,
+
+    -- Bidirectional uniqueness enforced by convention (a < b) + constraint.
+    UNIQUE(location_a_id, location_b_id),
+    CHECK(location_a_id < location_b_id)
+);
+
+CREATE INDEX idx_location_connection_a ON location_connection(location_a_id);
+CREATE INDEX idx_location_connection_b ON location_connection(location_b_id);
+
+
+-- =============================================================================
+-- FACTION  (added v7)
+-- Named social groups whose opinion of a character has mechanical weight.
+-- Scoped to a game module via game_id; a module with no factions (e.g.
+-- I Am a Cat) has no rows for its game_id. game_id is the isolation boundary
+-- when multiple modules share a database.
+--
+-- Factions may be created dynamically during play: a new family unit formed
+-- by marriage, a political alliance that coalesces during events, etc. Pass 2
+-- issues a create_faction entry in outcome JSON; the engine inserts the row
+-- before applying reputation changes. The schema requires no modification for
+-- this use case.
+--
+-- A character's allegiance to a faction (how they identify with or feel driven
+-- toward a group) is modeled via MST goals in character_goal — e.g. a
+-- 'belonging' goal whose description names the faction. Reputation (this table
+-- and character_faction_reputation) is how the faction views the character.
+-- The two are distinct and complementary, not redundant.
+-- =============================================================================
+
+CREATE TABLE faction (
+    id          INTEGER PRIMARY KEY,
+    game_id     INTEGER NOT NULL REFERENCES game(id),
+
+    -- Short snake_case slug used as a key in context packets and Pass 2
+    -- outcome JSON. Examples: 'bennet_family', 'meryton_neighborhood',
+    -- 'bingley_circle'. Must be unique within a game_id (see constraint).
+    name        TEXT    NOT NULL,
+
+    -- LLM-facing description of this faction's values and judgment criteria.
+    -- Explains what the faction values, how it judges characters, and what
+    -- kinds of actions raise or lower standing. Passed verbatim to Pass 2
+    -- in the faction_reputations block of the context packet.
+    description TEXT    NOT NULL,
+
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+
+    -- Faction slugs must be unique within a module. Used as keys in outcome
+    -- JSON; collisions within a game_id would be ambiguous.
+    UNIQUE(game_id, name)
+);
+
+CREATE INDEX idx_faction_game ON faction(game_id);
+
+
+-- =============================================================================
+-- CHARACTER_FACTION_REPUTATION  (added v7)
+-- A character's standing with a faction as a float in [0.0, 1.0].
+--   0.0 = complete disgrace or ostracism
+--   0.5 = neutral or unknown (default starting value)
+--   1.0 = exceptional standing, full acceptance
+--
+-- Tracked primarily for the player character. May also be seeded for NPCs
+-- whose faction standing affects adjudication (e.g. Wickham's standing with
+-- the militia affects what other characters say about him in Pass 2 context).
+--
+-- Pass 2 updates these via 'faction_reputation_changes' in outcome JSON:
+--   [{"character_id": N, "faction_id": M, "delta": -0.08,
+--     "reason": "Elizabeth refused to manage Mrs. Bennet's outburst"}]
+-- The engine applies delta and clamps to [0.0, 1.0] in _apply_outcome().
+-- The reason string is written to the notes field on update.
+--
+-- Rows may be added mid-play when new factions form or when a character
+-- first becomes relevant to a faction that was previously out of scope.
+-- =============================================================================
+
+CREATE TABLE character_faction_reputation (
+    character_id    INTEGER NOT NULL REFERENCES character(id),
+    faction_id      INTEGER NOT NULL REFERENCES faction(id),
+
+    -- Standing: 0.0 (ostracised) to 1.0 (full acceptance). 0.5 = neutral.
+    reputation      REAL    NOT NULL DEFAULT 0.5
+        CHECK(reputation BETWEEN 0.0 AND 1.0),
+
+    -- Human-readable note on why standing is at its current value.
+    -- Set by seed; updated by Pass 2 alongside each delta. Included in the
+    -- faction_reputations block of the Pass 2 context packet so the LLM has
+    -- narrative context for reputation decisions, not just a raw float.
+    -- Example: "Bennet family pleased with her conduct; no embarrassments yet"
+    notes           TEXT,
+
+    updated_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+
+    PRIMARY KEY (character_id, faction_id)
+);
+
+CREATE INDEX idx_faction_rep_character ON character_faction_reputation(character_id);
