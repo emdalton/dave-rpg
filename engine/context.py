@@ -535,6 +535,32 @@ def build_pass3_packet(
         for npc in present_npcs
     ]
 
+    # ------------------------------------------------------------------
+    # Adjacent locations (navigation anchor)
+    #
+    # Included so Pass 3 can weave a natural sense of exits into arrival
+    # prose — "the ballroom door stands just ahead", "the staircase descends
+    # behind you". The renderer uses this for flavour only; it must not
+    # invent movement or imply the player has gone anywhere not recorded in
+    # the outcome's location_change array.
+    #
+    # passage_note is included when non-null: it describes a barrier type
+    # (locked / convention-closed) the LLM should reflect in tone.
+    # ------------------------------------------------------------------
+    connections = db.get_location_connections(location_id)
+    adjacent_locations: list[dict] = []
+    for conn in connections:
+        neighbour = db.get_location(conn["neighbour_id"])
+        if neighbour is None:
+            continue
+        entry: dict = {
+            "name": neighbour["name"],
+            "is_passable": conn["is_passable"],
+        }
+        if conn.get("passage_note"):
+            entry["passage_note"] = conn["passage_note"]
+        adjacent_locations.append(entry)
+
     packet = {
         "pass": 3,
         "description": (
@@ -547,16 +573,18 @@ def build_pass3_packet(
         "game": game_summary,
         "player": player_summary,
         "current_location": location_summary,
+        "adjacent_locations": adjacent_locations,
         "characters_present": characters_present,
         "characters_referenced": characters_referenced,
     }
 
     logger.debug(
-        "Pass 3 packet built: game=%d player=%d chars_present=%d chars_referenced=%d",
+        "Pass 3 packet built: game=%d player=%d chars_present=%d chars_referenced=%d adjacent=%d",
         game_id,
         player["id"],
         len(characters_present),
         len(characters_referenced),
+        len(adjacent_locations),
     )
     return packet
 

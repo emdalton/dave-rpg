@@ -89,8 +89,8 @@ UPDATE character SET current_location_id = 5, emotional_state = 'content',      
 -- Lady Lucas: ballroom wall seating; near Mrs. Bennet
 UPDATE character SET current_location_id = 4, emotional_state = 'sociable',        pending_intent = NULL WHERE id = 13;
 
--- Sir William Lucas: ballroom; circulating as host
-UPDATE character SET current_location_id = 4, emotional_state = 'genial',          pending_intent = NULL WHERE id = 14;
+-- Sir William Lucas: landing at top of stairs; greeting arrivals
+UPDATE character SET current_location_id = 3, emotional_state = 'genial',          pending_intent = NULL WHERE id = 14;
 
 -- Mr. Robinson: ballroom
 UPDATE character SET current_location_id = 4, emotional_state = 'sociable',        pending_intent = NULL WHERE id = 15;

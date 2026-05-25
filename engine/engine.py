@@ -208,6 +208,12 @@ Rules:
 - Pronouns: use the pronouns supplied in the `characters_referenced` list.
 - NPC presence is authoritative: only describe characters who appear in
   `characters_present`.
+- Navigation: weave a brief, natural mention of the immediately available
+  exits into the scene — a doorway, a staircase, a passage ahead — so the
+  player understands where they can go from here. Use the `adjacent_locations`
+  list. If a location has is_passable=false, convey the barrier in tone
+  (a closed door, a passage not meant for guests) rather than stating it as
+  a rule. Keep this light; the goal is orientation, not a door inventory.
 
 Context:
 {context_json}
@@ -225,11 +231,17 @@ Rules:
   should be rendered as the cat perceives it (tone, volume, body language,
   and occasional word "breakthrough" per the filter config) — not as literal
   transcription. Cat vocalisations are the player's expressive medium.
-- Match the game tone precisely (e.g. comedic_absurdist for I Am a Cat).
+- Match the game tone precisely (e.g. comedic_absurdist for I Am a Cat,
+  ironic_observational for Meryton).
 - Do not reveal hidden motivation or any information outside the player
   character's direct perception.
-- Length: 2–5 sentences for routine actions; up to a short paragraph for
-  dramatically significant moments. Involuntary events warrant their own beat.
+- Length: keep prose tight. Aim for 3–4 sentences for routine actions;
+  a short paragraph (5–6 sentences maximum) only for dramatically significant
+  moments. The ironic_observational register rewards restraint — overwriting
+  dilutes the effect. Involuntary events warrant their own brief beat.
+- Do not repeat atmospheric or environmental details (candlelight, smells,
+  ambient sounds) that have already been established in the recent narrative.
+  Vary your imagery; if you have described the candlelight once, let it stand.
 - Pronouns: use the pronouns supplied in the `characters_referenced` list for
   any named character. Each entry gives an array of case–form pairs (nominative,
   accusative, genitive, and any additional cases for the module's language).
@@ -243,6 +255,12 @@ Rules:
   characters who are not listed there. If the outcome's narrative_beat mentions
   an NPC but they are absent from `characters_present`, describe the outcome
   from the player's perspective without referencing that NPC directly.
+- Navigation: if the player has just moved to a new location (the outcome
+  includes a location_change for the player), weave a brief, natural mention
+  of the available exits into the arrival prose — a door, a corridor, the
+  direction back. Use the `adjacent_locations` list. If a location has
+  is_passable=false, convey the barrier in tone rather than stating it as a
+  rule. Keep this light; one natural phrase is enough.
 
 Context:
 {context_json}

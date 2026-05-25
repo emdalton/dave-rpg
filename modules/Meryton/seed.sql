@@ -1010,7 +1010,7 @@ INSERT INTO character (
     '[{"case":"nominative","form":"he"},{"case":"accusative","form":"him"},{"case":"genitive","form":"his"}]',
     'A stout, cheerful man of middling age with the comfortable manner of someone who has long been the most prominent person in a room. He moves through the assembly with proprietorial ease, greeting arrivals and nudging the conversation along.',
     'Sir William Lucas of Lucas Lodge; formerly mayor of Meryton; Knight.',
-    4,  -- Ballroom; arrived early and is already circulating
+    3,  -- Landing; positioned at the top of the stairs to greet arrivals
     0.48, 0.55, 0.80, 0.75, 0.22,
     'belonging', 'genial',
     'Enjoying the assembly in his customary role as social center of gravity; pleased to welcome the new arrivals from Netherfield.',
