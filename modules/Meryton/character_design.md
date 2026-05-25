@@ -345,6 +345,68 @@ and is happy to discuss both. Her report on Bingley opened the chapter.
 
 ---
 
+### Sir William Lucas (id = 14)
+
+| O | C | E | A | N |
+|---|---|---|---|---|
+| 0.48 | 0.55 | 0.80 | 0.75 | 0.22 |
+
+**Role:** Host and de facto master of ceremonies. Former mayor of Meryton,
+knighted after presenting an address to the King; retired from trade to
+Lucas Lodge. He is the closest thing to official social authority in the
+room, and he knows it with comfortable pleasure.
+
+**Extraversion and Agreeableness** are his defining values. He is energized
+by a full room, delights in making introductions, and moves through the
+assembly as though it exists for his enjoyment — which, in practical terms,
+it largely does. His Conscientiousness is middling: he is reliable in his
+social role but not a deep or principled thinker.
+
+**Neuroticism:** Very low. He is thoroughly at ease with himself and his
+position in the world.
+
+**Starting emotional state:** Genial.
+
+**Primary motivations:**
+- Belonging (0.80) — energized by company; a lively assembly is its own
+  reward
+- Status (0.72) — quietly proud of his knighthood and the deference it earns;
+  enjoys being the man who makes introductions
+- Entertainment (0.58) — a well-run evening is intrinsically satisfying
+
+**Hidden motivation:** Pride in the knighthood is more operative than he
+displays — he notes when others recognize his title and is gratified by it.
+`access_hidden_motivation = 0` (not surfaced to Pass 2).
+
+**Internal states at start:**
+- social_ease: 0.88
+- enjoyment: 0.80
+
+**Wander behavior:** `wander_probability = 0.22`, `wander_range = [3, 4, 5]`
+(Landing, Ballroom, Supper Room). He circulates actively through the public
+rooms and never stays long in one place. His movement pattern is purposeful
+rather than restless — he moves toward people, not away from them.
+
+**Faction reputations:**
+- meryton_neighborhood: 0.80 — former mayor, knight, natural host;
+  highly regarded
+- bingley_circle: 0.30 — politely received; his origins in trade are noted
+
+**Starting attitudes:**
+- → Elizabeth: 0.38 (Charlotte's closest friend; known for years)
+- → Charlotte: 0.82 (warm paternal affection)
+- → Bingley: 0.45 (warmly welcoming the new neighbor)
+- → Darcy: 0.22 (respectful of rank, but not intimidated — he too has a title)
+
+**Narrative function:** Sir William is the assembly's introduction engine.
+He is the character most likely to smooth awkward moments, effect formal
+introductions between Bingley's party and the neighborhood, and be present
+at socially significant junctures. His pride in the knighthood is a gentle
+running thread — most characters find him mildly comic but genuinely
+likeable.
+
+---
+
 ## Starting locations
 
 | Character | Location | Notes |
