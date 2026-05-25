@@ -291,6 +291,59 @@ Implementation sketch:
 - One-time pre-session LLM call: takes the player's raw input and the base game premise, returns a canonicalized modifier statement suitable for inclusion in context packets.
 - No engine logic changes needed beyond passing the field through context assembly.
 
+**Playtest observation (2026-05-25) — premise injection works naturally without special infrastructure:**
+
+In a live playtest of *I Am a Cat*, the player simply declared a premise mid-session
+in the normal input field: *"All cats have wings, and I am no exception. Mine are
+velvety black and impeccably groomed. Spook's are chaotic black and white..."*
+The engine treated this as a `wait` action (correct: no physical action occurred)
+and logged it to the action_log. Every subsequent pass maintained the premise
+consistently — subsequent prose described the character's wings as settled and
+groomed, Spook's feathers as ruffled and structurally embarrassing, and a move
+action entered as "flap over to the dining room" was correctly parsed as `move`
+with the right target_id and rendered with full wing mechanics intact.
+
+This demonstrates that **the LLM maintains player-declared premises naturally
+through the `recent_actions` context window without any special code.** The
+explicit `premise_modifier` infrastructure may be considerably simpler than
+originally sketched — the canonicalization pass and module-level opt-in may be
+unnecessary for most uses. A minimal implementation:
+
+1. If `game_instance.premise_modifier` is non-null, prepend it as a fixed line
+   in every Pass 2 and Pass 3 context packet — "Active premise: [text]".
+2. Recognize a player input of the form "premise: [text]" (or a natural in-character
+   declaration that Pass 1 identifies as world-establishing rather than action) and
+   write it to `game_instance.premise_modifier`. Subsequent turns see it in every
+   context packet rather than only in recent_actions.
+
+The second step solves the one real limitation of the implicit approach: a premise
+declared through normal input only persists as long as it stays in the
+`recent_actions` window. In a long session, it would gradually fade. Storing it in
+`game_instance.premise_modifier` and including it in every context packet ensures
+it never drops out of scope.
+
+**Natural delivery mechanism — in-character opening prose:**
+
+The most elegant delivery for modules like Meryton is in-character opening prose
+that the player writes as the first input of the session. Example:
+
+*"As I alight from the carriage, I use the distraction of my mother and sisters to
+discreetly check the revolver in its hidden pocket in my gown. Tonight may be the
+end of my career as an agent of the Crown, but I have tracked my quarry these past
+six months, and now he is within range. My family will likely disown me before the
+night is through, but they will be provided for."*
+
+Pass 1 would parse this as a `wait` or a new action type `premise_declaration`,
+write the text to `game_instance.premise_modifier`, and all subsequent passes would
+maintain Elizabeth as an armed intelligence operative at a Regency assembly — without
+any pre-session dialogue, mode prompts, or special UI. The player simply arrives
+in character. This is consistent with the design principle that the LLM handles
+language and the engine handles state; the premise is state, so it should be
+stored once and reliably included, not re-inferred from prose history.
+
+See also feature 16 (Elizabeth as Agent of the Crown) for a fully worked-out
+what-if scenario that would exercise this mechanic.
+
 ---
 
 ## 1. Web host option
