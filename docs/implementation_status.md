@@ -1,7 +1,70 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-05-24, session 9 (closed).*
+*Last updated: 2026-05-25, session 10 (closed).*
+
+---
+
+## Session 10 closing notes (2026-05-25)
+
+**This session:** Meryton module character seeding (complete cast + dance partners),
+pre-snub starting state design, reset infrastructure, and opening scene engine feature.
+
+**Completed this session:**
+
+**Meryton seed — character additions:**
+- `Miss Bingley` and `Mrs. Hurst`: internal states added (Miss Bingley:
+  `composure` 0.85, `self_satisfaction` 0.72, `social_vigilance` 0.52;
+  Mrs. Hurst: `comfort` 0.78, `social_ease` 0.68); key attitudes added
+  (Miss Bingley surface warmth toward Darcy; Mrs. Hurst toward husband and Bingley)
+- `Sir William Lucas` (id=14): full character seed — host/facilitator role,
+  mobile wander (ballroom/landing/card room), internal states, faction reputations
+  for both neighborhood and bingley_circle, attitudes toward key characters
+- Five named dance-partner NPCs (ids 15–19): `Mr. Robinson`, `John Lucas`,
+  `Edward Long`, `Thomas Philips`, `William Goulding` — thin seeds with OCEAN
+  values, 1–2 goals, faction reputations, and attitudes toward Elizabeth
+
+**Meryton seed — starting state and context:**
+- Pre-snub starting state adopted: scene opens as Elizabeth arrives at the
+  vestibule (location 1), not mid-assembly. Elizabeth↔Darcy attitudes reset
+  to 0.0 (strangers on arrival); Darcy `emotional_state` updated to `reserved`;
+  his `hidden_motivation` cleared (interest develops during play)
+- Elizabeth `character_visited_location` cleared (arriving now)
+- Elizabeth's `bingley_circle` reputation updated to 0.05 (unknown on arrival)
+- `game.cultural_norms` updated with two new keys: `gentlemen_scarcity`
+  (assembly imbalance, European wars context) and `local_families` (nearby
+  properties and known family names for Pass 2 world-building)
+- `Mr. Bennet` confirmed absent — stays home; not seeded
+
+**Meryton module infrastructure:**
+- `modules/Meryton/reset_instance.sql` created — resets all dynamic state
+  (character locations, emotional states, pending_intent, internal states,
+  attitudes, faction reputations, visited locations, game_instance clock)
+  to canonical vestibule-start values without wiping the database.
+  Wrapped in a transaction; action_log cleared by default (comment out to preserve history).
+  Usage: `sqlite3 modules/Meryton/meryton.db < modules/Meryton/reset_instance.sql`
+- `meryton.db` re-seeded fresh from `schema/schema.sql` + `seed.sql`
+
+**Engine:**
+- `OPENING_SCENE_PROMPT_TEMPLATE` added to `engine.py` — distinct from
+  `PASS3_PROMPT_TEMPLATE`; instructs the renderer to establish the opening
+  scene rather than narrate an action outcome
+- `_render_opening_scene()` method added to `GameEngine` — runs a single
+  Pass 3 call with a synthetic ambient outcome at session start; LLM failure
+  degrades gracefully to the old "You are [name]" fallback
+- `run()` updated to call `_render_opening_scene()` instead of printing bare name
+- Second-person rule ("the player character is 'you', not named by name") added
+  explicitly to both `OPENING_SCENE_PROMPT_TEMPLATE` and `PASS3_PROMPT_TEMPLATE`
+- Opening scene confirmed working on I Am a Cat; prose quality strong on first run
+
+**Pending from this session:**
+- `character_design.md` is missing Sir William Lucas — minor documentation debt;
+  add his entry before the Netherfield Ball design work begins
+
+**Planned next session:**
+- Re-seed Guy and Mama `wander_probability` to honest values in I Am a Cat
+  (carried from session 9; sleepiness suppression now handles the rest)
+- First Meryton engine test / playtest against `meryton.db`
 
 ---
 

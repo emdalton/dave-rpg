@@ -867,3 +867,416 @@ INSERT INTO game_instance (
 ) VALUES (
     2, 'ready', 1200, 1200, NULL
 );
+
+
+-- =============================================================================
+-- SESSION 10 ADDITIONS
+--
+-- New characters: Sir William Lucas (14), Mr. Robinson (15), John Lucas (16),
+--   Edward Long (17), Thomas Philips (18), William Goulding (19).
+-- Pre-snub start: scene opens as the Bennet family arrives at the vestibule.
+--   Elizabeth and Darcy are strangers; attitudes reset accordingly.
+-- Miss Bingley and Mrs. Hurst: internal states added.
+-- Game: cultural_norms updated with assembly scale context.
+-- =============================================================================
+
+
+-- =============================================================================
+-- PRE-SNUB START: adjustments to existing character records
+-- These UPDATEs run after the INSERTs above and override values that
+-- assumed a mid-assembly starting point. The snub scene now plays out
+-- during gameplay rather than being baked into the starting state.
+-- =============================================================================
+
+-- Elizabeth starts in the vestibule; scene opens as the family arrives.
+UPDATE character SET
+    current_location_id = 1,
+    description = 'A young woman of middling height with fine eyes and an expressive, intelligent face. She is not considered a conventional beauty but her animation makes her striking. She has just arrived at the assembly with her family.'
+WHERE id = 1;
+
+-- Elizabeth has not yet visited any location (arriving now).
+DELETE FROM character_visited_location WHERE character_id = 1;
+
+-- Elizabeth and Darcy are strangers on arrival; no attitudes yet formed.
+-- Both the surface and hidden rows are reset.
+UPDATE character_attitude SET attitude = 0.0
+WHERE character_id = 1 AND target_id = 2;
+
+-- Elizabeth's standing with Bingley's party: unknown on arrival.
+-- The post-snub value (0.30, with Darcy's dismissal noted) is premature.
+UPDATE character_faction_reputation SET
+    reputation = 0.05,
+    notes = 'Unknown to Bingley''s party on arrival; no judgments formed yet.'
+WHERE character_id = 1 AND faction_id = 3;
+
+-- Darcy: pre-snub emotional state. Disdain and hidden interest both develop
+-- during the evening. He arrives reserved and uncomfortable, not yet dismissive.
+UPDATE character SET
+    emotional_state = 'reserved',
+    hidden_motivation = NULL,
+    description = 'A tall, handsome man of aristocratic bearing, richly dressed and composed. He has arrived with Bingley''s party and immediately draws attention by his height, his dress, and the report of his fortune. His manner is reserved; he has not yet engaged with anyone outside his own party.'
+WHERE id = 2;
+
+-- Darcy and Elizabeth: strangers; both direction rows reset.
+UPDATE character_attitude SET attitude = 0.0
+WHERE character_id = 2 AND target_id = 1;
+
+
+-- =============================================================================
+-- GAME: cultural_norms updated with assembly scale and local family context.
+-- Full JSON rewritten to add two new keys; all existing entries preserved.
+-- =============================================================================
+
+UPDATE game SET cultural_norms = '{
+    "dancing": "A lady who refuses a set must sit it out entirely for that set. Refusing a partner is a significant social statement and will be observed.",
+    "introductions": "A gentleman must be formally introduced before addressing a lady he does not know. Bingley''s party arrived as strangers; Sir William Lucas is the appropriate introducer.",
+    "conversation": "A person engaged in conversation does not simply walk away. To do so is considered rude under any circumstances. Characters with pending social engagements remain in place.",
+    "service_areas": "A lady or gentleman of quality does not enter service passages, back stairs, or staging areas. To do so would be considered eccentric at best, scandalous at worst.",
+    "card_room": "The card room is predominantly occupied by older guests and those disinclined to dance. A young lady entering unescorted would be unusual but not impossible.",
+    "supper_room": "The supper room is closed for this assembly — no supper is served. The door is unlocked but convention prohibits entry. A well-bred guest would not attempt it without compelling reason.",
+    "gentlemen_scarcity": "There are notably more ladies than gentlemen willing to dance at this assembly. This reflects the ongoing depletion of young men from country society by the European wars. Ladies sitting out a set carry no stigma; it is simply the circumstance of the evening.",
+    "local_families": "Known local families and residences: Bennet of Longbourn; Lucas of Lucas Lodge; Goulding of Haye-Park; Long (Mrs. Long and her nephews); Philips (attorney in Meryton, related to the Bennets by marriage); Bingley of Netherfield Park (recently arrived). Other nearby properties whose resident family names may be generated as needed: Purvis Lodge, Ashworth, Oakham Mount, Stoke. The militia is not yet quartered in the area."
+}'
+WHERE id = 2;
+
+
+-- =============================================================================
+-- MISS BINGLEY (id = 10): internal states and surface attitude toward Darcy
+-- =============================================================================
+
+INSERT INTO internal_state (character_id, state_name, value, display_mode, passive_rate_per_minute)
+VALUES (10, 'composure', 0.85, 'prose', NULL);
+-- High: she performs social ease with discipline; it costs her little tonight —
+-- the neighborhood has not yet presented a threat worth managing.
+
+INSERT INTO internal_state (character_id, state_name, value, display_mode, passive_rate_per_minute)
+VALUES (10, 'self_satisfaction', 0.72, 'prose', NULL);
+-- Moderate-high: she is with Darcy, elegantly dressed, and the assembly room
+-- has not yet produced anyone she needs to take seriously.
+
+INSERT INTO internal_state (character_id, state_name, value, display_mode, passive_rate_per_minute)
+VALUES (10, 'social_vigilance', 0.52, 'prose', NULL);
+-- Moderate: she watches the room habitually for social threats and opportunities,
+-- but has not yet identified a target. Will rise if Elizabeth registers.
+
+-- Miss Bingley performs visible warmth toward Darcy in addition to feeling it.
+-- Her existing hidden attitude (0.65) reflects the depth; this surface row
+-- reflects the attentiveness she allows herself to show.
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
+VALUES (10, 2, 0.50, 'surface');
+
+
+-- =============================================================================
+-- MRS. HURST (id = 11): internal states and key attitudes
+-- =============================================================================
+
+INSERT INTO internal_state (character_id, state_name, value, display_mode, passive_rate_per_minute)
+VALUES (11, 'comfort', 0.78, 'prose', NULL);
+-- High: seated with her party; nothing is required of her this evening.
+
+INSERT INTO internal_state (character_id, state_name, value, display_mode, passive_rate_per_minute)
+VALUES (11, 'social_ease', 0.68, 'prose', NULL);
+-- Moderate: she follows Caroline's lead; independent social navigation
+-- is not required and she is content to leave it to her sister.
+
+-- Mrs. Hurst → Mr. Hurst: the marriage is comfortable rather than affectionate.
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
+VALUES (11, 12, 0.22, 'surface');
+
+-- Mrs. Hurst → Bingley: genuine sibling warmth; she is fond of her brother.
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
+VALUES (11, 3, 0.58, 'surface');
+
+
+-- =============================================================================
+-- SIR WILLIAM LUCAS (id = 14)
+-- Former mayor of Meryton; received a knighthood by presenting an address
+-- to the King. Retired from trade to Lucas Lodge. Warm, sociable, pleasantly
+-- pompous. The closest thing to a master of ceremonies at this public assembly.
+-- Circulates freely; makes introductions; encourages participation.
+-- =============================================================================
+
+INSERT INTO character (
+    id, game_id, name, role, species, gender, pronouns,
+    description, apparent_status, current_location_id,
+    ocean_openness, ocean_conscientiousness, ocean_extraversion,
+    ocean_agreeableness, ocean_neuroticism,
+    maslow_tier, emotional_state,
+    surface_motivation, hidden_motivation, access_hidden_motivation,
+    voice_register, voice_warmth, voice_verbosity,
+    wander_range, wander_probability
+) VALUES (
+    14, 2, 'Sir William Lucas', 'npc_active', 'human', 'male',
+    '[{"case":"nominative","form":"he"},{"case":"accusative","form":"him"},{"case":"genitive","form":"his"}]',
+    'A stout, cheerful man of middling age with the comfortable manner of someone who has long been the most prominent person in a room. He moves through the assembly with proprietorial ease, greeting arrivals and nudging the conversation along.',
+    'Sir William Lucas of Lucas Lodge; formerly mayor of Meryton; Knight.',
+    4,  -- Ballroom; arrived early and is already circulating
+    0.48, 0.55, 0.80, 0.75, 0.22,
+    'belonging', 'genial',
+    'Enjoying the assembly in his customary role as social center of gravity; pleased to welcome the new arrivals from Netherfield.',
+    'Quietly proud of his knighthood and the deference it earns; enjoys being the man who makes introductions and smooths awkward moments.',
+    0,
+    'warm_jovial', 0.80, 0.78,
+    '[3, 4, 5]',
+    0.22  -- circulates actively through public rooms; never stays long in one place
+);
+
+INSERT INTO character_goal (character_id, goal_name, goal_type, priority, orientation, scope)
+VALUES (14, 'belonging — social connection; he is energized by a full room and a lively evening', 'surface', 0.80, 'approach', 'person_environment');
+INSERT INTO character_goal (character_id, goal_name, goal_type, priority, orientation, scope)
+VALUES (14, 'status — appreciation of his knighthood and his position as the leading local gentleman', 'surface', 0.72, 'approach', 'person_environment');
+INSERT INTO character_goal (character_id, goal_name, goal_type, priority, orientation, scope)
+VALUES (14, 'entertainment — a well-run, lively assembly is its own reward', 'surface', 0.58, 'approach', 'person_environment');
+
+INSERT INTO internal_state (character_id, state_name, value, display_mode, passive_rate_per_minute)
+VALUES (14, 'social_ease', 0.88, 'prose', NULL);
+INSERT INTO internal_state (character_id, state_name, value, display_mode, passive_rate_per_minute)
+VALUES (14, 'enjoyment', 0.80, 'prose', NULL);
+
+INSERT INTO character_faction_reputation (character_id, faction_id, reputation, notes)
+VALUES (14, 2, 0.80, 'Former mayor, knight, and natural host of the neighborhood. Highly regarded.');
+INSERT INTO character_faction_reputation (character_id, faction_id, reputation, notes)
+VALUES (14, 3, 0.30, 'Welcomed Bingley''s party and made himself known on their arrival. Politely regarded; his origins in trade are noted by the Bingley circle.');
+
+-- Sir William → Elizabeth: Charlotte's closest friend; he has known her for years
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
+VALUES (14, 1, 0.38, 'surface');
+-- Sir William → Charlotte: his daughter; warm paternal affection
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
+VALUES (14, 5, 0.82, 'surface');
+-- Sir William → Bingley: warmly welcoming the new neighbor
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
+VALUES (14, 3, 0.45, 'surface');
+-- Sir William → Darcy: respectful of rank but not intimidated (he too has a title)
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
+VALUES (14, 2, 0.22, 'surface');
+
+-- Elizabeth → Sir William: fond; slightly amused by his knighthood pride
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
+VALUES (1, 14, 0.38, 'surface');
+
+
+-- =============================================================================
+-- MR. ROBINSON (id = 15)
+-- Named in Chapter 3; asked Bingley directly about the ladies of the assembly.
+-- Sociable neighborhood gentleman; the sort who talks to strangers.
+-- =============================================================================
+
+INSERT INTO character (
+    id, game_id, name, role, species, gender, pronouns,
+    description, apparent_status, current_location_id,
+    ocean_openness, ocean_conscientiousness, ocean_extraversion,
+    ocean_agreeableness, ocean_neuroticism,
+    maslow_tier, emotional_state,
+    surface_motivation, hidden_motivation, access_hidden_motivation,
+    voice_register, voice_warmth, voice_verbosity,
+    wander_range, wander_probability
+) VALUES (
+    15, 2, 'Mr. Robinson', 'npc_active', 'human', 'male',
+    '[{"case":"nominative","form":"he"},{"case":"accusative","form":"him"},{"case":"genitive","form":"his"}]',
+    'A cheerful neighborhood gentleman of no particular distinction; the sort of man who talks to strangers at assemblies and means well by it. He has already introduced himself to Mr. Bingley.',
+    'A neighbor; address unspecified.',
+    4,  -- Ballroom
+    0.55, 0.52, 0.72, 0.65, 0.25,
+    'belonging', 'sociable',
+    'Enjoying the company; interested in the new arrivals; happy to dance.',
+    NULL, 0,
+    'warm_direct', 0.65, 0.65,
+    '[3, 4, 5]',
+    0.12
+);
+
+INSERT INTO character_goal (character_id, goal_name, goal_type, priority, orientation, scope)
+VALUES (15, 'belonging — enjoys company and a lively assembly', 'surface', 0.72, 'approach', 'person_environment');
+INSERT INTO character_goal (character_id, goal_name, goal_type, priority, orientation, scope)
+VALUES (15, 'entertainment — dancing and good conversation', 'surface', 0.65, 'approach', 'person_environment');
+
+INSERT INTO character_faction_reputation (character_id, faction_id, reputation, notes)
+VALUES (15, 2, 0.58, 'Ordinary neighborhood standing; well enough liked.');
+
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
+VALUES (15, 1, 0.18, 'surface');  -- Elizabeth: pleasant neighborhood acquaintance
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
+VALUES (1, 15, 0.12, 'surface');  -- Elizabeth → Robinson: familiar neighbor
+
+
+-- =============================================================================
+-- JOHN LUCAS (id = 16)
+-- Charlotte's eldest brother. Knows Elizabeth well through his sister.
+-- Sensible and pleasant; will stand up with her as a matter of course.
+-- =============================================================================
+
+INSERT INTO character (
+    id, game_id, name, role, species, gender, pronouns,
+    description, apparent_status, current_location_id,
+    ocean_openness, ocean_conscientiousness, ocean_extraversion,
+    ocean_agreeableness, ocean_neuroticism,
+    maslow_tier, emotional_state,
+    surface_motivation, hidden_motivation, access_hidden_motivation,
+    voice_register, voice_warmth, voice_verbosity,
+    wander_range, wander_probability
+) VALUES (
+    16, 2, 'John Lucas', 'npc_active', 'human', 'male',
+    '[{"case":"nominative","form":"he"},{"case":"accusative","form":"him"},{"case":"genitive","form":"his"}]',
+    'Charlotte''s eldest brother; a sensible, pleasant young man with something of his sister''s directness and his father''s sociable manner. He and Elizabeth are old acquaintances.',
+    'Son of Sir William and Lady Lucas of Lucas Lodge.',
+    4,  -- Ballroom
+    0.55, 0.65, 0.60, 0.70, 0.22,
+    'belonging', 'pleasant',
+    'Enjoying the assembly; happy to dance; attentive to his family''s friends.',
+    NULL, 0,
+    'pleasant_direct', 0.70, 0.60,
+    '[3, 4, 5]',
+    0.12
+);
+
+INSERT INTO character_goal (character_id, goal_name, goal_type, priority, orientation, scope)
+VALUES (16, 'belonging — enjoys the company of friends and neighbors', 'surface', 0.75, 'approach', 'person_environment');
+INSERT INTO character_goal (character_id, goal_name, goal_type, priority, orientation, scope)
+VALUES (16, 'affiliation — attentive to family connections and his father''s social duties', 'surface', 0.65, 'approach', 'person_environment');
+
+INSERT INTO character_faction_reputation (character_id, faction_id, reputation, notes)
+VALUES (16, 2, 0.62, 'Well-regarded; son of the most prominent local family.');
+
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
+VALUES (16, 1, 0.42, 'surface');  -- Elizabeth: old acquaintance through Charlotte
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
+VALUES (1, 16, 0.35, 'surface');  -- Elizabeth → John Lucas: Charlotte's brother; familiar
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
+VALUES (16, 5, 0.75, 'surface');  -- John → Charlotte: close siblings
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
+VALUES (16, 14, 0.72, 'surface'); -- John → Sir William: his father; respect and affection
+
+
+-- =============================================================================
+-- EDWARD LONG (id = 17)
+-- Nephew of Mrs. Long; present as part of his aunt's party.
+-- Pleasant and unremarkable; no particular agenda.
+-- =============================================================================
+
+INSERT INTO character (
+    id, game_id, name, role, species, gender, pronouns,
+    description, apparent_status, current_location_id,
+    ocean_openness, ocean_conscientiousness, ocean_extraversion,
+    ocean_agreeableness, ocean_neuroticism,
+    maslow_tier, emotional_state,
+    surface_motivation, hidden_motivation, access_hidden_motivation,
+    voice_register, voice_warmth, voice_verbosity,
+    wander_range, wander_probability
+) VALUES (
+    17, 2, 'Edward Long', 'npc_active', 'human', 'male',
+    '[{"case":"nominative","form":"he"},{"case":"accusative","form":"him"},{"case":"genitive","form":"his"}]',
+    'Mrs. Long''s nephew; a pleasant young man of no particular distinction, present as part of his aunt''s party.',
+    'Nephew of Mrs. Long.',
+    4,  -- Ballroom
+    0.50, 0.52, 0.60, 0.62, 0.30,
+    'belonging', 'pleasant',
+    'Dancing and enjoying the company.',
+    NULL, 0,
+    'pleasant_unremarkable', 0.62, 0.55,
+    '[3, 4, 5]',
+    0.10
+);
+
+INSERT INTO character_goal (character_id, goal_name, goal_type, priority, orientation, scope)
+VALUES (17, 'entertainment — dancing and agreeable company', 'surface', 0.68, 'approach', 'person_environment');
+INSERT INTO character_goal (character_id, goal_name, goal_type, priority, orientation, scope)
+VALUES (17, 'belonging — a pleasant evening in familiar company', 'surface', 0.62, 'approach', 'person_environment');
+
+INSERT INTO character_faction_reputation (character_id, faction_id, reputation, notes)
+VALUES (17, 2, 0.52, 'Ordinary neighborhood standing; known through Mrs. Long.');
+
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
+VALUES (17, 1, 0.15, 'surface');  -- Elizabeth: known neighborhood girl
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
+VALUES (1, 17, 0.10, 'surface');  -- Elizabeth → Edward Long: familiar acquaintance
+
+
+-- =============================================================================
+-- THOMAS PHILIPS (id = 18)
+-- Nephew of Mr. Philips the attorney (Mrs. Bennet's brother-in-law).
+-- Present partly from family obligation; decent but lacking initiative.
+-- The family connection makes him a semi-obligatory dance partner for the
+-- Bennet girls, which Elizabeth is aware of.
+-- =============================================================================
+
+INSERT INTO character (
+    id, game_id, name, role, species, gender, pronouns,
+    description, apparent_status, current_location_id,
+    ocean_openness, ocean_conscientiousness, ocean_extraversion,
+    ocean_agreeableness, ocean_neuroticism,
+    maslow_tier, emotional_state,
+    surface_motivation, hidden_motivation, access_hidden_motivation,
+    voice_register, voice_warmth, voice_verbosity,
+    wander_range, wander_probability
+) VALUES (
+    18, 2, 'Thomas Philips', 'npc_active', 'human', 'male',
+    '[{"case":"nominative","form":"he"},{"case":"accusative","form":"him"},{"case":"genitive","form":"his"}]',
+    'Nephew of Mr. Philips the attorney; a decent young man who attends assemblies partly from family duty. He is perfectly pleasant but lacks initiative.',
+    'Nephew of Mr. Philips, attorney of Meryton.',
+    4,  -- Ballroom
+    0.45, 0.68, 0.48, 0.68, 0.32,
+    'belonging', 'dutiful',
+    'Fulfilling family social obligations; will dance when expected to.',
+    NULL, 0,
+    'polite_correct', 0.62, 0.52,
+    '[3, 4, 5]',
+    0.08
+);
+
+INSERT INTO character_goal (character_id, goal_name, goal_type, priority, orientation, scope)
+VALUES (18, 'equity — meeting family social obligations without embarrassment', 'surface', 0.72, 'approach', 'person_environment');
+INSERT INTO character_goal (character_id, goal_name, goal_type, priority, orientation, scope)
+VALUES (18, 'belonging — a pleasant enough evening in familiar company', 'surface', 0.58, 'approach', 'person_environment');
+
+INSERT INTO character_faction_reputation (character_id, faction_id, reputation, notes)
+VALUES (18, 2, 0.55, 'Unremarkable neighborhood standing; known through the Philips connection.');
+
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
+VALUES (18, 1, 0.22, 'surface');  -- Elizabeth: cousin-by-connection; mild obligation
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
+VALUES (1, 18, 0.18, 'surface');  -- Elizabeth → Thomas Philips: familiar; slightly obligatory
+
+
+-- =============================================================================
+-- WILLIAM GOULDING (id = 19)
+-- Son of the Goulding family of Haye-Park; minor gentry.
+-- Easy-mannered and unpretentious; one of the better local families.
+-- =============================================================================
+
+INSERT INTO character (
+    id, game_id, name, role, species, gender, pronouns,
+    description, apparent_status, current_location_id,
+    ocean_openness, ocean_conscientiousness, ocean_extraversion,
+    ocean_agreeableness, ocean_neuroticism,
+    maslow_tier, emotional_state,
+    surface_motivation, hidden_motivation, access_hidden_motivation,
+    voice_register, voice_warmth, voice_verbosity,
+    wander_range, wander_probability
+) VALUES (
+    19, 2, 'William Goulding', 'npc_active', 'human', 'male',
+    '[{"case":"nominative","form":"he"},{"case":"accusative","form":"him"},{"case":"genitive","form":"his"}]',
+    'Eldest son of the Goulding family of Haye-Park; a decent, easy-mannered young man from one of the better-established local families. There is nothing remarkable about him.',
+    'Son of the Goulding family of Haye-Park.',
+    4,  -- Ballroom
+    0.52, 0.58, 0.62, 0.65, 0.22,
+    'belonging', 'comfortable',
+    'Dancing and agreeable company; no particular agenda.',
+    NULL, 0,
+    'easy_unremarkable', 0.65, 0.55,
+    '[3, 4, 5]',
+    0.10
+);
+
+INSERT INTO character_goal (character_id, goal_name, goal_type, priority, orientation, scope)
+VALUES (19, 'entertainment — a good evening of dancing and company', 'surface', 0.70, 'approach', 'person_environment');
+INSERT INTO character_goal (character_id, goal_name, goal_type, priority, orientation, scope)
+VALUES (19, 'belonging — comfortable in his neighborhood circle', 'surface', 0.65, 'approach', 'person_environment');
+
+INSERT INTO character_faction_reputation (character_id, faction_id, reputation, notes)
+VALUES (19, 2, 0.62, 'Solid neighborhood standing; the Gouldings are a well-regarded local family.');
+
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
+VALUES (19, 1, 0.15, 'surface');  -- Elizabeth: known neighborhood girl
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
+VALUES (1, 19, 0.12, 'surface');  -- Elizabeth → William Goulding: neighborhood acquaintance

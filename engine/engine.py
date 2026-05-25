@@ -188,12 +188,38 @@ Context:
 {context_json}
 """
 
+OPENING_SCENE_PROMPT_TEMPLATE = """\
+You are the prose renderer for the DAVE RPG Engine. Your job is to write the
+opening scene description for this session — before any player action has occurred.
+
+Rules:
+- Return only prose. No JSON, no metadata, no headers.
+- Write in second person: the player character is "you", not named by name.
+- Write from the player character's perspective and sensory experience.
+- Describe where the player character is, what they can immediately sense
+  (sight, sound, smell, touch as appropriate), and their current emotional
+  and physical state as established in the context.
+- Introduce any other characters who are present at the starting location.
+- Apply the speech_filter if relevant, and match the game tone precisely.
+- Do not reveal hidden motivation or any information outside the player
+  character's direct perception.
+- Length: a short paragraph (3–5 sentences). This is an establishing shot,
+  not an action sequence.
+- Pronouns: use the pronouns supplied in the `characters_referenced` list.
+- NPC presence is authoritative: only describe characters who appear in
+  `characters_present`.
+
+Context:
+{context_json}
+"""
+
 PASS3_PROMPT_TEMPLATE = """\
 You are the prose renderer for the DAVE RPG Engine. Your job is to turn the
 adjudicated outcome below into vivid, engaging player-facing prose.
 
 Rules:
 - Return only prose. No JSON, no metadata, no headers.
+- Write in second person: the player character is "you", not named by name.
 - Write from the player character's perspective and sensory experience.
 - Apply the speech_filter exactly: for the I Am a Cat module, human speech
   should be rendered as the cat perceives it (tone, volume, body language,
@@ -329,7 +355,14 @@ class GameEngine:
             7. Display prose to the player
         """
         print(f"\n=== {self._game.get('name', 'DAVE RPG')} ===\n")
-        print(f"You are {self._player['name']}.\n")
+        try:
+            opening = self._render_opening_scene()
+            print(textwrap.fill(opening, width=80))
+        except (LLMError, LLMJSONError) as exc:
+            # Degrade gracefully: fall back to bare name if opening render fails.
+            logger.warning("Opening scene render failed (%s); using fallback.", exc)
+            print(f"You are {self._player['name']}.")
+        print()
 
         while True:
             # Refresh the player record at the top of each turn so location
@@ -449,6 +482,60 @@ class GameEngine:
                     totals["output_tokens"],
                     totals["total"],
                 )
+
+    # -------------------------------------------------------------------------
+    # Opening scene
+    # -------------------------------------------------------------------------
+
+    def _render_opening_scene(self) -> str:
+        """
+        Generate the opening prose for a new session by running a single
+        Pass 3 call with a synthetic scene-open outcome.
+
+        No Pass 1 or Pass 2 is run; no state is changed. The prose is derived
+        entirely from the player's starting location, description, emotional
+        state, and the other characters present at that location — all of which
+        are already in the DB at session start.
+
+        Returns:
+            Rendered opening prose string.
+
+        Raises:
+            LLMError:     If the LLM call fails.
+            LLMJSONError: If the response cannot be parsed (should not occur
+                          since Pass 3 returns plain prose, but included for
+                          defensive completeness).
+        """
+        # Synthetic outcome: no state changes, just a cue for the prose renderer.
+        synthetic_outcome = {
+            "outcome_type": "ambient",
+            "narrative_beat": (
+                "The scene opens. Establish the player character's starting position, "
+                "immediate sensory environment, and emotional state. "
+                "This is the first moment of the session; no action has yet occurred."
+            ),
+            "elapsed_minutes": 0,
+            "attitude_deltas": [],
+            "internal_state_deltas": [],
+            "emotional_state_updates": [],
+            "location_change": [],
+            "item_changes": [],
+            "new_location_details": [],
+            "faction_reputation_changes": [],
+            "pending_intent_updates": [],
+            "narrative_point_delta": 0,
+            "adjudication_notes": "Opening scene render — no state changes.",
+        }
+
+        pass3_packet = build_pass3_packet(self.db, self.game_id, synthetic_outcome)
+        prompt = OPENING_SCENE_PROMPT_TEMPLATE.format(
+            context_json=json.dumps(pass3_packet, indent=2)
+        )
+        logger.debug("Opening scene prompt:\n%s", prompt)
+
+        prose = self.llm.call(prompt)
+        logger.debug("Opening scene prose: %.120s", prose)
+        return prose
 
     # -------------------------------------------------------------------------
     # Turn processing
