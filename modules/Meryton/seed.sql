@@ -18,7 +18,7 @@
 --
 -- Schema version: 7
 -- Characters: 13 (1 player, 12 NPC)
--- Locations: 13 (6 navigable public, 3 non-passable, 4 service)
+-- Locations: 14 (7 navigable public, 3 non-passable, 4 service)
 -- Factions: 3 (bennet_family, meryton_neighborhood, bingley_circle)
 --
 -- Usage (fresh install — schema.sql is the canonical current schema):
@@ -1339,3 +1339,99 @@ WHERE id = 7;
 -- Kitty: follows Lydia; will dance if a partner presents himself
 UPDATE character SET pending_intent = 'wants to dance; will follow Lydia''s lead and accept any willing partner'
 WHERE id = 8;
+
+
+-- =============================================================================
+-- SESSION 12 ADDITIONS (2026-05-26)
+--
+-- Cloakroom added as location 14 (ground floor, adjacent to vestibule).
+-- Omission identified in design review; standard provision at a Regency
+-- civic assembly and a natural first stop for arriving parties.
+--
+-- Starting locations corrected: Jane, Mary, and Mrs. Bennet now arrive at
+-- the vestibule (location 1) with Elizabeth, not the ballroom. Lydia and
+-- Kitty are already in the ballroom — they ran ahead.
+--
+-- Mrs. Bennet description updated to arrival state.
+-- Mrs. Bennet pending_intent added: she has a clear immediate goal on entry.
+-- =============================================================================
+
+
+-- Location 14: Cloakroom / Anteroom
+-- NOTE: not mentioned in Chapter 3 text; present by architectural and social
+-- inference. Standard provision at a civic assembly of this type.
+INSERT INTO location (id, game_id, name, location_type, description_skeleton, social_setting, witness_count, situation_flags)
+VALUES (
+    14, 2, 'Cloakroom', 'anteroom',
+    'A small, low-ceilinged room with coat pegs along one wall and a wooden bench. A servant stands near the door. The noise of the assembly is faint but audible through the entrance hall. The smells of damp wool and cold night air linger from earlier arrivals.',
+    'semi_private', 3,
+    '["evening", "arrival_area", "cloaks_and_coats", "servant_present"]'
+);
+
+-- Vestibule ↔ Cloakroom connection (door, freely passable)
+-- Convention: location_a_id < location_b_id
+INSERT INTO location_connection (location_a_id, location_b_id, connection_type, is_passable, passage_note)
+VALUES (1, 14, 'door', 1, NULL);
+
+
+-- Jane, Mary, and Mrs. Bennet: arriving at vestibule with Elizabeth,
+-- not already seated in the ballroom. Lydia and Kitty ran ahead (id 7, 8)
+-- and remain at their seeded location (4 — Ballroom).
+UPDATE character SET current_location_id = 1
+WHERE id IN (4, 6, 9);  -- Jane, Mrs. Bennet, Mary
+
+-- Mrs. Bennet: description updated to arrival state (she is not yet seated).
+UPDATE character SET
+    description = 'A woman of middling age with an expressive face and a loud voice. She has arrived at the assembly with her daughters and is already scanning the room above for intelligence on Bingley''s party.'
+WHERE id = 6;
+
+-- Mrs. Bennet: pending_intent. Her MST goal (securing advantageous marriages)
+-- is permanent and lives in character_goal. This pending_intent is its
+-- tactical expression on arrival: get to the ballroom and establish a
+-- position with line-of-sight to the dancing floor.
+UPDATE character SET pending_intent = 'escort daughters to the ballroom and secure wall seating with a clear view of the dancing floor'
+WHERE id = 6;
+
+-- Header update: seed now covers 14 locations. Update the header comment.
+-- (Comment-only; no SQL change needed.)
+
+
+-- =============================================================================
+-- SESSION 13 ADDITIONS (2026-05-26): v8 timed activity system — initial seeds
+--
+-- Two characters are seeded with current_activity at scene open, reflecting
+-- their canonical starting positions and intentions for the evening.
+--
+-- Sir William Lucas (id=14): greeting guests on the landing at the top of
+--   the stairs. His welcome is a social performance as much as a courtesy;
+--   he will do it until the flow of arrivals slows or he is drawn away
+--   by something more interesting. High renewable=1 because there is no
+--   natural endpoint — he will keep greeting until Pass 2 decides otherwise.
+--   Low confidence (0.15) because his duration is genuinely unpredictable.
+--
+-- Mr. Hurst (id=12): settled in the card room for the evening. There is no
+--   supper at this assembly and no other compelling reason for him to move.
+--   High confidence (0.70) reflecting that he will almost certainly stay put
+--   for at least three hours. renewable=1 because 'all evening' is the plan —
+--   he should not be auto-cleared; only Pass 2 can move him.
+--
+-- activity_started_at = 1200 = 8:00 PM (scene open, game clock start).
+-- =============================================================================
+
+-- Sir William Lucas: greeting arrivals on the landing at the top of the stairs.
+UPDATE character
+SET current_activity             = 'greeting guests as they arrive at the top of the stairs',
+    activity_started_at          = 1200,
+    activity_estimated_duration  = 45,
+    activity_duration_confidence = 0.15,
+    activity_renewable           = 1
+WHERE id = 14;  -- Sir William Lucas
+
+-- Mr. Hurst: ensconced in the card room for the evening.
+UPDATE character
+SET current_activity             = 'playing cards in the card room',
+    activity_started_at          = 1200,
+    activity_estimated_duration  = 180,
+    activity_duration_confidence = 0.70,
+    activity_renewable           = 1
+WHERE id = 12;  -- Mr. Hurst

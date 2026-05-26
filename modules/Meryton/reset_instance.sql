@@ -65,8 +65,8 @@ UPDATE character SET current_location_id = 4, emotional_state = 'delighted',
     pending_intent = 'eager to dance; will seek a partner for every set'
     WHERE id = 3;
 
--- Jane Bennet: ballroom; quietly hopeful; will accept a partner if asked
-UPDATE character SET current_location_id = 4, emotional_state = 'quietly_hopeful',
+-- Jane Bennet: vestibule on arrival with the family; quietly hopeful; will accept a partner if asked
+UPDATE character SET current_location_id = 1, emotional_state = 'quietly_hopeful',
     pending_intent = 'wants to dance; will accept a partner if asked'
     WHERE id = 4;
 
@@ -75,9 +75,9 @@ UPDATE character SET current_location_id = 4, emotional_state = 'pleasant',
     pending_intent = 'wants to dance; will accept a partner if asked'
     WHERE id = 5;
 
--- Mrs. Bennet: ballroom wall seating; watching everything; no dance intent
-UPDATE character SET current_location_id = 4, emotional_state = 'excited_and_anxious',
-    pending_intent = NULL
+-- Mrs. Bennet: vestibule on arrival; her immediate intent is to reach ballroom wall seating
+UPDATE character SET current_location_id = 1, emotional_state = 'excited_and_anxious',
+    pending_intent = 'escort daughters to the ballroom and secure wall seating with a clear view of the dancing floor'
     WHERE id = 6;
 
 -- Lydia Bennet: ballroom; giddy; will accept any partner without hesitation
@@ -90,8 +90,8 @@ UPDATE character SET current_location_id = 4, emotional_state = 'excited',
     pending_intent = 'wants to dance; will follow Lydia''s lead and accept any willing partner'
     WHERE id = 8;
 
--- Mary Bennet: ballroom wall seating; will dance if asked but will not seek it
-UPDATE character SET current_location_id = 4, emotional_state = 'earnest',
+-- Mary Bennet: vestibule on arrival with the family; will dance if asked but will not seek it
+UPDATE character SET current_location_id = 1, emotional_state = 'earnest',
     pending_intent = 'content to observe; will dance if asked but will not seek a partner'
     WHERE id = 9;
 
@@ -319,6 +319,42 @@ UPDATE game_instance SET
     current_time_minutes = 1200,
     status = 'ready'
 WHERE game_id = 2;
+
+
+-- =============================================================================
+-- CURRENT ACTIVITY (v8+)
+-- Clear all activity fields for all characters, then re-seed the two who
+-- have canonical starting activities at scene open.
+-- =============================================================================
+
+-- Clear all activities first (safe for characters who never had one set).
+UPDATE character
+SET current_activity             = NULL,
+    activity_started_at          = NULL,
+    activity_estimated_duration  = NULL,
+    activity_duration_confidence = NULL,
+    activity_renewable           = 0
+WHERE id IN (1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19);
+
+-- Sir William Lucas: greeting arrivals on the landing at the top of the stairs.
+-- renewable=1, low confidence — he keeps greeting until drawn away.
+UPDATE character
+SET current_activity             = 'greeting guests as they arrive at the top of the stairs',
+    activity_started_at          = 1200,
+    activity_estimated_duration  = 45,
+    activity_duration_confidence = 0.15,
+    activity_renewable           = 1
+WHERE id = 14;  -- Sir William Lucas
+
+-- Mr. Hurst: ensconced in the card room for the evening.
+-- renewable=1, high confidence — he will almost certainly stay all evening.
+UPDATE character
+SET current_activity             = 'playing cards in the card room',
+    activity_started_at          = 1200,
+    activity_estimated_duration  = 180,
+    activity_duration_confidence = 0.70,
+    activity_renewable           = 1
+WHERE id = 12;  -- Mr. Hurst
 
 
 COMMIT;

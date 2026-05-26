@@ -683,6 +683,23 @@ def _build_character_profile(
     # None when the character has no outstanding intent.
     profile["pending_intent"] = character.get("pending_intent")
 
+    # current_activity (v8+): timed activity system. Tells Pass 2 what this
+    # character is currently doing and how committed they are to continuing it.
+    # Distinct from pending_intent — activity persists through commitment
+    # fulfillment and is what actually holds an NPC in place mid-dance,
+    # mid-conversation, mid-card-game, etc.
+    #
+    # activity_duration_confidence and activity_renewable are included so
+    # Pass 2 can make informed decisions about whether to override or clear
+    # the activity (e.g., a low-confidence activity is fair game to interrupt;
+    # a high-confidence renewable one requires a stronger narrative reason).
+    profile["current_activity"] = character.get("current_activity")
+    if character.get("current_activity") is not None:
+        profile["activity_duration_confidence"] = character.get(
+            "activity_duration_confidence"
+        )
+        profile["activity_renewable"] = character.get("activity_renewable", 0)
+
     return profile
 
 

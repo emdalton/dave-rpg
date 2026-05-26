@@ -1166,3 +1166,132 @@ class Database:
             character_id,
             intent_text[:60] if intent_text else None,
         )
+
+    # =========================================================================
+    # TIMED ACTIVITY SYSTEM (added v8)
+    # current_activity tracks what an NPC is currently doing with an expected
+    # duration and confidence estimate. Distinct from pending_intent (a
+    # commitment slot) — activity persists through commitment fulfillment and
+    # suppresses the wander roll for as long as it is active.
+    # =========================================================================
+
+    def set_character_activity(
+        self,
+        character_id: int,
+        activity: str,
+        started_at: int,
+        duration_minutes: int | None,
+        confidence: float | None,
+        renewable: int,
+    ) -> None:
+        """
+        Set or replace the current_activity on a character.
+
+        Called by the engine when applying an 'activity_updates' entry from
+        Pass 2 outcome JSON. The engine supplies started_at from the current
+        game clock — Pass 2 never sets the start timestamp directly.
+
+        Args:
+            character_id:     The character whose activity to set.
+            activity:         Natural language description of the activity.
+            started_at:       Game clock minute when the activity begins
+                              (current_time_minutes from game_instance at
+                              the moment of apply).
+            duration_minutes: Estimated duration in game-clock minutes, or
+                              None for open-ended activities (no auto-expiry).
+            confidence:       Confidence in the duration estimate (0.0–1.0),
+                              or None when duration_minutes is None.
+            renewable:        1 = persists past estimated expiry until Pass 2
+                              clears it explicitly. 0 = engine may auto-clear
+                              on high-confidence expiry.
+        """
+        self._execute(
+            """UPDATE character
+               SET current_activity             = ?,
+                   activity_started_at          = ?,
+                   activity_estimated_duration  = ?,
+                   activity_duration_confidence = ?,
+                   activity_renewable           = ?,
+                   updated_at                   = datetime('now')
+               WHERE id = ?""",
+            (activity, started_at, duration_minutes, confidence, renewable, character_id),
+        )
+        logger.info(
+            "activity set: char=%d activity=%r started_at=%d duration=%s confidence=%s renewable=%d",
+            character_id,
+            activity[:60],
+            started_at,
+            duration_minutes,
+            confidence,
+            renewable,
+        )
+
+    def clear_character_activity(self, character_id: int) -> None:
+        """
+        Clear the current_activity on a character, setting all five activity
+        fields to NULL / default.
+
+        Called by the engine in two cases:
+          1. Mechanical expiry: high-confidence, non-renewable activity whose
+             estimated duration has elapsed (engine-driven).
+          2. Explicit Pass 2 clear: activity_updates entry with activity=null
+             in the outcome JSON (LLM-driven).
+
+        Args:
+            character_id: The character whose activity to clear.
+        """
+        self._execute(
+            """UPDATE character
+               SET current_activity             = NULL,
+                   activity_started_at          = NULL,
+                   activity_estimated_duration  = NULL,
+                   activity_duration_confidence = NULL,
+                   activity_renewable           = 0,
+                   updated_at                   = datetime('now')
+               WHERE id = ?""",
+            (character_id,),
+        )
+        logger.debug("activity cleared: char=%d", character_id)
+
+    def get_characters_with_expired_activities(
+        self, game_id: int, current_time_minutes: int, confidence_threshold: float
+    ) -> list[dict]:
+        """
+        Return all characters in this game whose current_activity has
+        mechanically expired and is eligible for auto-clearing.
+
+        Eligibility criteria (all must be true):
+          - current_activity IS NOT NULL (activity is set)
+          - activity_estimated_duration IS NOT NULL (not open-ended)
+          - activity_renewable = 0 (not marked as persisting past expiry)
+          - activity_duration_confidence >= confidence_threshold (high confidence)
+          - activity_started_at + activity_estimated_duration <= current_time_minutes
+            (estimated end time has passed)
+
+        The engine calls this once per turn, before processing player input,
+        and calls clear_character_activity() on each result.
+
+        Args:
+            game_id:              The game instance to check.
+            current_time_minutes: Current game clock value (from game_instance).
+            confidence_threshold: Minimum confidence for auto-clear eligibility
+                                  (typically config.ACTIVITY_AUTO_CLEAR_CONFIDENCE).
+
+        Returns:
+            List of character row dicts for characters with expired activities.
+            Each dict includes at minimum: id, name, current_activity,
+            activity_started_at, activity_estimated_duration,
+            activity_duration_confidence, activity_renewable.
+        """
+        return self._rows(
+            """SELECT *
+               FROM character
+               WHERE game_id = ?
+                 AND current_activity IS NOT NULL
+                 AND activity_estimated_duration IS NOT NULL
+                 AND activity_renewable = 0
+                 AND activity_duration_confidence >= ?
+                 AND (activity_started_at + activity_estimated_duration)
+                         <= ?""",
+            (game_id, confidence_threshold, current_time_minutes),
+        )

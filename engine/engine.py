@@ -181,6 +181,29 @@ Required output fields:
                         or null to clear the intent when the obligation is fulfilled
                         or abandoned. Only include NPCs whose pending_intent changed
                         this turn. Empty list if no NPC intents changed.)
+  activity_updates     (list of {{character_id, activity, duration_minutes, confidence,
+                        renewable}} for any changes to NPC current activities. Use this
+                        when an NPC begins a new activity (e.g. starts dancing, sits
+                        down to cards, commits to a conversation), updates an existing
+                        one, or ends one. To end an activity, set activity to null.
+                        duration_minutes: estimated minutes the activity will last, or
+                        null for genuinely open-ended activities. confidence: float
+                        0.0–1.0; how certain you are of the duration estimate (use low
+                        values for social activities that depend on others' cooperation,
+                        high values for solitary committed activities like card play).
+                        renewable: 1 if the activity should persist past its estimated
+                        duration until explicitly ended; 0 if the engine may auto-clear
+                        it once the estimated time expires. The engine records
+                        activity_started_at from the game clock at apply time — you
+                        do not supply it. Empty list if no NPC activities changed.
+                        DO NOT include activity_updates for the player character.)
+  npc_initiated_actions (list of {{character_id, action_description}} for any actions
+                        an NPC independently initiates this turn that are narratively
+                        significant but not captured by the other fields — e.g. an NPC
+                        who speaks up unprompted, makes a gesture, or changes their
+                        intent based on what they observed. These are included in the
+                        action log for continuity but do not change any DB state
+                        beyond what other fields already handle. Empty list if none.)
   narrative_point_delta (integer, typically 0; positive for dramatically significant turns)
   adjudication_notes   (string: brief private notes on reasoning, not player-visible)
 
@@ -391,6 +414,10 @@ class GameEngine:
             # Step 1: Check involuntary events and NPC wandering
             # ------------------------------------------------------------------
             involuntary_fired = self._check_involuntary_events()
+            # Clear any mechanically expired NPC activities before processing
+            # the turn. This must run before wandering so that an NPC whose
+            # dance just ended is no longer suppressed from wandering this turn.
+            self._check_activity_expiry()
             # Move NPCs that roll for autonomous wandering this turn.
             # This happens before Pass 1 so that by the time the context packet
             # is assembled, NPCs are already at their new locations.
@@ -541,6 +568,8 @@ class GameEngine:
             "new_location_details": [],
             "faction_reputation_changes": [],
             "pending_intent_updates": [],
+            "activity_updates": [],
+            "npc_initiated_actions": [],
             "narrative_point_delta": 0,
             "adjudication_notes": "Opening scene render — no state changes.",
         }
@@ -896,6 +925,49 @@ class GameEngine:
         }
 
     # -------------------------------------------------------------------------
+    # Timed activity expiry (v8+)
+    # -------------------------------------------------------------------------
+
+    def _check_activity_expiry(self) -> None:
+        """
+        Mechanically clear current_activity for any NPC whose timed activity
+        has expired and is eligible for auto-clearing.
+
+        Called once per turn, before NPC wandering is checked. Activities are
+        cleared mechanically only when all of the following hold:
+            - current_activity IS NOT NULL
+            - activity_estimated_duration IS NOT NULL (not open-ended)
+            - activity_renewable = 0 (not set to persist past expiry)
+            - activity_duration_confidence >= ACTIVITY_AUTO_CLEAR_CONFIDENCE
+            - activity_started_at + activity_estimated_duration <= current_time
+
+        Activities that do not meet all criteria are left for Pass 2 to clear
+        explicitly via activity_updates in the outcome JSON.
+
+        This is intentionally engine-side only — the LLM does not need to
+        poll for expiry. Pass 2 can always override a cleared activity by
+        setting a new one in activity_updates.
+        """
+        current_time = self._game.get("current_time_minutes", 0)
+        expired = self.db.get_characters_with_expired_activities(
+            game_id=self.game_id,
+            current_time_minutes=current_time,
+            confidence_threshold=config.ACTIVITY_AUTO_CLEAR_CONFIDENCE,
+        )
+        for npc in expired:
+            self.db.clear_character_activity(npc["id"])
+            logger.info(
+                "Activity auto-expired: char=%d (%s) activity=%r "
+                "started_at=%d duration=%d current_time=%d",
+                npc["id"],
+                npc["name"],
+                (npc.get("current_activity") or "")[:60],
+                npc.get("activity_started_at", 0),
+                npc.get("activity_estimated_duration", 0),
+                current_time,
+            )
+
+    # -------------------------------------------------------------------------
     # NPC autonomous wandering
     # -------------------------------------------------------------------------
 
@@ -958,6 +1030,45 @@ class GameEngine:
                     npc["id"],
                 )
                 continue
+
+            # Suppression 3: active non-expired current_activity (v8+).
+            # An NPC who is mid-activity — dancing, greeting guests, playing
+            # cards — does not wander. We suppress the roll when:
+            #   - current_activity is set, AND
+            #   - the activity has not yet mechanically expired
+            #     (i.e. open-ended, OR within its estimated duration, OR
+            #      renewable past its estimated end time).
+            # This is the fix for the John Lucas incident: activity persists
+            # through commitment-fulfillment events, unlike pending_intent.
+            if npc.get("current_activity"):
+                started    = npc.get("activity_started_at")
+                duration   = npc.get("activity_estimated_duration")
+                confidence = npc.get("activity_duration_confidence")
+                renewable  = npc.get("activity_renewable", 0)
+                current_time = self._game.get("current_time_minutes", 0)
+
+                # Determine whether the activity has expired.
+                # An activity is NOT expired if any of these hold:
+                #   a) duration is None (open-ended — never expires by time)
+                #   b) renewable=1 (persists past estimated end)
+                #   c) confidence < threshold (low-confidence — only Pass 2 clears)
+                #   d) start time + duration > current_time (still within window)
+                activity_expired = (
+                    duration is not None
+                    and not renewable
+                    and confidence is not None
+                    and confidence >= config.ACTIVITY_AUTO_CLEAR_CONFIDENCE
+                    and started is not None
+                    and (started + duration) <= current_time
+                )
+                if not activity_expired:
+                    logger.debug(
+                        "NPC wander suppressed (current_activity=%r): %s (id=%d)",
+                        npc["current_activity"][:40],
+                        npc["name"],
+                        npc["id"],
+                    )
+                    continue
 
             # Roll for movement this turn.
             if _random.random() >= npc["wander_probability"]:
@@ -1222,6 +1333,59 @@ class GameEngine:
                 )
 
         # ------------------------------------------------------------------
+        # Activity updates (v8+)
+        # ------------------------------------------------------------------
+        # Pass 2 issues these when an NPC begins a new activity, changes what
+        # they are doing, or explicitly ends their current activity. Each entry
+        # may set or clear a character's current_activity record.
+        #
+        # When setting an activity, Pass 2 supplies activity text, duration,
+        # confidence, and renewable flag. The engine records activity_started_at
+        # from the current game clock — Pass 2 does not set the start time.
+        #
+        # To clear an activity, Pass 2 sets activity to null (or None). This
+        # handles explicit narrative endings (dance concludes, card game breaks
+        # up) as distinct from mechanical auto-expiry in _check_activity_expiry().
+        current_time = self._game.get("current_time_minutes", 0)
+        for update in outcome.get("activity_updates") or []:
+            try:
+                char_id  = int(update["character_id"])
+                activity = update.get("activity")  # str or None
+
+                if activity is None:
+                    # Explicit clear — the activity has ended narratively.
+                    self.db.clear_character_activity(char_id)
+                    logger.info("activity cleared (Pass 2): char=%d", char_id)
+                else:
+                    duration   = update.get("duration_minutes")
+                    confidence = update.get("confidence")
+                    renewable  = int(update.get("renewable", 0))
+
+                    # Validate confidence range if supplied.
+                    if confidence is not None:
+                        confidence = max(0.0, min(1.0, float(confidence)))
+                    # Validate renewable flag.
+                    if renewable not in (0, 1):
+                        logger.warning(
+                            "activity_update for char=%d: renewable=%r not 0/1, "
+                            "defaulting to 0", char_id, renewable,
+                        )
+                        renewable = 0
+
+                    self.db.set_character_activity(
+                        character_id=char_id,
+                        activity=str(activity),
+                        started_at=current_time,
+                        duration_minutes=int(duration) if duration is not None else None,
+                        confidence=confidence,
+                        renewable=renewable,
+                    )
+            except (KeyError, TypeError, ValueError) as exc:
+                logger.warning(
+                    "Skipping malformed activity_update %r: %s", update, exc
+                )
+
+        # ------------------------------------------------------------------
         # Narrative points
         # ------------------------------------------------------------------
         point_delta = outcome.get("narrative_point_delta", 0)
@@ -1263,7 +1427,7 @@ class GameEngine:
 
         logger.info(
             "Outcome applied: type=%s attitudes=%d states=%d moves=%d "
-            "items=%d details=%d faction_reps=%d pending_intents=%d",
+            "items=%d details=%d faction_reps=%d pending_intents=%d activities=%d",
             outcome.get("outcome_type"),
             len(outcome.get("attitude_deltas") or []),
             len(outcome.get("internal_state_deltas") or []),
@@ -1272,6 +1436,7 @@ class GameEngine:
             len(outcome.get("new_location_details") or []),
             len(outcome.get("faction_reputation_changes") or []),
             len(outcome.get("pending_intent_updates") or []),
+            len(outcome.get("activity_updates") or []),
         )
 
 

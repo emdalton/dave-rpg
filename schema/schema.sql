@@ -1,6 +1,6 @@
 -- =============================================================================
 -- DAVE RPG Engine — Core Database Schema
--- Current version: 7
+-- Current version: 8
 --
 -- Digitally Adjudicated Virtual Environment
 -- Developed with the assistance of Claude (model: claude-sonnet-4-6, Anthropic)
@@ -356,6 +356,55 @@ CREATE TABLE character (
     --           'intends to maneuver toward Wickham before supper'
     -- -------------------------------------------------------------------------
     pending_intent TEXT DEFAULT NULL,
+
+    -- -------------------------------------------------------------------------
+    -- Timed activity system (added v8)
+    -- Tracks what a character is currently doing in a structured way, separate
+    -- from pending_intent. The key difference: pending_intent is a commitment
+    -- slot (cleared when the obligation is met), while current_activity
+    -- describes an ongoing action that suppresses NPC wandering for as long as
+    -- the activity is in progress.
+    --
+    -- Problem this solves: an NPC who committed to a dance had their
+    -- pending_intent cleared on commitment, leaving nothing to hold them in
+    -- place mid-dance. They wandered off. current_activity persists for the
+    -- activity's duration independent of commitment-fulfillment events.
+    --
+    -- Pass 2 sets, updates, and clears activity via 'activity_updates' in
+    -- outcome JSON. The engine applies starts by recording activity_started_at
+    -- from the current game clock — Pass 2 specifies duration and confidence,
+    -- not the start timestamp.
+    --
+    -- Wander suppression rule: the engine skips the wander roll for any NPC
+    -- whose current_activity is set AND whose activity has not expired.
+    -- -------------------------------------------------------------------------
+
+    -- Natural language description of the current activity. NULL = no tracked
+    -- activity. Examples: 'dancing with Thomas Philips', 'greeting arrivals
+    -- at the top of the stairs', 'playing cards in the card room'.
+    current_activity TEXT DEFAULT NULL,
+
+    -- Game clock minute (current_time_minutes from game_instance) when this
+    -- activity started. Set by the engine at apply time, not by Pass 2.
+    activity_started_at INT DEFAULT NULL,
+
+    -- Estimated duration of the activity in game-clock minutes. NULL = the
+    -- activity is open-ended and the engine will never auto-clear it on time.
+    activity_estimated_duration INT DEFAULT NULL,
+
+    -- Confidence in the duration estimate (0.0–1.0). NULL when duration is NULL.
+    -- >= ACTIVITY_AUTO_CLEAR_CONFIDENCE AND renewable=0 → engine clears
+    --   mechanically when started_at + estimated_duration <= current_time.
+    -- < threshold OR renewable=1 → only Pass 2 may clear via activity_updates.
+    activity_duration_confidence REAL DEFAULT NULL
+        CHECK(activity_duration_confidence IS NULL
+           OR activity_duration_confidence BETWEEN 0.0 AND 1.0),
+
+    -- 1 = activity persists past its estimated expiry; Pass 2 must clear it
+    -- explicitly (e.g. 'sitting against the wall all evening').
+    -- 0 = engine may auto-clear when a high-confidence duration expires.
+    activity_renewable INT NOT NULL DEFAULT 0
+        CHECK(activity_renewable IN (0, 1)),
 
     created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
     updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))

@@ -110,6 +110,17 @@ WANDER_SLEEPINESS_THRESHOLD: float = float(
     os.environ.get("DAVE_WANDER_SLEEPINESS_THRESHOLD", "0.60")
 )
 
+# Confidence threshold above which a non-renewable, time-expired activity is
+# cleared mechanically by the engine without requiring an explicit Pass 2 clear.
+# Activities with confidence < this threshold, or with renewable=1, are never
+# auto-cleared — only Pass 2 may remove them via 'activity_updates' in the
+# outcome JSON. Typical value: 0.60. Set to 1.01 to disable auto-clearing
+# entirely (forces all clears through Pass 2).
+# Override with env var: DAVE_ACTIVITY_AUTO_CLEAR_CONFIDENCE
+ACTIVITY_AUTO_CLEAR_CONFIDENCE: float = float(
+    os.environ.get("DAVE_ACTIVITY_AUTO_CLEAR_CONFIDENCE", "0.60")
+)
+
 
 # =============================================================================
 # DATABASE

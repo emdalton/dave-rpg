@@ -1,7 +1,74 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-05-25, session 10 (closed).*
+*Last updated: 2026-05-26, session 13 (closed).*
+
+---
+
+## Session 13 closing notes (2026-05-26)
+
+**This session:** Schema v8 migration — timed activity system (§5a). All engine
+components updated. Migration applied to live meryton.db and verified.
+
+**Completed this session:**
+
+- `schema/migrations/migrate_v7_to_v8.sql`: adds five `current_activity` fields
+  to `character` table (idempotent; runs cleanly; v8 row inserted in `schema_version`).
+- `schema/schema.sql`: bumped to v8; five activity fields with full semantic comments
+  added to character table definition.
+- `engine/config.py`: `ACTIVITY_AUTO_CLEAR_CONFIDENCE = 0.60` added (env-overridable
+  as `DAVE_ACTIVITY_AUTO_CLEAR_CONFIDENCE`).
+- `engine/db.py`: three new methods — `set_character_activity()`,
+  `clear_character_activity()`, `get_characters_with_expired_activities()`.
+- `engine/context.py`: `current_activity`, `activity_duration_confidence`,
+  `activity_renewable` added to `_build_character_profile()`. Fields only present in
+  profile when `current_activity` is non-null (avoids cluttering profiles of idle NPCs).
+- `engine/engine.py`:
+  - `_check_activity_expiry()` new method: mechanically clears expired activities
+    once per turn, before wandering.
+  - `_check_npc_wandering()`: Suppression 3 added (non-expired `current_activity`
+    suppresses wander roll; expiry logic accounts for renewable, confidence, and duration).
+  - `_apply_outcome()`: `activity_updates` handler added (set or clear per-NPC activity
+    from Pass 2 outcome; validates confidence range and renewable flag).
+  - `PASS2_PROMPT_TEMPLATE`: `activity_updates` and `npc_initiated_actions` output
+    fields documented with full specification for Pass 2.
+  - `_render_opening_scene()`: `activity_updates: []` and `npc_initiated_actions: []`
+    added to synthetic_outcome.
+- `modules/Meryton/seed.sql`: SESSION 13 block added — Sir William Lucas (id=14) and
+  Mr. Hurst (id=12) seeded with canonical starting activities.
+- `modules/Meryton/reset_instance.sql`: activity reset section added — clears all 19
+  characters' activity fields, then re-seeds Lucas and Hurst.
+- `modules/Meryton/meryton.db`: v8 migration applied and verified. Reset applied;
+  both activity seeds confirmed in live DB.
+
+**Pre-v8 prerequisite work (completed in session 12 block of session 13):**
+- Cloakroom (location 14) added to location graph, seed.sql, and live DB.
+- Bennet women arrival positions corrected (Jane/Mary/Mrs. Bennet → vestibule,
+  Lydia/Kitty remain in ballroom).
+- Mrs. Bennet description and pending_intent corrected.
+- Pre-session Pass 0 captured as future feature #17.
+
+**Pending from this session:**
+- Pass 2 `npc_initiated_actions` output field (§5b): prompt already updated to
+  document the field; `_apply_outcome()` logs it via action_log (no additional DB
+  state needed beyond the log). No schema work required; field is live.
+- `character_item` table design and implementation (§3a)
+- Haiku comparison run on Meryton (task #7)
+- Dance-commitment fix: Pass 2 should write `pending_intent` on both dance partners
+  AND `activity_updates` for the initiator at the same time (belt-and-suspenders until
+  a full dance state tracking feature is designed)
+
+**Planned next session:**
+- First playtest with §5a active — run Meryton and observe activity suppression
+  in action. Primary test case: John Lucas commits to a dance, activity is set,
+  wander roll is suppressed mid-dance.
+- If wander suppression confirmed working: Haiku comparison run (task #7)
+
+---
+
+## Session 12 closing notes (2026-05-26)
+
+*Session 12 was merged into session 13 (same evening). See session 13 notes above.*
 
 ---
 
@@ -450,7 +517,19 @@ convention-closed connections). `pending_intent` TEXT NULL on `character`
 (working-memory slot for deferred social obligations; set/cleared by Pass 2
 `pending_intent_updates` outcome field).
 
-**Current version: 7.** Next migration will be v8 (module/instance split — see pending work §4).
+**v8** — Timed activity system on `character`: five new fields —
+`current_activity` TEXT NULL (natural language description of ongoing activity),
+`activity_started_at` INT NULL (game clock minute at apply time, set by engine),
+`activity_estimated_duration` INT NULL (estimated minutes; NULL = open-ended),
+`activity_duration_confidence` REAL NULL (0.0–1.0; drives auto-expiry logic),
+`activity_renewable` INT NOT NULL DEFAULT 0 (1 = persists past estimated end).
+Engine: `_check_activity_expiry()` clears expired non-renewable high-confidence
+activities each turn. `_check_npc_wandering()` Suppression 3 holds NPCs in place
+during non-expired activities. Pass 2 `activity_updates` output field sets,
+updates, or clears activities. Motivation: John Lucas incident (session 11) — NPC
+wandered mid-dance when pending_intent was cleared on commitment. See §5a.
+
+**Current version: 8.**
 
 ---
 
@@ -464,6 +543,7 @@ convention-closed connections). `pending_intent` TEXT NULL on `character`
 | Ollama backend | ⬜ Stub only | Phase 2 target |
 | Involuntary events (hairball) | ✅ Complete | Rolls per turn in engine.py |
 | NPC autonomous wander | ✅ Complete | Per-turn roll in engine.py |
+| Timed activity system (§5a) | ✅ Complete | `current_activity` on `character` (v8); wander Suppression 3; `_check_activity_expiry()`; Pass 2 `activity_updates` |
 | Multi-step pathfinding (BFS) | ✅ Complete | Handles NPC and item interruptions |
 | Visited-location tracking | ✅ Complete | Updated on each move |
 | Pass 1 location name→ID resolution | ✅ Complete | `known_locations` dict in packet |
@@ -876,13 +956,13 @@ guard of its own.
 
 ---
 
-### §5. Timed activity system (`current_activity`) — v8 schema candidate
+### ✅ §5. Timed activity system (`current_activity`) — v8 (completed session 13, 2026-05-26)
 
-*Design developed in Meryton playtest session 11 (2026-05-25). Addresses: dance
-state not tracked; NPCs not taking autonomous social action; Elizabeth unable to
-monitor characters she cares about without explicitly asking.*
+*Design developed in Meryton playtest session 11 (2026-05-25). Implemented session 13.
+Addresses: dance state not tracked; NPCs not taking autonomous social action; Elizabeth
+unable to monitor characters she cares about without explicitly asking.*
 
-#### 5a. `current_activity` fields on `character`
+#### ✅ 5a. `current_activity` fields on `character`
 
 Four new fields:
 
@@ -938,7 +1018,7 @@ do not implement `world_event` until the action_log compression strategy is clea
 
 ---
 
-#### 5b. NPC initiative via Pass 2 extension ("reaction context")
+#### 5b. NPC initiative via Pass 2 extension ("reaction context") — prompt live as of session 13
 
 **Current limitation**: NPCs only act in response to player input. Thomas Philips
 approaching Charlotte to dance was described in Pass 3 prose (triggered by the
