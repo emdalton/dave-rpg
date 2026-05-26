@@ -5,6 +5,74 @@
 
 ---
 
+## Session 11 closing notes (2026-05-25)
+
+**This session:** Meryton module first playtests; engine fixes from observations;
+design work on timed activity, NPC initiative, and character inventory.
+
+**Completed this session:**
+
+**Meryton playtest fixes:**
+- Sir William Lucas starting location: Ballroom (4) → Landing (3) in seed.sql,
+  reset_instance.sql, and live meryton.db. Confirmed working: he greets arrivals
+  at the top of the stairs.
+- `adjacent_locations` added to Pass 3 context packet in `context.py`. Both
+  prompt templates updated with navigation rule (weave exits into arrival prose),
+  no-repeat rule (vary imagery across turns), and tighter length guidance
+  (3–4 sentences routine; 5–6 max for significant moments).
+- Dance-seeking `pending_intent` seeded for all 19 characters. Confirmed
+  working: John Lucas and William Goulding both responded to Elizabeth
+  positioning near the forming set; Pass 2 fired NPC initiative through
+  narrative judgment; faction reputation updated for composed conduct.
+- I Am a Cat: `seed_v7.sql` created and applied — Guy wander_probability
+  0.05 → 0.20, Mama 0.03 → 0.10, now that sleepiness suppression is in place.
+
+**Design notes captured (implementation_status.md §5):**
+- §5a: `current_activity` timed system with confidence/duration/renewable
+  fields; pending question on `world_event` table deferred.
+- §5b: NPC initiative via Pass 2 extension (`npc_initiated_actions` output
+  field); general reaction-context principle replacing clock-based triggers.
+- §5c: pending_intent seeding (completed this session).
+- §5d: `is_monitoring` / Elizabeth's awareness field.
+
+**Design notes captured (design_v05.md §2.4):**
+- Player-driven detail creation: players can call plausible details into
+  existence; engine allows and tracks them. Lazy creation for consumables;
+  plausibility enforced by Pass 2; major items require grounding.
+
+**Character inventory design note added (implementation_status.md §3a):**
+- `character_item` join table with slot vocabulary (right_hand, left_hand,
+  both_hands, mouth, worn, pocket, carried); species capacity (humans two
+  hand slots, cats mouth only); lazy consumable creation; major item cost
+  principle; hands_occupied open question.
+
+**Lower-priority notes added:**
+- NPC arrival awareness (wander into player's location not narrated)
+- Dance state not tracked (Pass 2 invents who is dancing)
+
+**The John Lucas incident (canonical §5a failure case):**
+John Lucas committed to dancing with Elizabeth; his `pending_intent` was
+correctly cleared on commitment. With nothing to suppress his wander roll,
+he immediately wandered to the supper room area mid-bow, leaving Elizabeth
+standing in the forming set. Pass 2 correctly adjudicated failure and updated
+her pending_intent. Clear demonstration that §5a (`current_activity` with
+wander suppression) is the next engine priority.
+
+**Pending from this session:**
+- §5a `current_activity` implementation — the immediate next priority
+- Pass 2 prompt update: explicit `npc_initiated_actions` output field (§5b)
+- Pass 2 prompt update: dance commitments must write `pending_intent` on both
+  partners immediately (short-term fix pending §5a)
+- `character_item` table design and implementation (§3a extension)
+
+**Planned next session:**
+- Implement §5a: `current_activity` fields on `character` (schema v8 migration),
+  engine expiry/suppression logic, Pass 2 `activity_updates` output field
+- Then: Pass 2 `npc_initiated_actions` output field (§5b)
+- Then: Haiku comparison run on Meryton (task #7)
+
+---
+
 ## Session 10 closing notes (2026-05-25)
 
 **This session:** Meryton module character seeding (complete cast + dance partners),
