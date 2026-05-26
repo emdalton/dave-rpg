@@ -678,6 +678,75 @@ so Pass 3's `characters_present` and location context reflect the new item posit
 For this to work correctly, Spook must be in `characters_at_location` when the move
 is adjudicated — the validation layer enforces this.
 
+**Character inventory / held items**: The engine currently has no concept of a
+character holding an item. Items exist at locations only. There is no character-
+item relation. Consequence: when Elizabeth picks up two glasses of negus and
+gives one to Charlotte, none of this is written to the DB — the glasses don't
+exist as items, the engine doesn't know their hands are occupied, and no spill
+risk is tracked. Observed in Meryton playtest session 11.
+
+**Decided design:**
+
+A `character_item` join table (not a `held_by` field on `item` — the join table
+supports multiple carried items per character and a slot/grip system):
+
+```sql
+character_item (
+    character_id  INT  NOT NULL,
+    item_id       INT  NOT NULL,
+    slot          TEXT NOT NULL,  -- see slot vocabulary below
+    acquired_at   INT  NULL       -- game clock minutes; for duration/expiry tracking
+)
+```
+
+Slot vocabulary (initial set; extendable per module):
+- `right_hand`, `left_hand` — explicitly in hand; enforce species capacity
+- `both_hands` — two-handed grip (rifle, large object); occupies both slots
+- `mouth` — for species without hands (cats carrying toys; dogs fetching)
+- `worn` — clothing, scabbard, holster; accessible but not in hand
+- `pocket` — small items not actively held
+- `carried` — generic for items that don't fit the above
+
+Species carrying capacity is defined per character (or per species default):
+humans have two hand slots; cats have no hand slots but one mouth slot. The
+engine enforces slot conflicts — D'Artagnan with a sword in `right_hand` cannot
+also hold a pistol in `right_hand`. He can have a pistol in `left_hand`, or a
+holstered pistol in `worn`.
+
+Pass 2 output: `item_pickup` / `item_drop` / `item_give` events (or extend
+`item_location_change` to include `slot` and `recipient_id`). Engine validates
+slot availability before applying.
+
+**Lazy item creation for consumables**: glasses of negus, letters, fans, dance
+cards, candles — not seeded. Pass 2 generates them on first meaningful
+interaction; the engine writes them to `item` + `character_item` canonically
+(same pattern as `location_detail`). Until created, they exist only as
+narrative. This generalises: most minor props in any module need not be pre-
+seeded. The world fills in on contact.
+
+**Major items may require narrative justification**: A sword, a significant sum
+of money, a horse — these should either be pre-seeded (they exist in the world
+and can be found or bought) or require a Fate-point-style narrative cost to
+introduce mid-play. The exact mechanism is deferred; the principle is that
+minor consumables appear lazily for free, while major or plot-significant items
+need grounding. This connects to future Fate-inspired outcome types (succeed at
+a cost, introduce a complication).
+
+**`carried_items` in Pass 2 character profile context**: once the table exists,
+the engine includes each character's carried items (slot + item name/description)
+in their profile block. Pass 2 then knows hands are occupied and can adjudicate:
+spill risk if bumped, the need to set a glass down before joining a set, a sword
+in hand as implicit threat in a confrontation, a letter in pocket as
+conversational leverage.
+
+**Open question — hands_occupied tracking**: whether "hands occupied" is best
+represented as a derived engine computation (count items in hand slots, compare
+to species capacity) or as an explicit boolean/integer state visible in context.
+Leaning toward derived — the slot system makes it computable — but the exact
+form in the Pass 2 context packet is not yet decided.
+
+This is a natural extension of §3a below and should be designed together with it.
+
 **Schema note:** No schema change required for `item_location_change`. The engine
 implements it as: validate → `UPDATE item SET location_id = ? WHERE id = ?` (if
 `location_id` is a direct field) or `UPDATE item_location SET location_id = ? WHERE

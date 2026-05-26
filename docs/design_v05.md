@@ -48,6 +48,23 @@ The world is seeded with skeleton data. Details are generated on demand when a p
 
 Example: a courtyard record may not initially specify whether flowers grow there. When the player asks, the engine checks the location type and decides. If yes, that detail is written to the location record permanently — unless a subsequent event (fire, drought, significant change of state) invalidates it. Invalidation uses a state versioning or dirty-flag mechanism on affected records.
 
+### 2.4 Player-Driven Detail Creation
+
+**Players can call details into existence, and the engine should allow and track this.**
+
+This is the player-facing complement to lazy world generation. In §2.3, the engine generates details on demand when the player queries the world. In §2.4, the player *asserts* a detail by acting on it — and the engine legitimises and canonicalises it.
+
+When a player says "I fetch two glasses of negus and give one to Charlotte," they are not asking whether negus exists; they are asserting that it does and acting accordingly. Pass 2 evaluates plausibility in context (is this an assembly room where negus would be served? yes) and, if plausible, treats the assertion as a successful action. The items are created, the transaction is recorded, and from that point they are canonical — the glasses exist in the database, are tracked as held by specific characters, and have mechanical consequences (hands occupied, spill risk, social prop).
+
+This principle applies broadly:
+- **Consumable items** (a glass of negus, a dance card, a letter): created lazily on first player interaction, no prior seeding required.
+- **Minor world details** (the colour of a ribbon, the name of a tune the musicians are playing, what is being served at supper): asserted by the player and confirmed by Pass 2 if plausible; written to `location_detail` or the relevant record.
+- **NPC possessions and props** (a handkerchief, a fan, a pocket watch): created when first referenced in an interaction.
+
+The plausibility check is Pass 2's responsibility. A player who asserts the existence of a loaded cannon in a Regency ballroom will find Pass 2 adjudicating failure; a player who asserts a glass of negus at the same assembly will find it created and tracked. The world is not infinitely plastic — it has internal consistency enforced by the adjudication layer — but within the bounds of plausibility, player narrative authority is respected and made canonical.
+
+**Major items are the limit of this principle.** A sword, a horse, a significant sum of money, a plot-critical object — these should either be pre-seeded (they exist in the world and can be found or purchased) or require a narrative cost to introduce. The exact mechanism is a future design question, but the principle is: minor and consumable details appear lazily for free; significant or implausible details require grounding. This connects to future Fate-inspired outcome types (succeed at a cost, introduce a complication with a narrative price).
+
 ---
 
 ## 3. Data Model
