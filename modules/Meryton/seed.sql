@@ -1280,3 +1280,62 @@ INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type
 VALUES (19, 1, 0.15, 'surface');  -- Elizabeth: known neighborhood girl
 INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
 VALUES (1, 19, 0.12, 'surface');  -- Elizabeth → William Goulding: neighborhood acquaintance
+
+
+-- =============================================================================
+-- SESSION 11 ADDITIONS
+--
+-- Dance-seeking pending_intent for all characters with a credible motivation
+-- to dance or engage socially. These seed the state that the NPC initiative
+-- mechanism (§5b design) will eventually act on; in the meantime they give
+-- Pass 2 accurate material when it describes NPC behavior.
+--
+-- Design notes:
+-- - Young women: passive intent — they want to dance but wait to be asked
+-- - Young men: active intent — they will seek partners when a set forms
+-- - Bingley: strong active intent; danced every set (canonical)
+-- - Darcy: explicitly refuses strangers; canonical non-participant
+-- - Mary: will dance if asked but does not seek it
+-- - Miss Bingley: conditional intent — only if Darcy asks
+-- - Older/married guests and spectators: NULL (no dance intent)
+-- =============================================================================
+
+-- Elizabeth: wants to dance; will accept a partner if asked
+UPDATE character SET pending_intent = 'wants to dance this evening; will accept a partner if asked'
+WHERE id = 1;
+
+-- Darcy: not intending to dance with strangers; his refusal is canonical
+UPDATE character SET pending_intent = 'not intending to dance with strangers; will decline all introductions for dancing'
+WHERE id = 2;
+
+-- Bingley: eager and active; danced every set
+UPDATE character SET pending_intent = 'eager to dance; will seek a partner for every set'
+WHERE id = 3;
+
+-- Jane: wants to dance; will accept a partner if asked
+UPDATE character SET pending_intent = 'wants to dance; will accept a partner if asked'
+WHERE id = 4;
+
+-- Charlotte: wants to dance; will accept a partner if asked
+UPDATE character SET pending_intent = 'wants to dance; will accept a partner if asked'
+WHERE id = 5;
+
+-- Mary: passive; will dance if asked but will not seek it
+UPDATE character SET pending_intent = 'content to observe; will dance if asked but will not seek a partner'
+WHERE id = 9;
+
+-- Miss Bingley: will only dance if Darcy asks; otherwise observing
+UPDATE character SET pending_intent = 'will dance only if Mr. Darcy asks; otherwise content to observe and be seen'
+WHERE id = 10;
+
+-- Young men: all actively seeking partners when a set forms
+UPDATE character SET pending_intent = 'wants to dance; will seek a partner when a new set forms'
+WHERE id IN (15, 16, 17, 18, 19);  -- Robinson, John Lucas, Edward Long, Thomas Philips, William Goulding
+
+-- Lydia: will dance with anyone immediately; no patience for waiting
+UPDATE character SET pending_intent = 'desperate to dance; will accept any partner without hesitation'
+WHERE id = 7;
+
+-- Kitty: follows Lydia; will dance if a partner presents himself
+UPDATE character SET pending_intent = 'wants to dance; will follow Lydia''s lead and accept any willing partner'
+WHERE id = 8;

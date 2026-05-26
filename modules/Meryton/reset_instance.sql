@@ -51,61 +51,99 @@ WHERE character_id IN (1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19);
 -- =============================================================================
 
 -- Elizabeth Bennet: vestibule on arrival; has not yet entered the assembly
-UPDATE character SET current_location_id = 1, emotional_state = 'anticipatory',   pending_intent = NULL WHERE id = 1;
+UPDATE character SET current_location_id = 1, emotional_state = 'anticipatory',
+    pending_intent = 'wants to dance this evening; will accept a partner if asked'
+    WHERE id = 1;
 
--- Mr. Darcy: ballroom; reserved and uncomfortable; disdain has not yet formed
-UPDATE character SET current_location_id = 4, emotional_state = 'reserved',        pending_intent = NULL WHERE id = 2;
+-- Mr. Darcy: ballroom; reserved; will refuse all introductions for dancing
+UPDATE character SET current_location_id = 4, emotional_state = 'reserved',
+    pending_intent = 'not intending to dance with strangers; will decline all introductions for dancing'
+    WHERE id = 2;
 
--- Mr. Bingley: ballroom; delighted; dancing every dance
-UPDATE character SET current_location_id = 4, emotional_state = 'delighted',       pending_intent = NULL WHERE id = 3;
+-- Mr. Bingley: ballroom; delighted; will seek a partner for every set
+UPDATE character SET current_location_id = 4, emotional_state = 'delighted',
+    pending_intent = 'eager to dance; will seek a partner for every set'
+    WHERE id = 3;
 
--- Jane Bennet: ballroom; quietly hopeful
-UPDATE character SET current_location_id = 4, emotional_state = 'quietly_hopeful', pending_intent = NULL WHERE id = 4;
+-- Jane Bennet: ballroom; quietly hopeful; will accept a partner if asked
+UPDATE character SET current_location_id = 4, emotional_state = 'quietly_hopeful',
+    pending_intent = 'wants to dance; will accept a partner if asked'
+    WHERE id = 4;
 
--- Charlotte Lucas: ballroom; near Elizabeth's party
-UPDATE character SET current_location_id = 4, emotional_state = 'pleasant',        pending_intent = NULL WHERE id = 5;
+-- Charlotte Lucas: ballroom; near Elizabeth's party; will accept a partner if asked
+UPDATE character SET current_location_id = 4, emotional_state = 'pleasant',
+    pending_intent = 'wants to dance; will accept a partner if asked'
+    WHERE id = 5;
 
--- Mrs. Bennet: ballroom wall seating; watching everything
-UPDATE character SET current_location_id = 4, emotional_state = 'excited_and_anxious', pending_intent = NULL WHERE id = 6;
+-- Mrs. Bennet: ballroom wall seating; watching everything; no dance intent
+UPDATE character SET current_location_id = 4, emotional_state = 'excited_and_anxious',
+    pending_intent = NULL
+    WHERE id = 6;
 
--- Lydia Bennet: ballroom; giddy and already dancing
-UPDATE character SET current_location_id = 4, emotional_state = 'giddy',           pending_intent = NULL WHERE id = 7;
+-- Lydia Bennet: ballroom; giddy; will accept any partner without hesitation
+UPDATE character SET current_location_id = 4, emotional_state = 'giddy',
+    pending_intent = 'desperate to dance; will accept any partner without hesitation'
+    WHERE id = 7;
 
--- Kitty Bennet: ballroom; following Lydia
-UPDATE character SET current_location_id = 4, emotional_state = 'excited',         pending_intent = NULL WHERE id = 8;
+-- Kitty Bennet: ballroom; following Lydia; will accept any willing partner
+UPDATE character SET current_location_id = 4, emotional_state = 'excited',
+    pending_intent = 'wants to dance; will follow Lydia''s lead and accept any willing partner'
+    WHERE id = 8;
 
--- Mary Bennet: ballroom wall seating; earnest and observing
-UPDATE character SET current_location_id = 4, emotional_state = 'earnest',         pending_intent = NULL WHERE id = 9;
+-- Mary Bennet: ballroom wall seating; will dance if asked but will not seek it
+UPDATE character SET current_location_id = 4, emotional_state = 'earnest',
+    pending_intent = 'content to observe; will dance if asked but will not seek a partner'
+    WHERE id = 9;
 
--- Miss Bingley: ballroom; poised and watchful
-UPDATE character SET current_location_id = 4, emotional_state = 'poised_and_watchful', pending_intent = NULL WHERE id = 10;
+-- Miss Bingley: ballroom; will only dance if Darcy asks
+UPDATE character SET current_location_id = 4, emotional_state = 'poised_and_watchful',
+    pending_intent = 'will dance only if Mr. Darcy asks; otherwise content to observe and be seen'
+    WHERE id = 10;
 
--- Mrs. Hurst: ballroom; comfortable; following Miss Bingley's lead
-UPDATE character SET current_location_id = 4, emotional_state = 'comfortable',     pending_intent = NULL WHERE id = 11;
+-- Mrs. Hurst: ballroom; comfortable; no dance intent
+UPDATE character SET current_location_id = 4, emotional_state = 'comfortable',
+    pending_intent = NULL
+    WHERE id = 11;
 
--- Mr. Hurst: card room; content; will not move
-UPDATE character SET current_location_id = 5, emotional_state = 'content',         pending_intent = NULL WHERE id = 12;
+-- Mr. Hurst: card room; content; will not move; no dance intent
+UPDATE character SET current_location_id = 5, emotional_state = 'content',
+    pending_intent = NULL
+    WHERE id = 12;
 
--- Lady Lucas: ballroom wall seating; near Mrs. Bennet
-UPDATE character SET current_location_id = 4, emotional_state = 'sociable',        pending_intent = NULL WHERE id = 13;
+-- Lady Lucas: ballroom wall seating; near Mrs. Bennet; no dance intent
+UPDATE character SET current_location_id = 4, emotional_state = 'sociable',
+    pending_intent = NULL
+    WHERE id = 13;
 
--- Sir William Lucas: landing at top of stairs; greeting arrivals
-UPDATE character SET current_location_id = 3, emotional_state = 'genial',          pending_intent = NULL WHERE id = 14;
+-- Sir William Lucas: landing at top of stairs; greeting arrivals; no dance intent
+UPDATE character SET current_location_id = 3, emotional_state = 'genial',
+    pending_intent = NULL
+    WHERE id = 14;
 
--- Mr. Robinson: ballroom
-UPDATE character SET current_location_id = 4, emotional_state = 'sociable',        pending_intent = NULL WHERE id = 15;
+-- Mr. Robinson: ballroom; will seek a partner when a new set forms
+UPDATE character SET current_location_id = 4, emotional_state = 'sociable',
+    pending_intent = 'wants to dance; will seek a partner when a new set forms'
+    WHERE id = 15;
 
--- John Lucas: ballroom
-UPDATE character SET current_location_id = 4, emotional_state = 'pleasant',        pending_intent = NULL WHERE id = 16;
+-- John Lucas: ballroom; will seek a partner when a new set forms
+UPDATE character SET current_location_id = 4, emotional_state = 'pleasant',
+    pending_intent = 'wants to dance; will seek a partner when a new set forms'
+    WHERE id = 16;
 
--- Edward Long: ballroom
-UPDATE character SET current_location_id = 4, emotional_state = 'pleasant',        pending_intent = NULL WHERE id = 17;
+-- Edward Long: ballroom; will seek a partner when a new set forms
+UPDATE character SET current_location_id = 4, emotional_state = 'pleasant',
+    pending_intent = 'wants to dance; will seek a partner when a new set forms'
+    WHERE id = 17;
 
--- Thomas Philips: ballroom
-UPDATE character SET current_location_id = 4, emotional_state = 'dutiful',         pending_intent = NULL WHERE id = 18;
+-- Thomas Philips: ballroom; will seek a partner when a new set forms
+UPDATE character SET current_location_id = 4, emotional_state = 'dutiful',
+    pending_intent = 'wants to dance; will seek a partner when a new set forms'
+    WHERE id = 18;
 
--- William Goulding: ballroom
-UPDATE character SET current_location_id = 4, emotional_state = 'comfortable',     pending_intent = NULL WHERE id = 19;
+-- William Goulding: ballroom; will seek a partner when a new set forms
+UPDATE character SET current_location_id = 4, emotional_state = 'comfortable',
+    pending_intent = 'wants to dance; will seek a partner when a new set forms'
+    WHERE id = 19;
 
 
 -- =============================================================================
