@@ -379,6 +379,27 @@ class GameEngine:
         )
 
     # -------------------------------------------------------------------------
+    # Internal helpers
+    # -------------------------------------------------------------------------
+
+    def _current_game_time(self) -> int:
+        """
+        Return the current in-game clock value in minutes, read live from the
+        database.
+
+        self._instance is loaded once at startup and is not updated as the
+        clock advances — do not read current_time_minutes from it. Use this
+        helper wherever a fresh clock value is needed (activity started_at,
+        expiry checks, wander suppression).
+
+        Returns 0 if no game_instance is configured (pre-v5 modules or
+        unseeded databases), which safely disables time-based expiry.
+        """
+        if self._instance is None:
+            return 0
+        return self.db.get_game_clock(self._instance["id"])
+
+    # -------------------------------------------------------------------------
     # Main loop
     # -------------------------------------------------------------------------
 
@@ -948,7 +969,7 @@ class GameEngine:
         poll for expiry. Pass 2 can always override a cleared activity by
         setting a new one in activity_updates.
         """
-        current_time = self._game.get("current_time_minutes", 0)
+        current_time = self._current_game_time()
         expired = self.db.get_characters_with_expired_activities(
             game_id=self.game_id,
             current_time_minutes=current_time,
@@ -1045,7 +1066,7 @@ class GameEngine:
                 duration   = npc.get("activity_estimated_duration")
                 confidence = npc.get("activity_duration_confidence")
                 renewable  = npc.get("activity_renewable", 0)
-                current_time = self._game.get("current_time_minutes", 0)
+                current_time = self._current_game_time()
 
                 # Determine whether the activity has expired.
                 # An activity is NOT expired if any of these hold:
@@ -1346,7 +1367,7 @@ class GameEngine:
         # To clear an activity, Pass 2 sets activity to null (or None). This
         # handles explicit narrative endings (dance concludes, card game breaks
         # up) as distinct from mechanical auto-expiry in _check_activity_expiry().
-        current_time = self._game.get("current_time_minutes", 0)
+        current_time = self._current_game_time()
         for update in outcome.get("activity_updates") or []:
             try:
                 char_id  = int(update["character_id"])

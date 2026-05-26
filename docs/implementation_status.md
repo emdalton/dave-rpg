@@ -59,10 +59,14 @@ components updated. Migration applied to live meryton.db and verified.
   a full dance state tracking feature is designed)
 
 **Planned next session:**
-- First playtest with §5a active — run Meryton and observe activity suppression
-  in action. Primary test case: John Lucas commits to a dance, activity is set,
-  wander roll is suppressed mid-dance.
-- If wander suppression confirmed working: Haiku comparison run (task #7)
+- Character description and relationship review (see §6 below) — high priority
+  after playtest revealed Thomas Philips described as his own nephew and "my cousin"
+  unresolvable by Pass 2
+- Add Maria Lucas to seed (Charlotte's younger sister; ~16; not in module)
+- Fix started_at=0 already applied this session (engine.py `_current_game_time()`)
+- Logging cleanup: route engine/httpx logs to file; clean stdout for player text only
+- Transcript save: command-line option to write game prose to timestamped file on exit
+- Haiku comparison run on Meryton (task #7)
 
 ---
 
@@ -587,6 +591,64 @@ wandered mid-dance when pending_intent was cleared on commitment. See §5a.
 ---
 
 ## Pending work — priority queue
+
+### §6. Meryton character description and relationship review (next session priority)
+
+Revealed by 2026-05-26 playtest. `character_attitude` has no `notes` column —
+the only place Pass 2 can see family relationships is `character.description`.
+Several descriptions are missing or wrong.
+
+**Immediate fixes (errors):**
+- Thomas Philips (id=18): description says "Nephew of Mr. Philips the attorney"
+  — WRONG. He is Mr. Philips's *son*, making him Elizabeth's first cousin.
+  Fix: "Son of Mr. Philips the attorney and Mrs. Philips (née Gardiner, Mrs.
+  Bennet's sister); Elizabeth Bennet's first cousin."
+- Maria Lucas: Charlotte's younger sister (~16); not in module at all. Add to
+  seed with sensible defaults (pleasant, excitable young woman, ballroom).
+
+**Relationship gaps in descriptions (Pass 2 can't resolve family references):**
+- Sir William Lucas (id=14): no mention of Charlotte/John as his children
+- Lady Lucas (id=13): no mention of Charlotte/John as her children, or Sir
+  William as her husband
+- Charlotte Lucas (id=5): no mention of Sir William/Lady Lucas as parents,
+  John/Maria as siblings
+
+**Pass 2 prompt gap:**
+- When player uses relationship terms ("my cousin," "Charlotte's brother"),
+  Pass 2 should resolve the referent from character descriptions before acting.
+  Add a sentence to the Pass 2 prompt.
+
+**Seeding gap:**
+- Jane→Elizabeth and Charlotte→Elizabeth attitudes not seeded; start at 0 and
+  accumulate during play, which produces unrealistically low early-session values
+  for established relationships. Seed at reasonable baselines.
+
+---
+
+### §7. Logging and transcript output (next session)
+
+Revealed by 2026-05-26 playtest. httpx INFO messages and engine log lines
+currently appear inline with game prose, breaking immersion. Transcripts of
+good play sessions are worth saving automatically.
+
+**Logging cleanup:**
+- In `engine/engine.py` `main()`: add a `logging.FileHandler` writing to
+  a timestamped log file (e.g. `logs/meryton_YYYYMMDD_HHMMSS.log`).
+- Suppress `httpx` INFO to WARNING: `logging.getLogger("httpx").setLevel(logging.WARNING)`.
+- Set stderr handler to WARNING or ERROR so only genuine problems reach the
+  terminal during play. Engine debug/info goes to file only.
+- `DAVE_LOG_LEVEL` env var continues to control file log verbosity.
+
+**Transcript save:**
+- Add `--transcript` flag (or `DAVE_TRANSCRIPT_PATH` env var) to `main()`.
+  If set, engine writes all player-visible prose (opening scene + all Pass 3
+  output) to the specified file, one turn per entry with a turn separator.
+- If no path given, auto-generate a timestamped filename in `transcripts/`
+  and write there by default (so a transcript is always saved).
+- Player input lines should also be captured (with `> ` prefix) so the
+  transcript reads as a dialogue, not just responses.
+
+---
 
 ### ✅ Schema v7: faction, character_faction_reputation, passage_note, pending_intent (completed sessions 8–9)
 
