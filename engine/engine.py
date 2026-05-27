@@ -114,6 +114,12 @@ Rules:
   If an NPC is in characters_nearby (adjacent room), they may be audible or
   detectable by smell, but do not describe them as present, visible, or
   physically interacting with the scene.
+- RELATIONSHIP REFERENCES: when the player refers to a character by relationship
+  ("my cousin", "Charlotte's brother", "Sir William's daughter"), resolve the
+  referent from the descriptions in the character profiles before acting. Do not
+  substitute a more convenient or nearby character — honor the player's expressed
+  intent. If the referent cannot be resolved from the descriptions, flag the
+  ambiguity in adjudication_notes and ask the player to clarify rather than guess.
 - LOCATION IS AUTHORITATIVE: player.current_location_id in the context packet
   is the ground truth for where the player is. Do not infer location from
   narrative_beat text in recent_actions — those are prose summaries and may
@@ -204,6 +210,24 @@ Required output fields:
                         intent based on what they observed. These are included in the
                         action log for continuity but do not change any DB state
                         beyond what other fields already handle. Empty list if none.)
+  new_characters       (list of new NPC records to create lazily when the player
+                        references a plausible character not in the cast. Use this
+                        when: the character shares a surname with someone present,
+                        they would naturally be at this event, or they are a named
+                        family member whose existence is established in descriptions.
+                        Do NOT invent characters the player has not referenced or
+                        whose presence is implausible. Each entry must include:
+                          name (string, required),
+                          description (brief prose placing them socially),
+                          emotional_state (e.g. "excited", "pleasant"),
+                          current_location_id (integer — where they plausibly are),
+                          gender (string or null),
+                          pronouns (list of [subject, object, possessive_det,
+                                   possessive_pro, reflexive] or null).
+                        OCEAN traits are optional; omit if unknown. The engine
+                        will insert the character and they will appear in future
+                        context packets as full cast members. Empty list if no
+                        new characters are needed.)
   narrative_point_delta (integer, typically 0; positive for dramatically significant turns)
   adjudication_notes   (string: brief private notes on reasoning, not player-visible)
 
@@ -591,6 +615,7 @@ class GameEngine:
             "pending_intent_updates": [],
             "activity_updates": [],
             "npc_initiated_actions": [],
+            "new_characters": [],
             "narrative_point_delta": 0,
             "adjudication_notes": "Opening scene render — no state changes.",
         }
@@ -1404,6 +1429,71 @@ class GameEngine:
             except (KeyError, TypeError, ValueError) as exc:
                 logger.warning(
                     "Skipping malformed activity_update %r: %s", update, exc
+                )
+
+        # ------------------------------------------------------------------
+        # Lazy NPC creation (session 14+)
+        # ------------------------------------------------------------------
+        # Pass 2 emits new_characters when the player references a plausible
+        # character not yet in the cast (e.g. "Maria Lucas" — Charlotte's
+        # sister, whose existence is implied by Charlotte's description).
+        # The engine inserts the character record so they become canonical
+        # from the next turn onward.
+        for entry in outcome.get("new_characters") or []:
+            try:
+                name = str(entry["name"])
+
+                # Guard: don't create duplicates. Check by name + game_id.
+                existing = self.db._row(  # noqa: SLF001
+                    "SELECT id FROM character WHERE game_id=? AND name=?",
+                    (self.game_id, name),
+                )
+                if existing:
+                    logger.debug(
+                        "Lazy NPC %r already exists (id=%d); skipping creation",
+                        name, existing["id"],
+                    )
+                    continue
+
+                # Parse optional OCEAN traits if supplied.
+                def _ocean(key: str) -> float | None:
+                    v = entry.get(key)
+                    if v is None:
+                        return None
+                    return max(0.0, min(1.0, float(v)))
+
+                # Pronouns from Pass 2 may come as a list; store as JSON string.
+                import json as _json
+                pronouns_raw = entry.get("pronouns")
+                pronouns_str = (
+                    _json.dumps(pronouns_raw)
+                    if isinstance(pronouns_raw, list)
+                    else pronouns_raw  # already a string or None
+                )
+
+                new_char = self.db.create_character(
+                    game_id=self.game_id,
+                    name=name,
+                    description=entry.get("description"),
+                    emotional_state=entry.get("emotional_state", "neutral"),
+                    current_location_id=entry.get("current_location_id"),
+                    gender=entry.get("gender"),
+                    pronouns=pronouns_str,
+                    role="npc_background",
+                    species=entry.get("species", "human"),
+                    ocean_openness=_ocean("ocean_openness"),
+                    ocean_conscientiousness=_ocean("ocean_conscientiousness"),
+                    ocean_extraversion=_ocean("ocean_extraversion"),
+                    ocean_agreeableness=_ocean("ocean_agreeableness"),
+                    ocean_neuroticism=_ocean("ocean_neuroticism"),
+                )
+                logger.info(
+                    "Lazy NPC instantiated: %r (id=%d) at location=%s",
+                    name, new_char["id"], entry.get("current_location_id"),
+                )
+            except (KeyError, TypeError, ValueError) as exc:
+                logger.warning(
+                    "Skipping malformed new_character entry %r: %s", entry, exc
                 )
 
         # ------------------------------------------------------------------

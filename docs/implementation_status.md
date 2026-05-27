@@ -58,15 +58,22 @@ components updated. Migration applied to live meryton.db and verified.
   AND `activity_updates` for the initiator at the same time (belt-and-suspenders until
   a full dance state tracking feature is designed)
 
+**Also completed this session (session 14, 2026-05-26):**
+- `_current_game_time()` helper — fixes started_at=0 bug (three stale reads fixed)
+- Character descriptions corrected and expanded: Thomas Philips (nephew→son, cousin
+  to Elizabeth added), Charlotte/Sir William/Lady Lucas (family links added)
+- Reciprocal attitudes seeded: Jane→Elizabeth (0.72s/0.90h), Charlotte→Elizabeth
+  (0.75s). Added to reset_instance.sql.
+- Pass 2 RELATIONSHIP REFERENCES rule added to PASS2_PROMPT_TEMPLATE.
+- Lazy NPC creation: `db.create_character()`, `new_characters` handler in
+  `_apply_outcome()`, field documented in Pass 2 prompt. Maria Lucas is first test.
+
 **Planned next session:**
-- Character description and relationship review (see §6 below) — high priority
-  after playtest revealed Thomas Philips described as his own nephew and "my cousin"
-  unresolvable by Pass 2
-- Add Maria Lucas to seed (Charlotte's younger sister; ~16; not in module)
-- Fix started_at=0 already applied this session (engine.py `_current_game_time()`)
-- Logging cleanup: route engine/httpx logs to file; clean stdout for player text only
-- Transcript save: command-line option to write game prose to timestamped file on exit
-- Haiku comparison run on Meryton (task #7)
+- Reset and playtest with Haiku (`DAVE_CLAUDE_MODEL=claude-haiku-4-5-20251001`)
+  to compare quality and check verbal tic. Add Pass 3 anti-tic instruction only
+  if Haiku exhibits the same pattern.
+- Test lazy NPC creation: ask about Maria Lucas and confirm she is instantiated
+- §7: Logging to file + transcript auto-save
 
 ---
 

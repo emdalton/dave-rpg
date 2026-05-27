@@ -1435,3 +1435,39 @@ SET current_activity             = 'playing cards in the card room',
     activity_duration_confidence = 0.70,
     activity_renewable           = 1
 WHERE id = 12;  -- Mr. Hurst
+
+
+-- =============================================================================
+-- SESSION 14 ADDITIONS (2026-05-26): character description corrections
+--
+-- Playtest revealed that Pass 2 could not resolve relational terms ("my cousin",
+-- "Charlotte's brother") because family relationships were absent from character
+-- descriptions. character_attitude has no notes column, so descriptions are the
+-- only place Pass 2 can see these connections.
+--
+-- Thomas Philips was also incorrectly described as Mr. Philips's nephew rather
+-- than his son, making the stated cousin relationship to Elizabeth impossible.
+-- =============================================================================
+
+-- Thomas Philips: correct error (was "nephew", should be "son") and add cousin
+-- relationship to Elizabeth. Mrs. Philips is Mrs. Bennet's sister, making
+-- Thomas Elizabeth's first cousin on the Philips side.
+UPDATE character SET description =
+    'Son of Mr. Philips the attorney and Mrs. Philips, who is Mrs. Bennet''s sister; Elizabeth Bennet''s first cousin. A decent young man who attends assemblies partly from family duty. He is perfectly pleasant but lacks initiative.'
+WHERE id = 18;  -- Thomas Philips
+
+-- Charlotte Lucas: add family context so Pass 2 can resolve "Charlotte's brother"
+-- and similar relational references.
+UPDATE character SET description =
+    'A sensible, plain young woman a few years older than Elizabeth. She is pleasant and sociable without being showy. She and Elizabeth are close friends. Eldest daughter of Sir William and Lady Lucas; sister of John Lucas and Maria Lucas.'
+WHERE id = 5;  -- Charlotte Lucas
+
+-- Lady Lucas: add family context.
+UPDATE character SET description =
+    'A pleasant, sociable woman of the neighborhood, seated beside Mrs. Bennet. She knows who everyone is, what everyone''s prospects are, and is happy to discuss both. Wife of Sir William Lucas; mother of Charlotte, John, and Maria Lucas.'
+WHERE id = 13;  -- Lady Lucas
+
+-- Sir William Lucas: add family context.
+UPDATE character SET description =
+    'A stout, cheerful man of middling age with the comfortable manner of someone who has long been the most prominent person in a room. He moves through the assembly with proprietorial ease, greeting arrivals and nudging the conversation along. Husband of Lady Lucas; father of Charlotte, John, and Maria Lucas.'
+WHERE id = 14;  -- Sir William Lucas

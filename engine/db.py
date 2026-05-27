@@ -1295,3 +1295,84 @@ class Database:
                          <= ?""",
             (game_id, confidence_threshold, current_time_minutes),
         )
+
+    # =========================================================================
+    # LAZY NPC CREATION (added session 14)
+    # Creates a new background NPC at runtime from Pass 2-supplied skeleton data.
+    # Used when the player references a character not in the cast but whose
+    # existence is plausible (family member, neighbour, etc.).
+    # =========================================================================
+
+    def create_character(
+        self,
+        game_id: int,
+        name: str,
+        description: str | None = None,
+        emotional_state: str = "neutral",
+        current_location_id: int | None = None,
+        gender: str | None = None,
+        pronouns: str | None = None,
+        role: str = "npc_background",
+        species: str = "human",
+        ocean_openness: float | None = None,
+        ocean_conscientiousness: float | None = None,
+        ocean_extraversion: float | None = None,
+        ocean_agreeableness: float | None = None,
+        ocean_neuroticism: float | None = None,
+    ) -> dict:
+        """
+        Insert a new NPC record with skeleton data and return the created row.
+
+        Called by the engine when Pass 2 emits a new_characters entry — i.e.
+        when the player references a plausible character not yet in the DB
+        (e.g. 'Maria Lucas', whose surname matches a present character and who
+        would naturally be at the event). Once created, the character is
+        canonical and will appear in context packets from the next turn onward.
+
+        Required by caller:
+            game_id: The game this character belongs to.
+            name:    The character's full name as Pass 2 supplied it.
+
+        Optional — supply what Pass 2 generated; everything else gets a
+        sensible default that the engine or future Pass 2 calls can refine:
+            description:        Brief prose description for the context packet.
+            emotional_state:    Starting emotional state (default 'neutral').
+            current_location_id: Where the character is (None = unplaced).
+            gender:             Gender label (None = LLM infers).
+            pronouns:           JSON array of pronoun forms (None = LLM infers).
+            role:               Character role (default 'npc_background').
+            species:            Species (default 'human').
+            ocean_*:            OCEAN trait floats (None = not yet assessed;
+                                Pass 2 will infer from behaviour until set).
+
+        Returns:
+            The newly created character row as a dict.
+        """
+        cursor = self._execute(
+            """INSERT INTO character (
+                   game_id, name, role, species, description, emotional_state,
+                   current_location_id, gender, pronouns,
+                   ocean_openness, ocean_conscientiousness, ocean_extraversion,
+                   ocean_agreeableness, ocean_neuroticism,
+                   wander_probability, narrative_points,
+                   created_at, updated_at
+               ) VALUES (
+                   ?, ?, ?, ?, ?, ?,
+                   ?, ?, ?,
+                   ?, ?, ?, ?, ?,
+                   0.0, 0,
+                   datetime('now'), datetime('now')
+               )""",
+            (
+                game_id, name, role, species, description, emotional_state,
+                current_location_id, gender, pronouns,
+                ocean_openness, ocean_conscientiousness, ocean_extraversion,
+                ocean_agreeableness, ocean_neuroticism,
+            ),
+        )
+        new_id = cursor.lastrowid
+        logger.info(
+            "Lazy NPC created: id=%d name=%r location=%s",
+            new_id, name, current_location_id,
+        )
+        return self._row("SELECT * FROM character WHERE id = ?", (new_id,))

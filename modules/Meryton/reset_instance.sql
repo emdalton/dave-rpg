@@ -213,10 +213,18 @@ INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type
 INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type) VALUES (1, 15, 0.12, 'surface');
 -- Elizabeth → Edward Long: neighborhood acquaintance
 INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type) VALUES (1, 17, 0.10, 'surface');
--- Elizabeth → Thomas Philips: familiar; slightly obligatory dynamic
+-- Elizabeth → Thomas Philips: first cousin; familiar, slightly obligatory warmth
 INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type) VALUES (1, 18, 0.18, 'surface');
 -- Elizabeth → William Goulding: neighborhood acquaintance
 INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type) VALUES (1, 19, 0.12, 'surface');
+
+-- Jane → Elizabeth: deep sisterly love; surface reserved (Jane conceals feeling),
+-- hidden very warm. Not seeded in original pass — added session 14.
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type) VALUES (4, 1, 0.72, 'surface');
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type) VALUES (4, 1, 0.90, 'hidden');
+-- Charlotte → Elizabeth: genuine close friendship; Charlotte is measured so
+-- surface slightly below Elizabeth's 0.80 for Charlotte.
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type) VALUES (5, 1, 0.75, 'surface');
 
 -- Darcy → Elizabeth: strangers on arrival
 INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type) VALUES (2, 1, 0.0,   'surface');
