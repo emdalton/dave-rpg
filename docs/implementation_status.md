@@ -1,7 +1,70 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-05-26, session 13 (closed).*
+*Last updated: 2026-05-27, session 16 (closed).*
+
+---
+
+## Session 16 closing notes (2026-05-27)
+
+**This session:** Automated test suite — three-tier pytest architecture, full coverage
+of all engine mechanics, context packet assembly, and LLM output contracts.
+
+**Completed this session:**
+
+- `pytest.ini`: test discovery config, pythonpath, marker registration for `llm` and
+  `llm_eval` tiers. Custom CLI flags (`--llm`, `--llm-eval`) skip expensive tests by default.
+- `tests/__init__.py`, `tests/fixtures/__init__.py`: package markers.
+- `tests/fixtures/seed.py`: minimal two-location test world (game + instance + 2 locations
+  + 3 characters + 1 faction + internal states + attitudes). All schema column names verified
+  against schema.sql.
+- `tests/fixtures/responses.py`: canned LLM responses for all three passes — `PASS1_MINIMAL`,
+  `PASS1_MOVE`, `PASS2_MINIMAL`, `PASS2_WITH_*` variants (attitude delta, state delta,
+  location change, invalid location change, faction rep, pending intent, activity set/clear,
+  new character, emotional update), `PASS3_PROSE`, `EVALUATOR_RESPONSE_SCHEMA`.
+- `tests/fixtures/eval_rubrics.py`: LLM-as-judge rubrics and prompt builders for Pass 1
+  and Pass 3 evaluation (`PASS1_RUBRIC`, `PASS3_RUBRIC`, `build_pass1_eval_prompt`,
+  `build_pass3_eval_prompt`). Defaults to `claude-haiku-4-5-20251001` for cost-efficient
+  evaluation via `DAVE_EVAL_MODEL` env var.
+- `tests/validate.py`: `validate_pass2_output()` — structural validation of Pass 2 JSON
+  (required fields, float ranges, ID references, adjacency checks). Designed for dual use:
+  test suite (Tier 2) and future §3 retry layer.
+- `tests/conftest.py`: shared fixtures — `MockLLMClient` (configurable list/dict/single
+  responses, call recording), `schema_sql` (session-scoped), `tmp_db` (function-scoped
+  temp SQLite), `mock_llm`, `test_engine` (patches `get_llm_client` during init).
+- `tests/test_db.py`: Tier 1 — schema version, game/character queries, internal states,
+  passive drift, clock, attitudes, faction reputation, pending intent, activity system,
+  location queries, character creation. ~25 tests.
+- `tests/test_context.py`: Tier 1 — Pass 1/2/3 packet structure. All key names verified
+  against actual `build_*_packet()` output (several wrong assumptions corrected during
+  development: `characters_at_location` → `characters_present`, `location` →
+  `current_location`, `action` → `action_record`, `faction_name` key, adjacent_locations
+  nested inside `current_location` for Pass 2, name-only in Pass 3).
+- `tests/test_engine.py`: Tier 1 — `_apply_outcome()` (attitude/state/emotion/location/
+  faction/pending_intent/activity/new_character), `_check_activity_expiry()` (expired/
+  non-expired/renewable/low-confidence), `_check_npc_wandering()` (three suppression
+  conditions + positive control + expired activity does not suppress). ~25 tests.
+- `tests/test_mechanics.py`: Tier 1 — `_format_game_time`, `tick_passive_states`, clock,
+  BFS pathfinding. All independent of engine mock.
+- `tests/test_pass2_contract.py`: Tier 2 (`--llm`) — real Pass 2 call; structural/
+  mechanical assertions via `validate_pass2_output()`.
+- `tests/test_pass1_eval.py`: Tier 3 (`--llm-eval`) — real Pass 1 + LLM-as-judge.
+- `tests/test_pass3_eval.py`: Tier 3 (`--llm-eval`) — real Pass 3 + LLM-as-judge.
+
+All Tier 1 mechanics verified by running assertion logic directly against the live DB
+(pytest not available in sandbox; suite is ready for `pytest` on E's machine).
+
+**To run the suite:**
+```
+cd ~/dev/RPG
+pip install pytest          # if not already installed
+pytest                      # Tier 1 only (fast, no LLM)
+pytest --llm               # + Tier 2 (Pass 2 contract; requires ANTHROPIC_API_KEY)
+pytest --llm-eval          # + Tier 3 (Pass 1/3 LLM-as-judge; slow and expensive)
+```
+
+**Pending from this session:**
+- None. Test suite entry in lower-priority pending updated to ✅ below.
 
 ---
 
@@ -68,12 +131,31 @@ components updated. Migration applied to live meryton.db and verified.
 - Lazy NPC creation: `db.create_character()`, `new_characters` handler in
   `_apply_outcome()`, field documented in Pass 2 prompt. Maria Lucas is first test.
 
+**Also completed this session (session 15, 2026-05-26):**
+- Haiku playtest run: `DAVE_CLAUDE_MODEL=claude-haiku-4-5-20251001` confirmed
+  working; started_at=1212 correctly set; activity auto-expiry working.
+- Dance duration calibration: Haiku set country dance duration=8 min (too short;
+  should be 20–30). Pass 2 prompt updated: DURATION CALIBRATION block added
+  giving Regency reference points for country sets, cotillions, social exchanges,
+  and cards.
+- Dance commitment belt-and-suspenders: Pass 2 now instructed to set
+  activity_updates for BOTH player and NPC partner when dance is committed,
+  AND to set pending_intent on the NPC partner. Player character now explicitly
+  included in activity_updates for dance commitments (exception to prior rule).
+- Movement parsing: Pass 1 prompt updated with explicit MOVEMENT PHRASES rule:
+  "move to X", "walk to X", "proceed to X", "head to X", "make our way to X",
+  "lead to X", "go up to X", "as we go to X" → action_type "move".
+
+**Verbal tic status:** "[action] with the [air/manner] of someone who [clause]"
+observed in Sonnet run. Haiku run not yet analysed for same pattern. Instruction
+deferred until confirmed in Haiku.
+
 **Planned next session:**
-- Reset and playtest with Haiku (`DAVE_CLAUDE_MODEL=claude-haiku-4-5-20251001`)
-  to compare quality and check verbal tic. Add Pass 3 anti-tic instruction only
-  if Haiku exhibits the same pattern.
-- Test lazy NPC creation: ask about Maria Lucas and confirm she is instantiated
-- §7: Logging to file + transcript auto-save
+- Test lazy NPC creation: reset and playtest; ask about Maria Lucas; confirm
+  new_characters fires and she appears in future context packets.
+- §7: Logging to file + transcript auto-save (stdout cleanup)
+- Verbal tic: review Haiku transcript; add Pass 3 anti-instruction only if needed.
+- Movement parsing: verify fix works for "proceed to landing" and similar.
 
 ---
 
@@ -489,7 +571,20 @@ RPG/
 │       ├── migrate_v4_to_v5.sql
 │       ├── migrate_v5_to_v6.sql
 │       └── migrate_v6_to_v7.sql   — idempotent (IF NOT EXISTS throughout)
-└── tests/                     — empty; test suite is future work
+└── tests/                     — pytest suite; three tiers (see session 16 notes)
+    ├── conftest.py            — shared fixtures (MockLLMClient, tmp_db, test_engine)
+    ├── validate.py            — validate_pass2_output() (also §3 retry layer candidate)
+    ├── test_db.py             — Tier 1: Database method tests
+    ├── test_context.py        — Tier 1: context packet assembly tests
+    ├── test_engine.py         — Tier 1: _apply_outcome, expiry, wander suppression
+    ├── test_mechanics.py      — Tier 1: time formatting, passive drift, clock, BFS
+    ├── test_pass2_contract.py — Tier 2 (--llm): Pass 2 structural contract
+    ├── test_pass1_eval.py     — Tier 3 (--llm-eval): Pass 1 LLM-as-judge
+    ├── test_pass3_eval.py     — Tier 3 (--llm-eval): Pass 3 LLM-as-judge
+    └── fixtures/
+        ├── seed.py            — minimal two-location test world
+        ├── responses.py       — canned LLM responses for all three passes
+        └── eval_rubrics.py    — PASS1_RUBRIC, PASS3_RUBRIC, prompt builders
 ```
 
 ---
@@ -1343,12 +1438,12 @@ for Phase 1.
   of context packets expensive. Plan a compression strategy.
 - **Haiku comparison run**: Run same seed/actions through Haiku to compare
   output quality with Sonnet.
-- **Test suite**: Currently empty. Planned: a basic automated test runner that
-  cycles through a designated sequence of typical player commands against one or
-  more module databases, verifying that each turn completes without engine errors
-  and that DB state changes are plausible (location updated, attitudes clamped,
-  etc.). Not a full LLM output evaluator — just an integration smoke test that
-  catches regressions in db.py, context.py, and _apply_outcome(). Details TBD.
+- ✅ **Test suite**: Implemented session 16 (2026-05-27). Three-tier pytest
+  architecture in `tests/`. Tier 1 (no LLM): db.py, context.py, engine mechanics
+  (~75 tests). Tier 2 (`--llm`): Pass 2 structural contract via `validate_pass2_output()`.
+  Tier 3 (`--llm-eval`): LLM-as-judge evaluation for Pass 1 intent parsing and Pass 3
+  prose. `validate_pass2_output()` in `tests/validate.py` is also the planned
+  implementation for the §3 retry layer.
 
 ---
 
