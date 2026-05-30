@@ -1,7 +1,26 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-05-27, session 16 (closed).*
+*Last updated: 2026-05-29, session 17 (open).*
+
+---
+
+## Session 17 opening notes (2026-05-29)
+
+**This session:** Movement parsing test coverage; documentation updates.
+
+**Completed this session:**
+
+- `tests/test_pass1_eval.py`: Added three Tier 3 (`--llm-eval`) regression tests for
+  the session 15 MOVEMENT PHRASES fix — `proceed to the Hall`, `head to the Hall`,
+  `make our way to the Hall`. All assert `action_type=move` + `target_location_id=2`
+  and pass the LLM-as-judge rubric.
+- `docs/test_suite.md`: Updated Tier 3 / Pass 1 eval section to list the three new tests.
+
+**Carried forward from session 16 / 15:**
+- Phillips spelling fix (id=18 and all references) — §6 remainder
+- Verbal tic review: scan Haiku transcript for `[verb] with the air of someone who`
+- §7: Logging to file + transcript auto-save
 
 ---
 
@@ -155,7 +174,7 @@ deferred until confirmed in Haiku.
   new_characters fires and she appears in future context packets.
 - §7: Logging to file + transcript auto-save (stdout cleanup)
 - Verbal tic: review Haiku transcript; add Pass 3 anti-instruction only if needed.
-- Movement parsing: verify fix works for "proceed to landing" and similar.
+- Movement parsing: ✅ Verified and covered by Tier 3 tests in session 17.
 
 ---
 

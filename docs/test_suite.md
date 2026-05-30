@@ -144,6 +144,9 @@ Evaluates Pass 1 intent parsing quality. The judge checks: valid `action_type`, 
 **Current tests:**
 - `say hello to the guard` → `action_type` in (speak, interact), target resolves to Guard.
 - `walk to the Hall` → `action_type=move`, `target_location_id=2`.
+- `proceed to the Hall` → `action_type=move`, `target_location_id=2`. (Session 15 fix regression test: formal movement phrasing.)
+- `head to the Hall` → `action_type=move`, `target_location_id=2`. (Session 15 fix regression test: informal movement phrasing.)
+- `make our way to the Hall` → `action_type=move`, `target_location_id=2`. (Session 15 fix regression test: plural/collective phrasing; target is still player character alone.)
 
 ### `tests/test_pass3_eval.py`
 

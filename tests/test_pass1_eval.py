@@ -160,6 +160,70 @@ class TestPass1Eval:
         verdict = self._judge_pass1_output(player_input, context_packet, action_record)
         _assert_verdict(verdict, player_input, action_record)
 
+    def test_move_action_proceed_phrasing(self, tmp_db: Database):
+        """
+        'Proceed to the Hall' — a formal movement phrase that differs grammatically
+        from 'walk to'. The session 15 MOVEMENT PHRASES fix added 'proceed to X'
+        to the Pass 1 prompt explicitly. This test verifies it holds.
+        """
+        player_input = "Proceed to the Hall."
+        action_record = self._run_pass1(db=tmp_db, player_input=player_input)
+
+        assert action_record.get("action_type") == "move", \
+            f"Expected action_type='move', got {action_record.get('action_type')!r}"
+        assert action_record.get("target_location_id") == 2, \
+            "Pass 1 should resolve 'Hall' to location_id=2 for 'proceed to' phrasing"
+
+        from engine.context import build_pass1_packet
+        context_packet = build_pass1_packet(
+            db=tmp_db, game_id=1, player_input=player_input
+        )
+        verdict = self._judge_pass1_output(player_input, context_packet, action_record)
+        _assert_verdict(verdict, player_input, action_record)
+
+    def test_move_action_head_to_phrasing(self, tmp_db: Database):
+        """
+        'Head to the Hall' — an informal movement phrase that was among those
+        misclassified before the session 15 fix. The MOVEMENT PHRASES rule in
+        Pass 1 prompt lists 'head to X' as a recognised travel expression.
+        """
+        player_input = "Head to the Hall."
+        action_record = self._run_pass1(db=tmp_db, player_input=player_input)
+
+        assert action_record.get("action_type") == "move", \
+            f"Expected action_type='move', got {action_record.get('action_type')!r}"
+        assert action_record.get("target_location_id") == 2, \
+            "Pass 1 should resolve 'Hall' to location_id=2 for 'head to' phrasing"
+
+        from engine.context import build_pass1_packet
+        context_packet = build_pass1_packet(
+            db=tmp_db, game_id=1, player_input=player_input
+        )
+        verdict = self._judge_pass1_output(player_input, context_packet, action_record)
+        _assert_verdict(verdict, player_input, action_record)
+
+    def test_move_action_make_our_way_phrasing(self, tmp_db: Database):
+        """
+        'Make our way to the Hall' — a plural/collective movement phrase that
+        requires Pass 1 to recognise multi-word travel idioms and ignore the
+        player-inclusive 'our'. The session 15 fix explicitly listed this phrase
+        as a movement expression. Target is still the player character alone.
+        """
+        player_input = "Make our way to the Hall."
+        action_record = self._run_pass1(db=tmp_db, player_input=player_input)
+
+        assert action_record.get("action_type") == "move", \
+            f"Expected action_type='move', got {action_record.get('action_type')!r}"
+        assert action_record.get("target_location_id") == 2, \
+            "Pass 1 should resolve 'Hall' to location_id=2 for 'make our way to' phrasing"
+
+        from engine.context import build_pass1_packet
+        context_packet = build_pass1_packet(
+            db=tmp_db, game_id=1, player_input=player_input
+        )
+        verdict = self._judge_pass1_output(player_input, context_packet, action_record)
+        _assert_verdict(verdict, player_input, action_record)
+
     # -----------------------------------------------------------------------
     # Add more test cases below following the same pattern.
     # Suggested additions (see module docstring for details):
