@@ -37,8 +37,12 @@
 - Phillips spelling fix (id=18 and all references) — §6 remainder
 - Verbal tic review: scan Haiku transcript for `[verb] with the air of someone who`
 - §7: Logging to file + transcript auto-save
-- Schema v9: character-level `speech_filter` field (for Gin-chan)
+- §8: Schema v9 — character-level `speech_filter` field (for Gin-chan)
+- §9: Player character gender and self-definition (Hidden Hostel Traveller currently hardcoded female)
+- §10: Hidden Hostel test suite integration
 - Hidden Hostel: Gin-chan potion mechanic (future; requires items + player state)
+- Hidden Hostel: The Old Soldier changed to female (seed.sql updated; reset_instance.sql
+  not affected as gender/pronouns are stable data)
 
 ---
 
@@ -750,6 +754,79 @@ updated throughout for id=20.
   description strings referencing Mr./Mrs. Philips, seed.sql, reset_instance.sql,
   and the live meryton.db. A straightforward find-and-replace but touches many
   lines — do as a dedicated pass before next public playtest.
+
+---
+
+### §9. Player character gender and self-definition
+
+The Hidden Hostel seed sets The Traveller as `gender='female'` with she/her
+pronouns. This is appropriate for fixed-PC modules (Toulouse in I Am a Cat,
+Elizabeth Bennet in Meryton) but not for modules where the player defines their
+own character.
+
+**Immediate fix (Hidden Hostel seed):** Set `gender=NULL` and `pronouns=NULL`
+on The Traveller. The LLM will infer from context, which is acceptable for a
+test world but imprecise.
+
+**Broader design question:** how does the engine handle player-defined identity
+in modules that support it? Options:
+
+- Null gender/pronouns and let the LLM infer (current default behavior; risks
+  inconsistent pronoun use across a session)
+- Prompt the player at game start with a brief character definition step (name,
+  gender, pronouns), store the result in the character record before play begins
+- Allow `DAVE_PLAYER_PRONOUNS` environment variable as a session-level override
+
+The second option (game-start definition step) is the most robust and fits the
+engine's existing architecture: a short LLM call at startup that parses player
+input into structured character fields and writes them to the database before the
+opening scene renders. This is a small but self-contained feature.
+
+Affects: `modules/hidden_hostel/seed.sql` (immediate null fix), engine startup
+flow, and any future module that does not have a fixed player character.
+
+---
+
+### §10. Hidden Hostel test suite integration
+
+The Hidden Hostel module was designed to exercise every implemented engine
+feature, but the existing pytest suite runs only against the minimal fixture
+world in `tests/fixtures/seed.py`. To make the Hidden Hostel actually useful as
+a test vehicle, a dedicated test file is needed.
+
+**Proposed scope — `tests/test_hidden_hostel.py` (Tier 1):**
+
+Fixture: a function-scoped `tmp_hostel_db` that builds the Hidden Hostel
+database from `schema/schema.sql` + `modules/hidden_hostel/seed.sql` into a
+temporary file, yields a `Database` instance, and cleans up.
+
+Tests to cover each design goal:
+- Location graph: staircase connection (1↔3) passable; Room B connection (3↔5)
+  impassable; multi-hop path Kitchen→Common Room→Upper Corridor→Room A exists.
+- Wander suppression (sleepiness): Gin-chan's sleepiness ≥ 0.60 and
+  wander_probability > 0; verify engine skips the roll.
+- Wander suppression (pending_intent): Scholar has pending_intent set and
+  wander_probability > 0; verify engine skips the roll.
+- Wander suppression (activity): Marta and Old Soldier have non-null
+  current_activity with non-expired durations at start time.
+- Wander positive control: Wanderer has no suppression conditions; verify
+  wander roll fires (probability 0.75 means it should fire with mocked random).
+- Hidden motivation access control: Scholar's hidden_motivation is populated
+  and access_hidden_motivation=0; verify Pass 2 packet includes it but Pass 1
+  packet does not.
+- Faction and reputation: hosts_of_the_hostel exists; player and Marta have
+  reputation records with correct starting values.
+- Attitudes: verify positive (Wanderer→Traveller), negative (Old Soldier→
+  Traveller), and NPC-to-NPC (Old Soldier→Wanderer) attitude rows.
+- Visited locations: player seeded at Common Room (1) only; multi-hop BFS
+  can route to Room A from Common Room.
+- Lazy world generation: Common Room has one pre-seeded location_detail;
+  Room A and Room B have none.
+
+Tier 3 additions (optional, separate ticket):
+- New `test_pass1_eval.py` tests using the Hidden Hostel DB:
+  "go upstairs" → action_type=move, target_location_id=3
+  "climb to the upper corridor" → action_type=move, target_location_id=3
 
 ---
 

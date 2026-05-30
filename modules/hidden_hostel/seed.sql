@@ -367,9 +367,9 @@ INSERT INTO character (
     current_activity, activity_started_at,
     activity_estimated_duration, activity_duration_confidence, activity_renewable
 ) VALUES (
-    5, 1, 'The Old Soldier', 'npc_active', 'human', 'male',
-    '[{"case":"nominative","form":"he"},{"case":"accusative","form":"him"},{"case":"genitive","form":"his"}]',
-    'A heavy-set man with the build of someone who was once formidable and remains more capable than he looks. A long blade lies across his knees. He has positioned himself against the corridor wall with sight lines to both doors.',
+    5, 1, 'The Old Soldier', 'npc_active', 'human', 'female',
+    '[{"case":"nominative","form":"she"},{"case":"accusative","form":"her"},{"case":"genitive","form":"her"}]',
+    'A heavy-set woman with the build of someone who was once formidable and remains more capable than she looks. A long blade lies across her knees. She has positioned herself against the corridor wall with sight lines to both doors.',
     'guest',
     3,  -- Upper Corridor
     0.22, 0.80, 0.32, 0.22, 0.65,
