@@ -66,67 +66,49 @@ Phase 1 (Claude API) has no local hardware requirements beyond running Python.
 ### Installation
 
 ```bash
-# Clone the repo
 git clone https://github.com/emdalton/dave-rpg.git
 cd dave-rpg
-
-# Create and activate a virtual environment
 python3 -m venv .venv
 source .venv/bin/activate
-
-# Install Python dependencies
 pip install -r requirements.txt
 ```
 
 ### Build a module database
 
-Each module database is created from two files: the canonical schema and the module seed. No migration scripts are needed for a fresh install — `schema/schema.sql` incorporates all schema versions.
+Each module database is built from the canonical schema plus the module seed. No migration scripts are needed for a fresh install — `schema/schema.sql` incorporates all schema versions.
 
 ```bash
 sqlite3 modules/i_am_a_cat/i_am_a_cat.db < schema/schema.sql
 sqlite3 modules/i_am_a_cat/i_am_a_cat.db < modules/i_am_a_cat/seed.sql
 ```
 
-Migration scripts in `schema/migrations/` are only needed when upgrading an existing database to a newer schema version. For a new database, always start from `schema/schema.sql`.
+Migration scripts in `schema/migrations/` are only needed when upgrading an existing database to a newer schema version.
 
-### Run with Claude (Phase 1)
+### Run
 
 ```bash
 export ANTHROPIC_API_KEY=your_key_here
-DAVE_DB_PATH=modules/i_am_a_cat/i_am_a_cat.db python3 -m engine
+DAVE_LOG_LEVEL=WARNING DAVE_DB_PATH=modules/i_am_a_cat/i_am_a_cat.db python3 -m engine
 ```
 
-For debug-level logging (shows raw prompts and LLM responses on stderr):
+`DAVE_LOG_LEVEL=WARNING` keeps the terminal clean during play. The default (`INFO`) includes API transport messages that can clutter the output alongside prose. Use `DEBUG` to see full pass-level detail including raw prompts and LLM responses.
+
+For Ollama (Phase 2 — local model, currently a stub):
 
 ```bash
-DAVE_LOG_LEVEL=DEBUG DAVE_DB_PATH=modules/i_am_a_cat/i_am_a_cat.db python3 -m engine
+# Start the Ollama server in a separate terminal, then:
+DAVE_LLM_BACKEND=ollama DAVE_DB_PATH=modules/i_am_a_cat/i_am_a_cat.db python3 -m engine
 ```
 
-### Run with Ollama (Phase 2)
-
-Ollama must be installed, running, and have the target model pulled **before** starting the engine. These are separate steps:
-
-```bash
-# 1. Install Ollama (macOS)
-brew install ollama
-
-# 2. Start the Ollama server (run in a separate terminal and leave it running)
-ollama serve
-
-# 3. Pull the model (run in another terminal while the server is up)
-ollama pull mistral
-
-# 4. Run the engine
-DAVE_LLM_BACKEND=ollama DAVE_DB_PATH=modules/i_am_a_cat/i_am_a_cat.db python3 -m engine.engine
-```
-
-Note: `ollama pull` requires the server to be running. Running `ollama pull` before `ollama serve` will fail silently or error.
+For full configuration options — model selection, tuning parameters, test suite setup — see [docs/configuration.md](docs/configuration.md).
 
 ### Where to find things
 
-- **Database schema and field semantics:** `schema/schema.sql` and `schema/migrations/` — these are the authoritative reference for all table structures. Read them before writing any code that touches the database.
-- **Engine configuration:** `engine/config.py` — all tunable parameters with documentation and environment variable overrides.
-- **Module seed data:** `modules/<module_name>/seed.sql` — character definitions, locations, items, and starting state for each module.
+- **Running and configuration:** [docs/configuration.md](docs/configuration.md) — all environment variables, typical session setups, test suite options.
+- **Test suite:** [docs/test_suite.md](docs/test_suite.md) — what's tested, how to run each tier, how to extend.
+- **Database schema and field semantics:** `schema/schema.sql` — authoritative reference for all table structures and field meanings.
+- **Engine configuration defaults:** `engine/config.py` — all tunable parameters with inline documentation.
+- **Module seed data:** `modules/<module_name>/seed.sql` — character definitions, locations, and starting state for each module.
 - **Design document:** `docs/design_v05.md` — full architectural rationale.
 
 ---
