@@ -1471,3 +1471,89 @@ WHERE id = 13;  -- Lady Lucas
 UPDATE character SET description =
     'A stout, cheerful man of middling age with the comfortable manner of someone who has long been the most prominent person in a room. He moves through the assembly with proprietorial ease, greeting arrivals and nudging the conversation along. Husband of Lady Lucas; father of Charlotte, John, and Maria Lucas.'
 WHERE id = 14;  -- Sir William Lucas
+
+
+-- =============================================================================
+-- SESSION 16 ADDITIONS (2026-05-29)
+--
+-- 1. Maria Lucas (id=20): Charlotte's younger sister, ~16. Referenced by name
+--    in the updated family descriptions (Charlotte, Lady Lucas, Sir William)
+--    but not previously seeded as a character. She is present at the assembly.
+--
+-- 2. Jane→Elizabeth and Charlotte→Elizabeth attitudes: these were added to
+--    reset_instance.sql in session 14 but never backfilled into seed.sql,
+--    meaning a fresh database install would be missing them. Added here.
+-- =============================================================================
+
+-- -----------------------------------------------------------------------------
+-- Maria Lucas (id = 20)
+-- Charlotte's younger sister; ~16. Lively, warm, easily excited. She looks up
+-- to Charlotte and is delighted to be included in the evening. Not yet out in
+-- the full sense — this is one of her first real assemblies — which gives her
+-- manner a slightly unguarded quality that Charlotte has long since smoothed
+-- away. She knows Elizabeth through Charlotte and likes her.
+-- -----------------------------------------------------------------------------
+INSERT INTO character (
+    id, game_id, name, role, species, gender, pronouns,
+    description, apparent_status, current_location_id,
+    ocean_openness, ocean_conscientiousness, ocean_extraversion,
+    ocean_agreeableness, ocean_neuroticism,
+    maslow_tier, emotional_state,
+    surface_motivation, hidden_motivation, access_hidden_motivation,
+    voice_register, voice_warmth, voice_verbosity,
+    wander_range, wander_probability
+) VALUES (
+    20, 2, 'Maria Lucas', 'npc_active', 'human', 'female',
+    '[{"case":"nominative","form":"she"},{"case":"accusative","form":"her"},{"case":"genitive","form":"her"}]',
+    'Charlotte Lucas''s younger sister; about sixteen, lively and warm, with a manner that is not yet fully polished. She is clearly delighted to be here and makes little effort to conceal it. She and Elizabeth are easy acquaintances through Charlotte.',
+    'Youngest daughter of Sir William and Lady Lucas of Lucas Lodge attending the assembly.',
+    4,  -- Ballroom; near Charlotte initially
+    0.62, 0.38, 0.80, 0.75, 0.45,
+    'belonging', 'excited',
+    'Enjoying her first real assembly; eager to dance and be noticed favorably.',
+    NULL, 0,
+    'warm_expressive', 0.78, 0.72,
+    '[3, 4, 5]',
+    0.18
+);
+
+INSERT INTO character_goal (character_id, goal_name, goal_type, priority, orientation, scope)
+VALUES (20, 'belonging — enjoying her first assembly among the neighborhood', 'surface', 0.75, 'approach', 'person_environment');
+INSERT INTO character_goal (character_id, goal_name, goal_type, priority, orientation, scope)
+VALUES (20, 'entertainment — dancing and the pleasure of being out in society', 'surface', 0.68, 'approach', 'person_environment');
+
+INSERT INTO character_faction_reputation (character_id, faction_id, reputation, notes)
+VALUES (20, 2, 0.52, 'Lucas family; younger daughter; well regarded as a pleasant girl.');
+
+-- Maria → Elizabeth: warm acquaintance through Charlotte; looks up to her slightly
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
+VALUES (20, 1, 0.52, 'surface');
+-- Maria → Charlotte: devoted younger sister
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
+VALUES (20, 5, 0.85, 'surface');
+-- Maria → Sir William: her father; fond and a little in awe
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
+VALUES (20, 14, 0.72, 'surface');
+
+-- Elizabeth → Maria: fond; slightly amused by her enthusiasm
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
+VALUES (1, 20, 0.42, 'surface');
+
+UPDATE character SET pending_intent = 'wants to dance; will accept any suitable partner when a set forms'
+WHERE id = 20;  -- Maria Lucas
+
+-- -----------------------------------------------------------------------------
+-- Jane→Elizabeth and Charlotte→Elizabeth attitudes (backfill from session 14)
+-- These were added to reset_instance.sql in session 14 but omitted from
+-- seed.sql. A fresh database install would seed these at 0 without this block.
+-- -----------------------------------------------------------------------------
+
+-- Jane → Elizabeth: deep sisterly warmth; surface reserved (Jane conceals feeling)
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
+VALUES (4, 1, 0.72, 'surface');
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
+VALUES (4, 1, 0.90, 'hidden');
+
+-- Charlotte → Elizabeth: genuine close friendship
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
+VALUES (5, 1, 0.75, 'surface');

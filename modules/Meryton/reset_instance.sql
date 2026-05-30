@@ -43,7 +43,7 @@ DELETE FROM action_log WHERE game_id = 2;
 -- =============================================================================
 
 DELETE FROM character_visited_location
-WHERE character_id IN (1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19);
+WHERE character_id IN (1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20);
 
 
 -- =============================================================================
@@ -145,6 +145,11 @@ UPDATE character SET current_location_id = 4, emotional_state = 'comfortable',
     pending_intent = 'wants to dance; will seek a partner when a new set forms'
     WHERE id = 19;
 
+-- Maria Lucas: ballroom; eager to dance at her first real assembly
+UPDATE character SET current_location_id = 4, emotional_state = 'excited',
+    pending_intent = 'wants to dance; will accept any suitable partner when a set forms'
+    WHERE id = 20;
+
 
 -- =============================================================================
 -- INTERNAL STATES
@@ -194,7 +199,7 @@ UPDATE internal_state SET value = 0.80 WHERE character_id = 14 AND state_name = 
 -- =============================================================================
 
 DELETE FROM character_attitude
-WHERE character_id IN (1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19);
+WHERE character_id IN (1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20);
 
 -- Elizabeth → Darcy: strangers on arrival; both surface and hidden at zero
 INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type) VALUES (1, 2, 0.0,   'surface');
@@ -275,6 +280,15 @@ INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type
 -- William Goulding → Elizabeth
 INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type) VALUES (19, 1, 0.15, 'surface');
 
+-- Maria Lucas → Elizabeth: warm acquaintance through Charlotte
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type) VALUES (20, 1, 0.52, 'surface');
+-- Maria Lucas → Charlotte: devoted younger sister
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type) VALUES (20, 5, 0.85, 'surface');
+-- Maria Lucas → Sir William: her father; fond and a little in awe
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type) VALUES (20, 14, 0.72, 'surface');
+-- Elizabeth → Maria Lucas: fond; slightly amused by her enthusiasm
+INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type) VALUES (1, 20, 0.42, 'surface');
+
 
 -- =============================================================================
 -- CHARACTER FACTION REPUTATIONS
@@ -282,7 +296,7 @@ INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type
 -- =============================================================================
 
 DELETE FROM character_faction_reputation
-WHERE character_id IN (1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19);
+WHERE character_id IN (1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20);
 
 -- Elizabeth
 INSERT INTO character_faction_reputation (character_id, faction_id, reputation, notes)
@@ -318,6 +332,10 @@ VALUES (18, 2, 0.55, 'Unremarkable neighborhood standing; known through the Phil
 INSERT INTO character_faction_reputation (character_id, faction_id, reputation, notes)
 VALUES (19, 2, 0.62, 'Solid neighborhood standing; the Gouldings are a well-regarded local family.');
 
+-- Maria Lucas
+INSERT INTO character_faction_reputation (character_id, faction_id, reputation, notes)
+VALUES (20, 2, 0.52, 'Lucas family; younger daughter; well regarded as a pleasant girl.');
+
 
 -- =============================================================================
 -- GAME INSTANCE: reset clock to 8:00 PM start; status back to ready
@@ -342,7 +360,7 @@ SET current_activity             = NULL,
     activity_estimated_duration  = NULL,
     activity_duration_confidence = NULL,
     activity_renewable           = 0
-WHERE id IN (1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19);
+WHERE id IN (1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20);
 
 -- Sir William Lucas: greeting arrivals on the landing at the top of the stairs.
 -- renewable=1, low confidence — he keeps greeting until drawn away.
