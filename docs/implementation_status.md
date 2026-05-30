@@ -694,36 +694,25 @@ wandered mid-dance when pending_intent was cleared on commitment. See §5a.
 
 ## Pending work — priority queue
 
-### §6. Meryton character description and relationship review (next session priority)
+### §6. Meryton character description and relationship review
 
-Revealed by 2026-05-26 playtest. `character_attitude` has no `notes` column —
-the only place Pass 2 can see family relationships is `character.description`.
-Several descriptions are missing or wrong.
+Revealed by 2026-05-26 playtest. Substantially completed session 16 (2026-05-29).
 
-**Immediate fixes (errors):**
-- Thomas Philips (id=18): description says "Nephew of Mr. Philips the attorney"
-  — WRONG. He is Mr. Philips's *son*, making him Elizabeth's first cousin.
-  Fix: "Son of Mr. Philips the attorney and Mrs. Philips (née Gardiner, Mrs.
-  Bennet's sister); Elizabeth Bennet's first cousin."
-- Maria Lucas: Charlotte's younger sister (~16); not in module at all. Add to
-  seed with sensible defaults (pleasant, excitable young woman, ballroom).
+**Completed (session 14):** Thomas Philips description corrected (nephew → son,
+Elizabeth's first cousin); Charlotte, Lady Lucas, Sir William descriptions updated
+with family links; Pass 2 RELATIONSHIP REFERENCES rule added to prompt.
 
-**Relationship gaps in descriptions (Pass 2 can't resolve family references):**
-- Sir William Lucas (id=14): no mention of Charlotte/John as his children
-- Lady Lucas (id=13): no mention of Charlotte/John as her children, or Sir
-  William as her husband
-- Charlotte Lucas (id=5): no mention of Sir William/Lady Lucas as parents,
-  John/Maria as siblings
+**Completed (session 16):** Maria Lucas (id=20) added; Jane→Elizabeth and
+Charlotte→Elizabeth attitudes backfilled into seed.sql; reset_instance.sql
+updated throughout for id=20.
 
-**Pass 2 prompt gap:**
-- When player uses relationship terms ("my cousin," "Charlotte's brother"),
-  Pass 2 should resolve the referent from character descriptions before acting.
-  Add a sentence to the Pass 2 prompt.
-
-**Seeding gap:**
-- Jane→Elizabeth and Charlotte→Elizabeth attitudes not seeded; start at 0 and
-  accumulate during play, which produces unrealistically low early-session values
-  for established relationships. Seed at reasonable baselines.
+**Remaining — spelling error:**
+- The correct spelling is "Phillips" (Mrs. Bennet's sister is Mrs. Phillips, the
+  attorney's wife). The character name, descriptions, and all seed references
+  currently use "Philips" (one l). Affects: character name (id=18), all
+  description strings referencing Mr./Mrs. Philips, seed.sql, reset_instance.sql,
+  and the live meryton.db. A straightforward find-and-replace but touches many
+  lines — do as a dedicated pass before next public playtest.
 
 ---
 
