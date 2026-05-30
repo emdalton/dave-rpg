@@ -1,13 +1,13 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-05-29, session 17 (open).*
+*Last updated: 2026-05-29, session 17 (closed).*
 
 ---
 
-## Session 17 opening notes (2026-05-29)
+## Session 17 closing notes (2026-05-29)
 
-**This session:** Movement parsing test coverage; documentation updates.
+**This session:** Movement parsing test coverage; Hidden Hostel test world module.
 
 **Completed this session:**
 
@@ -16,11 +16,29 @@
   `make our way to the Hall`. All assert `action_type=move` + `target_location_id=2`
   and pass the LLM-as-judge rubric.
 - `docs/test_suite.md`: Updated Tier 3 / Pass 1 eval section to list the three new tests.
+- `schema/schema.sql`: Fixed v8 schema_version INSERT (was missing; character table had
+  v8 activity fields but final version row still said v7).
+- `modules/hidden_hostel/seed.sql`: New test world module. 5 locations, 4 connections
+  (including staircase 1↔3 and locked 3↔5), 6 characters, full feature coverage. See
+  feature coverage list in the file header for full detail.
+- `modules/hidden_hostel/reset_instance.sql`: Instance reset script. Verified against
+  simulated play mutations — all mutable state restores correctly.
+- `README.md`: Added Hidden Hostel to module table; updated build and run commands.
 
-**Carried forward from session 16 / 15:**
+**Incidental findings this session:**
+- `schema.sql` v8 version row was missing (fixed above).
+- Character-level `speech_filter` field does not exist in the schema. Gin-chan's
+  filter is handled via `voice_register='cat'` as an interim signal to Pass 3.
+  A schema v9 migration is needed to add this properly. Tracked in pending work below.
+- "Potion allows player to understand Gin-chan" is a future mechanic requiring item/
+  inventory system + player state modifier. Tracked in pending work below.
+
+**Pending from this session:**
 - Phillips spelling fix (id=18 and all references) — §6 remainder
 - Verbal tic review: scan Haiku transcript for `[verb] with the air of someone who`
 - §7: Logging to file + transcript auto-save
+- Schema v9: character-level `speech_filter` field (for Gin-chan)
+- Hidden Hostel: Gin-chan potion mechanic (future; requires items + player state)
 
 ---
 
@@ -732,6 +750,42 @@ updated throughout for id=20.
   description strings referencing Mr./Mrs. Philips, seed.sql, reset_instance.sql,
   and the live meryton.db. A straightforward find-and-replace but touches many
   lines — do as a dedicated pass before next public playtest.
+
+---
+
+### §8. Schema v9: character-level speech_filter
+
+The Hidden Hostel module introduced Gin-chan, a winged cat whose vocalizations
+should be rendered as meow variants by Pass 3 — the same filter used game-wide
+in I Am a Cat. However, the `speech_filter` field currently lives only on the
+`game` table (game-level), not on the `character` table.
+
+Adding `speech_filter TEXT DEFAULT NULL` to the `character` table allows
+per-character speech filtering without affecting other characters in the same
+module. A NULL value means no filter; `'cat'` means Pass 3 renders this
+character's speech as meow variants.
+
+**Migration:** `schema/migrations/migrate_v8_to_v9.sql`
+  - `ALTER TABLE character ADD COLUMN speech_filter TEXT DEFAULT NULL;`
+  - Bump schema_version to 9.
+  - Apply to all existing databases (i_am_a_cat.db, meryton.db, hidden_hostel.db).
+
+**Engine:** `engine/context.py` — include `speech_filter` in NPC profile block
+  of Pass 3 context packet alongside `voice_register` and `voice_warmth`.
+
+**Pass 3 prompt:** Add instruction: if an NPC's `speech_filter='cat'`, render
+  all their speech/vocalizations as meow variants (same rule as the game-level
+  filter in I Am a Cat).
+
+**Seed update:** `modules/hidden_hostel/seed.sql` — add `speech_filter='cat'`
+  to Gin-chan's INSERT once the migration is applied. Update reset_instance.sql
+  to reset this field. Remove the interim `voice_register='cat'` workaround note
+  once the migration is in place (though `voice_register='cat'` can remain as it
+  also influences voice rendering).
+
+**Related future mechanic:** A potion grants the player temporary ability to
+  understand Gin-chan — requires item/inventory system + player state modifier
+  that overrides the speech filter for the duration. Design when items are built.
 
 ---
 

@@ -34,13 +34,14 @@ For full architectural detail, see [docs/design_v05.md](docs/design_v05.md).
 
 Early development. The engine is currently in Phase 1: prototyping with Claude Haiku as the game loop backend to validate that the three-pass architecture is viable at a model capability level close to the Phase 2 local model target. Claude Sonnet is used separately for module construction — seeding character data, writing location graphs, and generating ground-truth adjudication examples. The distinction matters: Haiku running the game is the test; Sonnet building the module is the tooling.
 
-### Planned test modules
+### Modules
 
-| Module | Setting | Primary mechanics exercised |
-|--------|---------|----------------------------|
-| I Am a Cat | Domestic townhouse, 3am | Object interaction, speech filtering, lazy world generation, emotional state |
-| The Netherfield Ball | Pride and Prejudice (Austen, public domain) | Full social mechanics, faction dynamics, art as performance, reputation |
-| Locked Room Mystery | Original science fiction | Hidden motivation, consistency enforcement, investigative mechanics |
+| Module | Setting | Primary mechanics exercised | Status |
+|--------|---------|-----------------------------|----|
+| I Am a Cat | Domestic townhouse, 3am | Object interaction, speech filtering, lazy world generation, emotional state | Playable |
+| The Hidden Hostel | Liminal inn between worlds | Test world: full engine feature coverage — staircase navigation, all wander suppression conditions, hidden motivation, faction, NPC-to-NPC attitudes | Playable (test module) |
+| The Netherfield Ball | Pride and Prejudice (Austen, public domain) | Full social mechanics, faction dynamics, art as performance, reputation | In development |
+| Locked Room Mystery | Original science fiction | Hidden motivation, consistency enforcement, investigative mechanics | Planned |
 
 ---
 
@@ -78,8 +79,13 @@ pip install -r requirements.txt
 Each module database is built from the canonical schema plus the module seed. No migration scripts are needed for a fresh install — `schema/schema.sql` incorporates all schema versions.
 
 ```bash
+# I Am a Cat
 sqlite3 modules/i_am_a_cat/i_am_a_cat.db < schema/schema.sql
 sqlite3 modules/i_am_a_cat/i_am_a_cat.db < modules/i_am_a_cat/seed.sql
+
+# The Hidden Hostel (test world)
+sqlite3 modules/hidden_hostel/hidden_hostel.db < schema/schema.sql
+sqlite3 modules/hidden_hostel/hidden_hostel.db < modules/hidden_hostel/seed.sql
 ```
 
 Migration scripts in `schema/migrations/` are only needed when upgrading an existing database to a newer schema version.
@@ -88,7 +94,12 @@ Migration scripts in `schema/migrations/` are only needed when upgrading an exis
 
 ```bash
 export ANTHROPIC_API_KEY=your_key_here
+
+# I Am a Cat
 DAVE_LOG_LEVEL=WARNING DAVE_DB_PATH=modules/i_am_a_cat/i_am_a_cat.db python3 -m engine
+
+# The Hidden Hostel (test world)
+DAVE_LOG_LEVEL=WARNING DAVE_DB_PATH=modules/hidden_hostel/hidden_hostel.db python3 -m engine
 ```
 
 `DAVE_LOG_LEVEL=WARNING` keeps the terminal clean during play. The default (`INFO`) includes API transport messages that can clutter the output alongside prose. Use `DEBUG` to see full pass-level detail including raw prompts and LLM responses.

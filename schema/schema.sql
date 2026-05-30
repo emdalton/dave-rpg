@@ -1005,3 +1005,6 @@ CREATE INDEX idx_faction_rep_character ON character_faction_reputation(character
 
 INSERT INTO schema_version (version, description)
 VALUES (7, 'Fresh install at v7: faction, character_faction_reputation, passage_note on location_connection, pending_intent on character, wander_range/wander_probability on character, character_visited_location');
+
+INSERT INTO schema_version (version, description)
+VALUES (8, 'Fresh install at v8: timed activity system on character (current_activity, activity_started_at, activity_estimated_duration, activity_duration_confidence, activity_renewable)');
