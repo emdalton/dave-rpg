@@ -68,6 +68,12 @@ Rules:
   the destination appears in known_locations, even if it is far away.
   The engine handles multi-step pathfinding — your only job is to resolve
   the name to the correct integer id.
+- Movement phrases: "move to X", "walk to X", "proceed to X", "head to X",
+  "make our way to X", "lead to X", "go up to X", "as we go to X", and similar
+  natural-language travel expressions should all resolve to action_type "move"
+  with the destination id resolved from known_locations. Do not classify these
+  as a different action type or leave target_id null when the destination is
+  listed in known_locations.
 
 Required output fields:
   action_type   (string, one of the types above)
@@ -201,8 +207,22 @@ Required output fields:
                         duration until explicitly ended; 0 if the engine may auto-clear
                         it once the estimated time expires. The engine records
                         activity_started_at from the game clock at apply time — you
-                        do not supply it. Empty list if no NPC activities changed.
-                        DO NOT include activity_updates for the player character.)
+                        do not supply it.
+                        DURATION CALIBRATION (Regency social events): a country dance
+                        set lasts 20–30 minutes (multiple figures with the same partner);
+                        a cotillion or reel 15–20 minutes; a brief social exchange 3–5
+                        minutes; sitting down to cards 30–60 minutes with renewable=1.
+                        When a dance commitment is established, set duration_minutes to
+                        at least 20 for a standard country set.
+                        DANCE COMMITMENT: when the player and an NPC commit to dance
+                        together, set activity_updates for BOTH the player character
+                        and the NPC partner with matching activity text, duration, and
+                        confidence. Also set pending_intent on the NPC partner to record
+                        the social obligation, so the commitment survives across turns.
+                        Empty list if no NPC activities changed.
+                        DO NOT include activity_updates for the player character — EXCEPT
+                        when a dance commitment is established (see DANCE COMMITMENT above),
+                        in which case include the player character in activity_updates.)
   npc_initiated_actions (list of {{character_id, action_description}} for any actions
                         an NPC independently initiates this turn that are narratively
                         significant but not captured by the other fields — e.g. an NPC

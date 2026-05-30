@@ -4,6 +4,62 @@
 
 ---
 
+## 17. Pre-session Pass 0: MST-to-pending-intent initialization
+
+*Captured 2026-05-26 during Meryton seed design.*
+
+A lightweight pre-session LLM call that runs once at the start of each new
+session (or when a new game_instance is created). It reads each character's
+`character_goal` entries and the current scene context (module premise,
+location, time of day, other characters present) and derives a
+scene-appropriate `pending_intent` for each character, writing the results
+to `character.pending_intent` before the first player turn.
+
+**Why this matters:**
+
+Currently, `pending_intent` is hand-seeded in `seed.sql` and reset in
+`reset_instance.sql`. This works for a single module in a single starting
+scene, but it requires manual re-seeding whenever a character appears in a
+new context — a new chapter, a new scene, or a "What if..." premise. A
+character's MST goals are stable across chapters; their tactical
+`pending_intent` is scene-specific. Pass 0 bridges them automatically.
+
+**Example:** Elizabeth Bennet's goal "belonging — genuine connection with
+Jane, Charlotte, and her family" is the same at every assembly. Pass 0
+translates it to "wants to dance; will accept a partner if asked" for
+Chapter 3, and might translate it differently for Chapter 2 if the
+circumstances have changed. Mrs. Bennet's security goal always produces a
+ballroom-and-observe intent at any social occasion.
+
+**Connection to chapter sequencing:** Once chapter-to-chapter state
+forwarding is implemented (feature 13), Pass 0 ensures that characters
+carried forward from a previous chapter arrive in a new scene with
+contextually appropriate intent rather than stale seed values. This makes
+the same character records reusable across an entire module arc without
+manual re-seeding for each chapter.
+
+**Implementation sketch:**
+
+- Runs as a single LLM call (Haiku is sufficient — this is intent inference,
+  not prose generation) before `_render_opening_scene()`.
+- Context: each character's name, species, goals (name, priority, orientation),
+  current emotional_state, and a brief scene description from the `game` record.
+- Output: `[{character_id, pending_intent}]` — the same structure as
+  `pending_intent_updates` in the Pass 2 output schema. Engine writes them
+  exactly as it would for mid-session updates.
+- Module-level opt-in: `"pass0_enabled": true` in `module_flags` JSON on
+  `game`. Defaults to false; existing modules with hand-seeded intent are
+  unaffected until opted in.
+- A `pass0_override` TEXT NULL field on `character` would allow specific
+  characters to bypass Pass 0 with a hard-coded intent (e.g., Darcy's refusal
+  to dance is canonical and should not be re-derived).
+
+**Dependency:** Requires `module_flags` JSON field on `game` (sketched in
+feature 6). Otherwise no schema changes needed beyond the existing
+`pending_intent` field on `character`.
+
+---
+
 ## 16. What-if: "Elizabeth Bennet, Agent of the Crown"
 
 A `what_if` premise modifier for the Meryton module. Elizabeth is working

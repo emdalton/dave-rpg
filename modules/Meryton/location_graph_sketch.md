@@ -60,6 +60,27 @@ sounds of horses and carriages waiting.
 
 ---
 
+**14. Cloakroom / Anteroom**
+A small room off the vestibule where outer garments are left on arrival and
+collected on departure. A servant attends. The arrangement is informal — a
+Regency public assembly provides the space rather than a dedicated staff —
+but the expectation is clear: no one proceeds upstairs in a pelisse. A brief
+stop for every arriving party; a destination again at the end of the evening.
+
+*Note: not mentioned in Chapter 3 text; present by architectural and social
+inference. Standard provision at a civic assembly of this type.*
+
+*description_skeleton:* A small, low-ceilinged room with coat pegs along one
+wall and a wooden bench. A servant stands near the door. The noise of the
+assembly is faint but audible through the entrance hall. The smells of damp
+wool and cold night air linger from earlier arrivals.
+
+*social_setting:* semi_private
+
+*Connections:* Street Entrance and Vestibule (door, open)
+
+---
+
 **2. Staircase**
 The processional spine of the building. Wide enough for two to pass with
 ease; being seen on the staircase is being seen. The landing above gives a
@@ -106,9 +127,11 @@ Benches and chairs along the walls for those sitting out; the center cleared
 for dancing. This is where social affairs are managed — introductions,
 partnership negotiations, public observation.
 
-Mrs. Bennet's starting position: wall seating, with line-of-sight to most
+Mrs. Bennet's settled position: wall seating, with line-of-sight to most
 of the floor (established from Chapter 3 text — she reports everything she
-sees).
+sees). She arrives at the vestibule with Jane, Elizabeth, and Mary and
+proceeds to ballroom seating once the family is oriented; this is her
+destination, not her starting location.
 
 *description_skeleton:* The ballroom is fully lit — candles in wall sconces
 and a chandelier overhead, doubled in the dark windows along the far wall.
@@ -313,6 +336,7 @@ only.')
 
 ```
 Public circuit (upper-class navigation):
+  Street Entrance ↔ Cloakroom (door)
   Street Entrance ↔ Staircase (stairs)
   Staircase ↔ Landing (stairs)
   Landing ↔ Ballroom (door)
@@ -337,7 +361,7 @@ Service cluster (is_passable=1 throughout, passage_noted for class context):
   Staging Area ↔ Supper Room (door)
 ```
 
-*Total locations: 13 (6 navigable public, 3 non-passable, 4 service)*
+*Total locations: 14 (7 navigable public, 3 non-passable, 4 service)*
 
 ---
 
