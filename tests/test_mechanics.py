@@ -153,12 +153,15 @@ class TestBFSPathfinding:
 
     def test_path_to_adjacent_location(self, test_engine):
         # Hero is at Antechamber (1); Hall (2) is directly adjacent.
-        result = test_engine._resolve_multistep_move(target_id=2)
-        # A successful path result should contain a 'route' key (list of location ids).
-        assert result.get("route") is not None, \
-            "Pathfinding to an adjacent location should return a route"
-        route = result["route"]
-        assert 2 in route, "Route to Hall (2) should include location 2"
+        # Return keys: reachable, path_taken, effective_destination_id,
+        # path_location_names, interrupted, interruption, no_path_reason.
+        result = test_engine._resolve_multistep_move(target_location_id=2)
+        assert result.get("reachable") is True, \
+            "Pathfinding to an adjacent location should be reachable"
+        assert result.get("effective_destination_id") == 2, \
+            "Effective destination should be Hall (2)"
+        assert 2 in result.get("path_taken", []), \
+            "path_taken should include Hall (2)"
 
     def test_path_to_unreachable_location(self, test_engine):
         # Add an isolated location with no connections.
@@ -167,16 +170,13 @@ class TestBFSPathfinding:
             "social_setting, witness_count, situation_flags) "
             "VALUES (50, 1, 'Isolated Tower', 'tower', 'private', 0, '[]')"
         )
-        result = test_engine._resolve_multistep_move(target_id=50)
-        # Should not find a path; result should indicate failure.
-        route = result.get("route")
-        assert not route, \
-            "Pathfinding to an unreachable location should return no route"
+        result = test_engine._resolve_multistep_move(target_location_id=50)
+        assert result.get("reachable") is False, \
+            "Pathfinding to an unreachable location should return reachable=False"
 
     def test_path_to_current_location(self, test_engine):
         # Hero is already at Antechamber (1); requesting a path there.
-        result = test_engine._resolve_multistep_move(target_id=1)
-        # Should handle gracefully — either empty route or a no-op indicator.
-        # Not a crash condition.
+        # Should handle gracefully — not a crash condition.
+        result = test_engine._resolve_multistep_move(target_location_id=1)
         assert isinstance(result, dict), \
             "_resolve_multistep_move should always return a dict"

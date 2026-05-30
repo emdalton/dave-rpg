@@ -453,8 +453,9 @@ class TestCreateCharacter:
             current_location_id=2,
             emotional_state="guarded",
         )
+        # create_character() returns the full row dict, not just the id.
         assert char_id is not None
-        char = tmp_db.get_character(char_id)
+        char = tmp_db.get_character(char_id["id"])
         assert char["name"] == "Mysterious Stranger"
         assert char["current_location_id"] == 2
 
