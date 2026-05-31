@@ -158,7 +158,10 @@
 - §9: Player self-definition on game start — prompt for name, gender, pronouns, description, belongings (when item system exists). Module-controlled; not used in Meryton or I Am a Cat.
 - §11: Allow player to choose from a list of pre-defined characters at game start (alternative to self-definition; useful for modules with fixed casts like Meryton).
 - ~~§10: Hidden Hostel test suite~~ — **DONE; 37/37 passing**
-- Hidden Hostel: Gin-chan potion mechanic (future; requires items + player state)
+- Hidden Hostel: Gin-chan potion mechanic (future; requires items + player state modifier).
+  Once unlocked, Gin-chan speaks in the style of Carroll's Cheshire Cat — elliptical, gnomic.
+  Hidden knowledge: Gin-chan is the actual founder/creator of the hostel (Marta runs it
+  day-to-day). This is seeded in hidden_motivation; the revelation is a discovery mechanic.
 - Hidden Hostel: The Old Soldier changed to female (seed.sql updated; reset_instance.sql
   not affected as gender/pronouns are stable data)
 - Ollama `format: json` parameter: add `"format": "json"` to the `/api/generate` payload

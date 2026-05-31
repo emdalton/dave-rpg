@@ -409,6 +409,15 @@ INSERT INTO character (
 -- A silver-gray winged cat of indeterminate gender and uncertain origin.
 -- Permanent resident of the hostel; not a guest.
 -- WANDER SUPPRESSION TEST: sleepiness suppression (0.72 ≥ threshold 0.60).
+--
+-- DESIGN NOTES (hidden knowledge — do not surface to player):
+-- Gin-chan is the actual founder/creator of the Hidden Hostel. Marta runs it
+-- day-to-day; Gin-chan's true nature is a discovery mechanic. Seed this in
+-- hidden_motivation with access_hidden_motivation=0 (pending schema field).
+-- Voice (once speech_filter unlocked via §8 + potion mechanic): elliptical,
+-- gnomic — modeled on the Cheshire Cat (Lewis Carroll). The dramatic irony of
+-- the opening session (player defers politely to a "resident" who is actually
+-- the proprietor) is intentional and fits the iyashikei tone.
 -- PRONOUN TEST: they/them for a nonhuman whose gender is genuinely unknown.
 -- SPEECH FILTER TEST: pending schema v9. voice_register='cat' signals Pass 3
 --   to use meow variants in the interim. When v9 adds speech_filter to the
