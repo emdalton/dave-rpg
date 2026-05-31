@@ -16,7 +16,7 @@
   and all affected fields in the live `meryton.db` (name, description, apparent_status,
   faction_reputation notes).
 
-- `tests/test_hidden_hostel.py`: New Tier 1 test file, 37 tests across 8 classes.
+- `tests/test_hidden_hostel.py`: New Tier 1 test file, 37 tests across 8 classes. **37/37 passing.**
   Covers all Hidden Hostel feature coverage goals:
   - §A Staircase connection traversal (Common Room ↔ Upper Corridor)
   - §B Impassable connection (Upper Corridor → Room B blocked)
@@ -38,9 +38,7 @@
   for tests that call engine methods directly.
 
 **Pending from this session:**
-- Run `tests/test_hidden_hostel.py` on the real machine (sandbox has Python 3.10;
-  project venv requires Python 3.12). Expected to pass; one probabilistic test
-  (`test_ginchan_can_wander_when_not_sleepy`) may need iteration-count tuning.
+- `docs/test_suite.md`: Updated with Hidden Hostel test descriptions, second test world reference table, extended "Extending the Suite" guidance.
 
 ---
 
@@ -78,7 +76,7 @@
 - §7: Logging to file + transcript auto-save
 - §8: Schema v9 — character-level `speech_filter` field (for Gin-chan)
 - §9: Player character gender and self-definition (Hidden Hostel Traveller currently hardcoded female)
-- §10: Hidden Hostel test suite — **test file written in session 18; needs first run**
+- ~~§10: Hidden Hostel test suite~~ — **DONE; 37/37 passing**
 - Hidden Hostel: Gin-chan potion mechanic (future; requires items + player state)
 - Hidden Hostel: The Old Soldier changed to female (seed.sql updated; reset_instance.sql
   not affected as gender/pronouns are stable data)

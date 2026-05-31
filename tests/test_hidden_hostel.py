@@ -679,14 +679,14 @@ class TestFactionReputation:
     def test_faction_exists(self, tmp_hostel_db: Database):
         """The 'hosts_of_the_hostel' faction must exist for game_id=1."""
         faction = tmp_hostel_db.get_or_create_faction(
-            game_id=1, faction_name="hosts_of_the_hostel"
+            game_id=1, name="hosts_of_the_hostel"
         )
         assert faction is not None, "hosts_of_the_hostel faction should exist"
 
     def test_traveller_has_faction_reputation(self, tmp_hostel_db: Database):
         """The Traveller should have a reputation record in the faction."""
         faction = tmp_hostel_db.get_or_create_faction(
-            game_id=1, faction_name="hosts_of_the_hostel"
+            game_id=1, name="hosts_of_the_hostel"
         )
         row = tmp_hostel_db._row(
             "SELECT reputation FROM character_faction_reputation "
@@ -704,7 +704,7 @@ class TestFactionReputation:
     def test_marta_has_high_faction_reputation(self, tmp_hostel_db: Database):
         """Marta (the host) should have reputation≈0.90 in the faction."""
         faction = tmp_hostel_db.get_or_create_faction(
-            game_id=1, faction_name="hosts_of_the_hostel"
+            game_id=1, name="hosts_of_the_hostel"
         )
         row = tmp_hostel_db._row(
             "SELECT reputation FROM character_faction_reputation "
