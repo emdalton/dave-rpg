@@ -12,19 +12,24 @@
 --   - game_instance: clock and status
 --   - character: location, emotional_state, maslow_tier, pending_intent,
 --                current_activity and all activity fields
+--   - player character only: description, gender, pronouns (set during play
+--                via player_character_update; must be null at session start
+--                so the mirror invitation triggers correctly)
 --   - internal_state: value (rates are stable; not reset)
 --   - character_attitude: all attitude values
 --   - character_faction_reputation: all reputation values and notes
 --   - character_visited_location: trimmed to seeded set
 --   - location_detail: lazily generated details removed; seeded detail restored
---   - item and character_item: non-seeded items removed; sencha canister restored
+--   - item and character_item: non-seeded items removed; sencha canister and tray
+--                of hot rolls restored to starting positions
 --   - action_log: cleared entirely
 --
 -- What this does NOT touch (stable world data):
 --   - game record
 --   - location records and location_connection records
---   - character OCEAN traits, goals, skills, pronouns, descriptions,
+--   - NPC character OCEAN traits, goals, skills, pronouns, descriptions,
 --     voice parameters, wander_range, wander_probability, speech_filter
+--     (player character description/gender/pronouns ARE reset — see above)
 --   - faction records
 --
 -- Usage:
@@ -50,6 +55,9 @@ WHERE id = 1 AND game_id = 1;
 -- =============================================================================
 
 -- The Traveller (id=1)
+-- description, gender, and pronouns are player-defined during play via
+-- player_character_update; they must be cleared on reset so the opening
+-- scene mirror invitation triggers correctly on the next session.
 UPDATE character
 SET current_location_id          = 6,      -- Outside the Hostel Door
     emotional_state              = 'curious',
@@ -60,6 +68,9 @@ SET current_location_id          = 6,      -- Outside the Hostel Door
     activity_estimated_duration  = NULL,
     activity_duration_confidence = NULL,
     activity_renewable           = 0,
+    description                  = NULL,
+    gender                       = NULL,
+    pronouns                     = NULL,
     updated_at                   = datetime('now')
 WHERE id = 1;
 
@@ -68,7 +79,7 @@ UPDATE character
 SET current_location_id          = 2,      -- Kitchen
     emotional_state              = 'focused',
     maslow_tier                  = 'esteem',
-    pending_intent               = 'when the evening meal is ready (cooking activity will finish at 8:30 PM), serve it to guests present in the kitchen; if no guest is in the kitchen, call out through the doorway that food is available',
+    pending_intent               = 'if a guest enters the kitchen while cooking is still in progress, gesture to the tray of hot rolls on the worktable and tell them to help themselves, then return to work; when the evening meal is ready (8:30 PM), serve it to guests present or call out through the doorway',
     current_activity             = 'preparing the evening meal',
     activity_started_at          = 1140,   -- 7:00 PM
     activity_estimated_duration  = 90,
@@ -249,7 +260,7 @@ VALUES (
 
 -- =============================================================================
 -- ITEMS AND CHARACTER INVENTORY: restore seeded starting state
--- Remove all items for this game, then re-seed the sencha canister.
+-- Remove all items for this game, then re-seed canonical starting items.
 -- Player-claimed items from a prior session are discarded on reset.
 -- =============================================================================
 
@@ -266,6 +277,13 @@ VALUES (1, 'sencha canister',
 
 INSERT INTO character_item (character_id, item_id, slot)
 VALUES (1, last_insert_rowid(), 'in_pack');
+
+-- Re-seed the tray of hot rolls on the kitchen worktable
+INSERT INTO item (game_id, name, description, properties, is_confirmed, current_location_id)
+VALUES (1, 'tray of hot rolls',
+    'A wooden tray holding a dozen small rolls, still warm from the oven. The crust is just set; the inside will be soft. A cloth was draped over them to keep the heat in.',
+    '{"weight": "light", "edible": true, "servings": "several", "temperature": "hot"}',
+    1, 2);  -- Kitchen (id=2)
 
 
 -- =============================================================================

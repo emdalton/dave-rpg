@@ -14,9 +14,9 @@
 -- hostel is neutral ground; its rules are simple and absolute. The Innkeeper
 -- (Marta) has always been here. No one is entirely sure how long.
 --
--- Schema version: 8
--- Characters: 6 (1 player, 5 NPC)
--- Locations: 5 (Common Room, Kitchen, Upper Corridor, Room A, Room B)
+-- Schema version: 9
+-- Characters: 7 (1 player, 5 NPC, 1 npc_object — The Blue Door)
+-- Locations: 6 (Outside the Hostel Door, Common Room, Kitchen, Upper Corridor, Room A, Room B)
 -- Factions: 1 (hosts_of_the_hostel)
 --
 -- Feature coverage:
@@ -34,16 +34,18 @@
 --   Internal state drift                — positive (curiosity, hunger), negative (sleepiness)
 --   Hunger + food interaction          — Traveller starts hungry; Marta satisfies via
 --                                         Pass 2 internal_state_delta (no item system needed)
+--   Multi-part pending_intent           — Marta has a two-part intent: (1) offer hot rolls
+--                                         to any guest who enters while cooking is in progress;
+--                                         (2) serve the full meal when the cooking activity
+--                                         expires at 8:30 PM. Tests pending_intent discharge
+--                                         of one part while the other remains live, and
+--                                         pending_intent operating alongside current_activity.
 --   Tone: iyashikei                    — healing/slice-of-life; small comforts, unhurried warmth
 --   Lazy world generation               — Common Room has pre-seeded detail (retrieval
 --                                         path); Rooms A and B have skeleton only
 --   Pronouns (they/them)                — The Scholar, Gin-chan
---   Character-level speech filter       — PENDING schema v9. Gin-chan's vocalizations
---                                         are currently unfiltered at schema level.
---                                         voice_register='cat' signals Pass 3 to use
---                                         meow variants in the interim. When v9 adds
---                                         speech_filter to the character table,
---                                         Gin-chan should have speech_filter='cat'.
+--   Character-level speech filter       — Gin-chan (speech_filter='cat'): vocalizations
+--                                         rendered as meow variants by Pass 3.
 --   Future mechanic (not yet built)     — A potion grants temporary ability to
 --                                         understand Gin-chan. Requires item/inventory
 --                                         system + player state modifier. Tracked in
@@ -290,11 +292,13 @@ INSERT INTO character (
     0,
     'matter_of_fact', 0.52, 0.42,
     NULL, 0.0,
-    -- When the evening meal is ready (cooking activity expires at game clock 1230,
-    -- i.e. 8:30 PM), serve it to any guests present in the kitchen; if no guest is
-    -- present, call out from the kitchen doorway that food is available. This intent
-    -- persists until Pass 2 clears it after the meal is served.
-    'when the evening meal is ready (cooking activity will finish at 8:30 PM), serve it to guests present in the kitchen; if no guest is in the kitchen, call out through the doorway that food is available',
+    -- Two-part intent: (1) if a guest enters the kitchen while the meal is still
+    -- being prepared, immediately offer the tray of hot rolls on the worktable and
+    -- tell them to help themselves, then return attention to the meal. (2) When the
+    -- evening meal is ready (cooking activity expires at game clock 1230, i.e. 8:30
+    -- PM), serve it to any guests present in the kitchen; if no guest is in the
+    -- kitchen, call out through the doorway that food is available.
+    'if a guest enters the kitchen while cooking is still in progress, gesture to the tray of hot rolls on the worktable and tell them to help themselves, then return to work; when the evening meal is ready (8:30 PM), serve it to guests present or call out through the doorway',
     -- Activity: preparing the evening meal. Started 7:00 PM (1140), duration 90 min.
     -- Expires at 1230 (8:30 PM, 30 minutes into play). Not yet expired at start.
     -- activity_duration_confidence=0.72 > ACTIVITY_AUTO_CLEAR_CONFIDENCE (0.60),
@@ -716,3 +720,13 @@ VALUES (1, 'sencha canister',
 
 INSERT INTO character_item (character_id, item_id, slot)
 VALUES (1, last_insert_rowid(), 'in_pack');
+
+-- Tray of hot rolls: freshly baked, sitting on the kitchen worktable.
+-- Available to any guest who enters the kitchen before the evening meal is served.
+-- Marta's pending_intent directs her to offer these and let guests help themselves.
+-- is_confirmed=1 because this is a seeded, canonical item, not lazily generated.
+INSERT INTO item (game_id, name, description, properties, is_confirmed, current_location_id)
+VALUES (1, 'tray of hot rolls',
+    'A wooden tray holding a dozen small rolls, still warm from the oven. The crust is just set; the inside will be soft. A cloth was draped over them to keep the heat in.',
+    '{"weight": "light", "edible": true, "servings": "several", "temperature": "hot"}',
+    1, 2);  -- Kitchen (id=2)

@@ -1,7 +1,88 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-05-31, session 20 (closed).*
+*Last updated: 2026-05-31, session 21 (closed).*
+
+---
+
+## Session 21 notes (2026-05-31)
+
+**Completed this session:**
+
+- **Opening scene prompt fixed:**
+  - Added explicit rule: do NOT narrate the player taking any action (no reaching
+    for handles, no stepping forward, no doors opening). Prior sessions produced
+    prose that crossed the threshold before the player moved.
+  - Removed interior-state inference (the LLM was writing "your curiosity pulls
+    you forward" — player interiority belongs to the player).
+  - Mirror invitation rule rewritten to be concrete and direct: if
+    `player.description` is null, describe the mirror as a surface the player
+    can look into — not as already showing a reflection.
+  - `engine/context.py` `build_pass3_packet`: `player.description` now included
+    in the player summary so the opening scene renderer can check it.
+
+- **Reset script fixed:**
+  - `modules/hidden_hostel/reset_instance.sql`: player `description`, `gender`,
+    and `pronouns` now cleared to NULL on reset. These are instance state (set
+    during play via `player_character_update`); must be null at session start so
+    the mirror invitation triggers correctly.
+  - Header comments updated: player character fields distinguished from stable
+    NPC fields in "What this does NOT touch" list.
+
+- **Tray of hot rolls seeded in kitchen:**
+  - `modules/hidden_hostel/seed.sql`: `item` record for "tray of hot rolls"
+    placed at Kitchen (location_id=2) with `is_confirmed=1`.
+  - Marta's `pending_intent` updated to two-part: (1) offer hot rolls to any
+    guest who enters while cooking is in progress; (2) serve the full meal at
+    8:30 PM. Tests multi-part pending_intent discharge alongside current_activity.
+  - Same changes applied to `modules/hidden_hostel/reset_instance.sql`.
+  - Feature coverage table in seed.sql header updated to document the
+    multi-part pending_intent test case explicitly. Design rationale: exercises
+    pending_intent partially discharging (part 1 fires on guest arrival) while
+    part 2 remains live, alongside a concurrent current_activity — a combination
+    not previously covered.
+
+- **Brace-escaping guard added:**
+  - `engine/engine.py`: comment block added above the prompt template section
+    explaining the `str.format()` escaping rule. New literal `{` and `}` in
+    template text must be doubled; `{context_json}` is the only single-brace
+    placeholder.
+  - `CLAUDE.md` Code Standards: one-line note on the same rule added so it is
+    visible at session start.
+
+- **Seed header tidied:** schema version corrected to 9; character count updated
+  to 7 (includes Blue Door as npc_object); location count updated to 6; stale
+  speech_filter PENDING note removed (v9 is live).
+
+- **Playtest: entrance flow confirmed working (Sonnet backend):**
+  - Player self-description via mirror captured correctly via `player_character_update`.
+  - Wanderer introduced Gin-chan as resident, not pet, as designed.
+  - Kitchen entrance: Marta offered hot rolls and returned to work — multi-part
+    pending_intent firing correctly alongside active cooking task.
+  - Player-offered preserves accepted with attitude shift — emergent reciprocity
+    from OCEAN + goals, no special case.
+
+- **Model clarification:** Session ran on Sonnet (config.py default). Haiku is
+  the intended Phase 1 test target. Memory note written: change config.py default
+  to `claude-haiku-4-5-20251001` at the start of next session.
+
+**Pending from this session (carried forward):**
+
+- **Do first next session:** Change `CLAUDE_MODEL` default in `engine/config.py`
+  from `claude-sonnet-4-6` to `claude-haiku-4-5-20251001`. Update
+  `docs/configuration.md` default value table to match.
+- Mirror mechanic: opening scene may still render a reflection before player has
+  defined themselves — LLM reads the invitation rule as license to show one.
+  One more prompt pass; try wording that explicitly withholds the reflection
+  until the player acts.
+- Rebuild `hidden_hostel.db` fresh from terminal (sandbox cannot delete mounted
+  files; reset_instance.sql is sufficient for play, clean rebuild is cleaner).
+- Add `"format": "json"` to Ollama Pass 1 and Pass 2 payloads in
+  `engine/llm/ollama.py`.
+- Verbal tic review: scan Haiku transcript for `[verb] with the air/manner of
+  someone who` pattern.
+- Test coverage for new v9 seed elements: tray of hot rolls, multi-part
+  pending_intent pattern, player_character_update handler.
 
 ---
 
@@ -840,7 +921,18 @@ during non-expired activities. Pass 2 `activity_updates` output field sets,
 updates, or clears activities. Motivation: John Lucas incident (session 11) — NPC
 wandered mid-dance when pending_intent was cleared on commitment. See §5a.
 
-**Current version: 8.**
+**v9** — Character-level `speech_filter TEXT DEFAULT NULL` on `character` table.
+Per-character speech rendering override (NULL = no filter; `'cat'` = meow variants).
+Player self-definition support: `player_definition_mode` on `game` table (metadata
+only; no engine branching). Item system: `character_item` join table with slot
+vocabulary; `item.current_location_id` replaces old `location_id`;
+`item.is_confirmed` flag (1 = seeded/canonical, 0 = lazily generated). Engine:
+`item_instantiations` and `player_character_update` outcome handlers. Context:
+player inventory in Pass 2 packet; `player.description` in Pass 3 packet.
+Hidden Hostel: location 6 (Outside the Hostel Door), Blue Door (npc_object id=7),
+sencha canister in player pack, tray of hot rolls in kitchen.
+
+**Current version: 9.**
 
 ---
 

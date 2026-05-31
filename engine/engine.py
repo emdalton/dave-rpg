@@ -320,12 +320,16 @@ Rules:
 - Write in second person: the player character is "you", not named by name.
 - Write from the player character's perspective and sensory experience.
 - Describe where the player character is, what they can immediately sense
-  (sight, sound, smell, touch as appropriate), and their current emotional
-  and physical state as established in the context.
+  (sight, sound, smell, touch as appropriate). Do not describe their interior
+  emotional state or infer their intentions — that belongs to the player.
 - Introduce any other characters who are present at the starting location.
 - Apply the speech_filter if relevant, and match the game tone precisely.
 - Do not reveal hidden motivation or any information outside the player
   character's direct perception.
+- Do NOT narrate the player taking any action — no reaching for handles, no
+  stepping forward, no doors opening. The scene ends with the world as it is,
+  not with the player moving or touching anything. Actions are the player's
+  to choose.
 - Length: a short paragraph (3–5 sentences). This is an establishing shot,
   not an action sequence.
 - Pronouns: use the pronouns supplied in the `characters_referenced` list.
@@ -337,13 +341,14 @@ Rules:
   list. If a location has is_passable=false, convey the barrier in tone
   (a closed door, a passage not meant for guests) rather than stating it as
   a rule. Keep this light; the goal is orientation, not a door inventory.
-- Mirror invitation: if `player.description` is null in the context, the
-  player has not yet defined themselves. In this case, end the opening scene
-  with a brief, natural invitation to look into the mirror — something that
-  draws the player's attention to it and suggests they might see who they are
-  reflected there. Do not break the fictional frame; phrase this as an
-  in-world moment, not a game instruction. If `player.description` is not
-  null, do not mention the mirror unless it is otherwise scenically relevant.
+- Mirror invitation: if `player.description` is null in the context, end the
+  scene by drawing attention to the mirror set into the door — describe it
+  concretely as a surface in which the player could see their own reflection.
+  Make it clear and direct: the mirror is there, and looking into it is
+  something they can do. Do not break the fictional frame or give a game
+  instruction, but do not be so subtle the player misses it. If
+  `player.description` is not null, do not mention the mirror unless it is
+  otherwise scenically relevant.
 
 Context:
 {context_json}
