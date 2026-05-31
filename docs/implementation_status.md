@@ -1,7 +1,42 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-05-30, session 19 (open).*
+*Last updated: 2026-05-31, session 20 (open).*
+
+---
+
+## Session 20 notes (2026-05-31)
+
+**Completed this session:**
+
+- **Schema v9 fully landed (seed + reset):**
+  - `modules/hidden_hostel/seed.sql` updated with all v9 additions:
+    - Location 6 (Outside the Hostel Door): `social_setting='public'`, `witness_count=0`, liminal arrival space with mirror-paned blue door
+    - Location 1 connection updated: `(1, 6, 'door', 1, NULL)` — two-way, passable
+    - The Traveller: `current_location_id=6`, `gender=NULL`, `pronouns=NULL`, `description=NULL` (undefined until self-definition)
+    - The Blue Door (character id=7): `role='npc_object'`, `species='object'`, `current_location_id=6`, `speech_filter='silent: ...'`, `pending_intent='welcome the arriving traveller...'`
+    - Gin-chan: `speech_filter='unintelligible: render all communication as non-verbal...'` applied via UPDATE after INSERT
+    - `character_visited_location` for The Traveller: `(1, 6)` (Outside only; not yet entered)
+    - Item: sencha canister (game_id=1, properties JSON, description with crane engraving)
+    - `character_item`: sencha canister in Traveller's pack (`slot='in_pack'`)
+  - `modules/hidden_hostel/reset_instance.sql` updated for v9:
+    - Traveller reset to `current_location_id=6`
+    - Blue Door (id=7) reset block added (location, emotional_state, pending_intent)
+    - `character_attitude` and `character_faction_reputation` DELETE/INSERT ranges include id=7
+    - `character_visited_location` reset includes `(1, 6)` and `(7, 6)`; location_detail reset includes location 6
+    - Items reset section: DELETE all game_id=1 items + character_item, then re-INSERT sencha canister + character_item row
+  - Both seed and reset verified against clean build in Python sqlite3 (sandbox lacks sqlite3 CLI binary)
+
+**Pending from this session (carried forward):**
+
+- Rebuild hidden_hostel.db from terminal (`rm` + `sqlite3` fresh build)
+- Engine changes for `player_definition_mode='define'` flow:
+  - Add items to Pass 2 context packet (item at location + character inventory)
+  - `item_instantiations` as a Pass 2 outcome field + db.py methods
+  - Outside-location mirror prompt, self-description parse, engine confirmation in 2nd person
+- Add `"format": "json"` to Ollama Pass 1 and Pass 2 payloads in `engine/llm/ollama.py`
+- Verbal tic review: scan Haiku transcript for `[verb] with the air/manner of someone who` pattern
+- Test coverage for new v9 seed elements (Blue Door, sencha canister, location 6)
 
 ---
 
@@ -1346,11 +1381,11 @@ form in the Pass 2 context packet is not yet decided.
 
 This is a natural extension of §3a below and should be designed together with it.
 
-**Schema note:** No schema change required for `item_location_change`. The engine
-implements it as: validate → `UPDATE item SET location_id = ? WHERE id = ?` (if
-`location_id` is a direct field) or `UPDATE item_location SET location_id = ? WHERE
-item_id = ?` (if items use the `item_location` join table). Check schema.sql for the
-current item location storage pattern before implementing.
+**Schema note:** The item location field is `current_location_id` (renamed from
+`location_id` in schema v9). The engine implements location change as:
+validate → `UPDATE item SET current_location_id = ? WHERE id = ?`.
+Character-held items use the `character_item` join table; `current_location_id`
+should be NULL when a `character_item` row exists for the item.
 
 ---
 

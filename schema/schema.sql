@@ -1,6 +1,6 @@
 -- =============================================================================
 -- DAVE RPG Engine — Core Database Schema
--- Current version: 8
+-- Current version: 9
 --
 -- Digitally Adjudicated Virtual Environment
 -- Developed with the assistance of Claude (model: claude-sonnet-4-6, Anthropic)
@@ -85,6 +85,17 @@ CREATE TABLE game (
     -- Cultural norms relevant to common action types, passed to Pass 2 when
     -- the action warrants it. JSON object of norm_name -> description.
     cultural_norms TEXT NOT NULL DEFAULT '{}',
+
+    -- How the player character is established at the start of a session.
+    -- 'fixed'  = player character is fully seeded; no startup self-definition.
+    --            Default for all modules. Meryton and I Am a Cat use this.
+    -- 'define' = engine presents the self-definition entrance at a designated
+    --            starting location. Player describes themselves; declared items
+    --            are instantiated. Seeded starting items are revealed via the
+    --            engine's confirmation pass.
+    -- 'choose' = player selects from pre-defined player_option characters (§11).
+    player_definition_mode TEXT NOT NULL DEFAULT 'fixed'
+        CHECK(player_definition_mode IN ('fixed', 'define', 'choose')),
 
     created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
 );
@@ -185,8 +196,15 @@ CREATE TABLE character (
     -- 'player'         = the character the human is currently playing
     -- 'npc_active'     = named NPC with a full psychological record
     -- 'npc_background' = minor or unnamed character; minimal record
+    -- 'npc_object'     = non-character agent; participates through physical
+    --                    action only (e.g. the Blue Door). OCEAN traits and
+    --                    social mechanics do not apply; speech_filter should
+    --                    be set to 'silent' or 'unintelligible'.
+    -- 'player_option'  = pre-defined character available for player selection
+    --                    when player_definition_mode='choose' (§11, future).
     role        TEXT    NOT NULL
-        CHECK(role IN ('player', 'npc_active', 'npc_background')),
+        CHECK(role IN ('player', 'npc_active', 'npc_background',
+                       'npc_object', 'player_option')),
 
     -- Species matters for adjudication (feline vs. human comprehension,
     -- physical capability, etc.) and for the speech filter in Pass 3.
@@ -405,6 +423,25 @@ CREATE TABLE character (
     -- 0 = engine may auto-clear when a high-confidence duration expires.
     activity_renewable INT NOT NULL DEFAULT 0
         CHECK(activity_renewable IN (0, 1)),
+
+    -- -------------------------------------------------------------------------
+    -- Speech filter (added v9)
+    -- Per-character constraint on how this character's dialogue is rendered
+    -- by Pass 3. NULL = no filter (default for most characters).
+    -- Game-level speech_filter on the game table handles module-wide constraints.
+    -- This field is for character-level overrides — typically for NPCs who
+    -- cannot speak, speak unintelligibly, or have a distinctive voice register
+    -- that is unlocked by a specific in-game condition.
+    --
+    -- The value is a natural-language instruction passed directly to Pass 3.
+    -- Examples:
+    --   'silent: this entity cannot speak; describe only physical actions'
+    --   'unintelligible: render all communication as non-verbal (purrs, chirps,
+    --    gestures, wing movements); no interpretable language'
+    --   'cheshire: speak in elliptical gnomic fragments; never answer directly;
+    --    observations seem to come from just slightly outside the conversation'
+    -- -------------------------------------------------------------------------
+    speech_filter TEXT DEFAULT NULL,
 
     created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
     updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
@@ -705,12 +742,19 @@ CREATE INDEX idx_game_instance_game ON game_instance(game_id);
 
 
 -- =============================================================================
--- ITEM
+-- ITEM (v9: merged original design with character_item slot system)
 -- Objects in the world that characters can interact with.
 -- Items carry natural language names and descriptions; the LLM infers relevant
 -- properties (container, toy, food, improvised weapon, percussion instrument)
 -- from context at adjudication time. No boolean taxonomy flags are stored —
 -- this is one of the fundamental architectural shifts LLM adjudication enables.
+--
+-- Items exist either at a location (current_location_id set) or held by a
+-- character (a row in character_item). The same instantiation mechanism covers:
+--   - Seeded items: present before play begins
+--   - Player self-definition items: declared during the entrance step
+--   - Mid-play lazy items: Pass 2 creates via 'item_instantiations' in outcome
+--     JSON when the player claims an item ("I have a book in my pack")
 -- =============================================================================
 
 CREATE TABLE item (
@@ -720,19 +764,19 @@ CREATE TABLE item (
     -- Natural language name and description. The description IS the item's
     -- property definition. The LLM determines what role the item plays based
     -- on what the player is attempting and the item's described properties.
+    -- description is nullable for player-claimed items not yet fully described.
     name                    TEXT    NOT NULL,
-    description             TEXT    NOT NULL,
+    description             TEXT,
 
-    -- Current location. Null if the item is being held by a character.
-    location_id             INTEGER REFERENCES location(id),
-
-    -- Character currently holding this item. Null if the item is in a location.
-    held_by_character_id    INTEGER REFERENCES character(id),
+    -- Current location. NULL if the item is held by a character (character_item).
+    -- An item should have EITHER current_location_id OR a character_item row,
+    -- not both. Enforced at the application layer.
+    current_location_id     INTEGER REFERENCES location(id),
 
     -- Tool/material quality: 0.0 (poor) to 1.0 (exceptional).
     -- Raises the execution ceiling for creative actions without raising the
     -- underlying skill float. Poor tools constrain even high skill.
-    -- Null means quality is not applicable or not yet determined.
+    -- NULL means quality is not applicable or not yet determined.
     quality                 REAL    CHECK(quality IS NULL OR quality BETWEEN 0.0 AND 1.0),
 
     -- Whether this item is currently visible and accessible in its location.
@@ -740,7 +784,20 @@ CREATE TABLE item (
     is_visible              INTEGER NOT NULL DEFAULT 1
         CHECK(is_visible IN (0, 1)),
 
-    created_at              TEXT    NOT NULL DEFAULT (datetime('now'))
+    -- Arbitrary module-specific properties as a JSON object. The LLM reasons
+    -- about item behaviour from description + properties; no boolean flags needed.
+    -- Examples: {"weight": "light", "container": true, "capacity": "small"}
+    --           {"material": "silk", "condition": "well-mended", "readable": true}
+    properties              TEXT NOT NULL DEFAULT '{}',
+
+    -- Whether this item has been confirmed as real by Pass 2, or is a player
+    -- claim awaiting adjudication. 1 = confirmed (default for seeded items and
+    -- adjudicated items); 0 = claimed but not yet confirmed.
+    is_confirmed            INTEGER NOT NULL DEFAULT 1
+        CHECK(is_confirmed IN (0, 1)),
+
+    created_at              TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at              TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
 
@@ -775,6 +832,43 @@ CREATE TABLE npc_player_history (
     updated_at                  TEXT    NOT NULL DEFAULT (datetime('now')),
 
     UNIQUE(character_a_id, character_b_id)
+);
+
+
+-- =============================================================================
+-- CHARACTER_ITEM (added v9)
+-- Join table: items held or worn by a character.
+-- =============================================================================
+
+CREATE TABLE character_item (
+    id              INTEGER PRIMARY KEY,
+    character_id    INTEGER NOT NULL REFERENCES character(id),
+    item_id         INTEGER NOT NULL REFERENCES item(id),
+
+    -- How the character is carrying or wearing this item.
+    -- Slot vocabulary follows the §3a design (session 14) with in_pack added:
+    --   'right_hand' = held in right hand (humans, humanoids)
+    --   'left_hand'  = held in left hand (humans, humanoids)
+    --   'both_hands' = held in both hands (two-handed items: lantern, large pack)
+    --   'mouth'      = held in mouth (cats, dogs; replaces hand slots for species)
+    --   'worn'       = on the body; visible to others (coat, shawl, hat, holster)
+    --   'pocket'     = in a pocket; not immediately visible
+    --   'in_pack'    = inside a bag or container carried by this character
+    --   'carried'    = general; use when slot specificity is not narratively important
+    -- Species capacity is enforced at the application layer, not by schema constraint:
+    -- humans have two hand slots; cats have one mouth slot; etc.
+    slot            TEXT NOT NULL DEFAULT 'carried'
+        CHECK(slot IN ('right_hand', 'left_hand', 'both_hands', 'mouth',
+                       'worn', 'pocket', 'in_pack', 'carried')),
+
+    -- Game clock minute when the character acquired this item.
+    -- NULL for seeded items (present at game start before the clock runs).
+    acquired_at_minutes INTEGER DEFAULT NULL,
+
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+
+    -- Each item can be held by only one character at a time.
+    UNIQUE(item_id)
 );
 
 
@@ -817,8 +911,8 @@ CREATE INDEX idx_character_game     ON character(game_id);
 CREATE INDEX idx_character_location ON character(current_location_id);
 CREATE INDEX idx_location_game      ON location(game_id);
 CREATE INDEX idx_location_detail_valid ON location_detail(location_id, is_valid);
-CREATE INDEX idx_item_location      ON item(location_id);
-CREATE INDEX idx_item_holder        ON item(held_by_character_id);
+CREATE INDEX idx_item_location      ON item(current_location_id);
+CREATE INDEX idx_character_item     ON character_item(character_id);
 CREATE INDEX idx_action_log_recent  ON action_log(game_id, created_at DESC);
 CREATE INDEX idx_character_goal     ON character_goal(character_id);
 CREATE INDEX idx_character_attitude ON character_attitude(character_id, target_id);
@@ -1008,3 +1102,6 @@ VALUES (7, 'Fresh install at v7: faction, character_faction_reputation, passage_
 
 INSERT INTO schema_version (version, description)
 VALUES (8, 'Fresh install at v8: timed activity system on character (current_activity, activity_started_at, activity_estimated_duration, activity_duration_confidence, activity_renewable)');
+
+INSERT INTO schema_version (version, description)
+VALUES (9, 'Fresh install at v9: player_definition_mode on game; speech_filter on character; npc_object and player_option role values; item and character_item tables');

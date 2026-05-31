@@ -17,13 +17,14 @@
 --   - character_faction_reputation: all reputation values and notes
 --   - character_visited_location: trimmed to seeded set
 --   - location_detail: lazily generated details removed; seeded detail restored
+--   - item and character_item: non-seeded items removed; sencha canister restored
 --   - action_log: cleared entirely
 --
 -- What this does NOT touch (stable world data):
 --   - game record
 --   - location records and location_connection records
 --   - character OCEAN traits, goals, skills, pronouns, descriptions,
---     voice parameters, wander_range, wander_probability
+--     voice parameters, wander_range, wander_probability, speech_filter
 --   - faction records
 --
 -- Usage:
@@ -50,7 +51,7 @@ WHERE id = 1 AND game_id = 1;
 
 -- The Traveller (id=1)
 UPDATE character
-SET current_location_id          = 1,      -- Common Room
+SET current_location_id          = 6,      -- Outside the Hostel Door
     emotional_state              = 'curious',
     maslow_tier                  = 'belonging',
     pending_intent               = NULL,
@@ -132,6 +133,21 @@ SET current_location_id          = 1,      -- Common Room
     updated_at                   = datetime('now')
 WHERE id = 6;
 
+-- The Blue Door (id=7)
+-- speech_filter is stable (not reset); only pending_intent and location are mutable.
+UPDATE character
+SET current_location_id          = 6,      -- Outside the Hostel Door
+    emotional_state              = 'welcoming',
+    maslow_tier                  = 'belonging',
+    pending_intent               = 'welcome the arriving traveller; allow the warmth, light, and scent of the hostel to drift through the glass; open invitingly when the traveller steps forward to enter',
+    current_activity             = NULL,
+    activity_started_at          = NULL,
+    activity_estimated_duration  = NULL,
+    activity_duration_confidence = NULL,
+    activity_renewable           = 0,
+    updated_at                   = datetime('now')
+WHERE id = 7;
+
 
 -- =============================================================================
 -- INTERNAL STATES: reset values to starting levels
@@ -156,8 +172,8 @@ WHERE character_id = 6 AND state_name = 'sleepiness';
 -- =============================================================================
 
 DELETE FROM character_attitude
-WHERE character_id IN (1, 2, 3, 4, 5, 6)
-   OR target_id    IN (1, 2, 3, 4, 5, 6);
+WHERE character_id IN (1, 2, 3, 4, 5, 6, 7)
+   OR target_id    IN (1, 2, 3, 4, 5, 6, 7);
 
 -- Attitudes toward The Traveller
 INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
@@ -184,7 +200,7 @@ VALUES
 -- =============================================================================
 
 DELETE FROM character_faction_reputation
-WHERE character_id IN (1, 2, 3, 4, 5, 6);
+WHERE character_id IN (1, 2, 3, 4, 5, 6, 7);
 
 INSERT INTO character_faction_reputation (character_id, faction_id, reputation, notes)
 VALUES
@@ -199,24 +215,25 @@ VALUES
 -- =============================================================================
 
 DELETE FROM character_visited_location
-WHERE character_id IN (1, 2, 3, 4, 5, 6);
+WHERE character_id IN (1, 2, 3, 4, 5, 6, 7);
 
 INSERT INTO character_visited_location (character_id, location_id)
 VALUES
-    (1, 1),
+    (1, 6),             -- Traveller: Outside only (has not yet entered the hostel)
     (2, 1), (2, 2),
     (3, 1), (3, 2), (3, 3),
     (4, 3), (4, 4),
     (5, 3),
-    (6, 1);
+    (6, 1),
+    (7, 6);             -- Blue Door: permanently stationed Outside
 
 
 -- =============================================================================
 -- LOCATION DETAILS: remove lazily generated details; restore seeded detail
 -- =============================================================================
 
--- Remove any details generated during play for locations 2-5
-DELETE FROM location_detail WHERE location_id IN (2, 3, 4, 5);
+-- Remove any details generated during play for locations 2-6
+DELETE FROM location_detail WHERE location_id IN (2, 3, 4, 5, 6);
 
 -- Restore the pre-seeded Common Room detail if it was invalidated or removed
 DELETE FROM location_detail WHERE location_id = 1;
@@ -228,6 +245,27 @@ VALUES (
     1,
     'fire goes out or is significantly altered'
 );
+
+
+-- =============================================================================
+-- ITEMS AND CHARACTER INVENTORY: restore seeded starting state
+-- Remove all items for this game, then re-seed the sencha canister.
+-- Player-claimed items from a prior session are discarded on reset.
+-- =============================================================================
+
+DELETE FROM character_item
+WHERE item_id IN (SELECT id FROM item WHERE game_id = 1);
+
+DELETE FROM item WHERE game_id = 1;
+
+-- Re-seed the sencha canister in The Traveller's pack
+INSERT INTO item (game_id, name, description, properties)
+VALUES (1, 'sencha canister',
+    'A battered tin canister, half-full of fine Japanese green tea. The lid is engraved with a small crane. A parting gift from someone who loved you.',
+    '{"weight": "light", "container": true, "capacity": "small"}');
+
+INSERT INTO character_item (character_id, item_id, slot)
+VALUES (1, last_insert_rowid(), 'in_pack');
 
 
 -- =============================================================================

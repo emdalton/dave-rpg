@@ -69,7 +69,8 @@ PRAGMA foreign_keys = ON;
 
 INSERT INTO game (
     id, name, genre, tone, era, technology_level, magic_system,
-    narrative_register, speech_filter, internal_state_display, cultural_norms
+    narrative_register, speech_filter, internal_state_display, cultural_norms,
+    player_definition_mode
 ) VALUES (
     1,
     'The Hidden Hostel',
@@ -79,14 +80,15 @@ INSERT INTO game (
     NULL,   -- no consistent technology level across worlds
     'The hostel exists in a liminal space between worlds. Guests from impossible origins, minor uncanny events, and the occasional impossible architecture are unremarkable here. No rules of physics or chronology are guaranteed within these walls — but the fire in the Common Room always burns, and Marta''s meals are always ready.',
     'second_person',
-    '{}',   -- no game-level speech filter; character-level filter for Gin-chan pending schema v9
+    '{}',   -- no game-level speech filter; character-level filters on Gin-chan and The Blue Door
     '{"curiosity": "prose", "fatigue": "prose", "sleepiness": "prose", "hunger": "prose"}',
     '{
         "hospitality": "The hostel is neutral ground. Violence or threats against other guests are grounds for immediate expulsion. Marta enforces this without exception and without appeal.",
         "the_locked_room": "Room B at the end of the upper corridor has been locked for as long as anyone can remember. Marta will not discuss it. Attempting to force entry is considered a serious transgression against the hostel.",
         "gin_chan": "Gin-chan is a resident of the hostel, not a pet. Treating them as such is considered rude. Gin-chan communicates in their own way and is understood by those who pay attention.",
         "payment": "No currency is accepted or required. Guests offer what they can — a story, a skill, a piece of knowledge from their world. The manner of contribution is between each guest and the hostel."
-    }'
+    }',
+    'define'   -- player describes themselves at the Outside location before entering
 );
 
 
@@ -99,8 +101,22 @@ INSERT INTO game (
 INSERT INTO location (id, game_id, name, location_type, description_skeleton,
                       social_setting, witness_count, situation_flags)
 VALUES (
+    -- Location 6: Outside the Hostel Door. The player starts here when
+    -- player_definition_mode='define'. Self-definition happens at this location
+    -- before the player enters. The Blue Door (character 7) is also here.
+    6, 1, 'Outside the Hostel Door', 'exterior',
+    'Stone steps rise to an arched doorway. The door is painted a deep, welcoming blue; glass panels surround a central diamond of mirror that catches your reflection as you approach. Behind you, unformed mist obscures any memory of how you came to be standing here. Through the glass, warm light and the faint smell of woodsmoke promise shelter within.',
+    'public', 0,
+    '["evening", "liminal", "arrival"]'
+);
+
+INSERT INTO location (id, game_id, name, location_type, description_skeleton,
+                      social_setting, witness_count, situation_flags)
+VALUES (
+    -- The door closing behind the player now belongs to the Outside-to-Common-Room
+    -- transition, not to the Common Room description itself.
     1, 1, 'Common Room', 'common_room',
-    'The door swings shut behind you with a soft, definite click. The room is wide and low-ceilinged, warmer than outside by several degrees. A fire burns in the central hearth — steadily, as though it has never not been burning. Mismatched chairs are arranged around it: carved oak, cushioned velvet, something that was once a throne. A staircase rises along one wall toward the upper floor; a door on the far side leads to the kitchen, where something warm is cooking.',
+    'A wide, low-ceilinged room, warmer than outside by several degrees. A fire burns in the central hearth — steadily, as though it has never not been burning. Mismatched chairs are arranged around it: carved oak, cushioned velvet, something that was once a throne. A staircase rises along one wall toward the upper floor; a door on the far side leads to the kitchen, where something warm is cooking.',
     'public', 3,
     '["evening", "fire_lit", "guests_present"]'
 );
@@ -160,6 +176,10 @@ VALUES (
 INSERT INTO location_connection (location_a_id, location_b_id, connection_type,
                                   is_passable, passage_note)
 VALUES
+    -- Outside ↔ Common Room: the blue door. Two-way; no one-way doors yet.
+    -- location_a_id=1 < location_b_id=6 per schema convention.
+    (1, 6, 'door', 1, NULL),
+
     -- Common Room ↔ Kitchen: standard door, both directions passable.
     (1, 2, 'door', 1, NULL),
 
@@ -200,12 +220,15 @@ VALUES (1, 1, 'ready', 1200, 1200);
 --   4 = The Scholar
 --   5 = The Old Soldier
 --   6 = Gin-chan
+--   7 = The Blue Door (npc_object; location 6)
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
 -- Character 1: The Traveller (player character)
--- Newly arrived. Female. No OCEAN profile seeded — the player defines
--- their character through play. No wander parameters; players never wander.
+-- Starts outside (location 6) for the self-definition entrance step.
+-- gender, pronouns, and description are placeholders — the engine overwrites
+-- them during the 'define' flow when the player describes themselves.
+-- No OCEAN profile seeded; no wander parameters; players never wander.
 -- ---------------------------------------------------------------------------
 INSERT INTO character (
     id, game_id, name, role, species, gender, pronouns,
@@ -216,11 +239,11 @@ INSERT INTO character (
     voice_register, voice_warmth, voice_verbosity,
     wander_range, wander_probability
 ) VALUES (
-    1, 1, 'The Traveller', 'player', 'human', 'female',
-    '[{"case":"nominative","form":"she"},{"case":"accusative","form":"her"},{"case":"genitive","form":"her"}]',
-    'A traveller of uncertain origin, recently arrived. Carries little; observes much.',
+    1, 1, 'The Traveller', 'player', 'human', NULL,
+    NULL,
+    NULL,   -- filled in by the self-definition flow at game start
     'guest',
-    1,  -- Common Room
+    6,  -- Outside the Hostel Door
     'belonging',
     'curious',
     '{}',
@@ -447,11 +470,49 @@ INSERT INTO character (
     '{"locating_warmth": 0.98, "silent_observation": 0.90, "going_unnoticed_when_desired": 0.85, "flying": 0.75}',
     '{"fire_reliability": 0.96, "guest_predictability": 0.38, "hostel_safety": 0.90}',
     'Occupying the warmest spot. Watching everything. Periodically communicating something in their own register.',
-    -- voice_register='cat' is the interim signal to Pass 3 to render Gin-chan''s
-    -- speech as meow variants until character-level speech_filter is implemented.
+    -- speech_filter now set at character level (schema v9).
     'cat', 0.60, 0.35,
     '[1, 2]',   -- Common Room + Kitchen
     0.50        -- suppressed by sleepiness (0.72 ≥ WANDER_SLEEPINESS_THRESHOLD 0.60)
+);
+
+UPDATE character SET speech_filter =
+    'unintelligible: render all of Gin-chan''s communication as non-verbal — purrs, chirps, slow blinks, wing adjustments, tail position. No interpretable language. Those who pay close attention may sense meaning but cannot be certain.'
+WHERE id = 6;
+
+
+-- ---------------------------------------------------------------------------
+-- Character 7: The Blue Door (npc_object)
+-- A non-character agent at the Outside location. Cannot speak; communicates
+-- only through physical action (opening wider, closing, admitting scents and
+-- sounds from within). Pending intent: welcome the arriving traveller.
+-- role='npc_object' — OCEAN traits and social mechanics do not apply.
+-- speech_filter='silent' — Pass 3 must never give this entity dialogue.
+-- wander_probability=0.0 — doors do not wander.
+-- ---------------------------------------------------------------------------
+INSERT INTO character (
+    id, game_id, name, role, species,
+    description, current_location_id,
+    maslow_tier, emotional_state,
+    capability_beliefs, context_beliefs,
+    surface_motivation,
+    voice_register, voice_warmth, voice_verbosity,
+    wander_range, wander_probability,
+    pending_intent,
+    speech_filter
+) VALUES (
+    7, 1, 'The Blue Door', 'npc_object', 'object',
+    'A sturdy wooden door painted a deep, welcoming blue. Glass panels flank a central diamond of mirror. Light and warmth filter through from within. The brass handle is worn smooth from many hands.',
+    6,  -- Outside the Hostel Door
+    'belonging',    -- default; not behaviorally meaningful for an object
+    'welcoming',
+    '{"opening": 1.0, "admitting_warmth_and_scent": 1.0, "closing_gently": 1.0}',
+    '{"traveller_readiness": 0.80}',
+    'Welcome arriving travellers; open when they are ready to enter.',
+    'silent', 0.80, 0.0,    -- warmth=0.80 conveys hospitality through physical presence
+    NULL, 0.0,
+    'welcome the arriving traveller; allow the warmth, light, and scent of the hostel to drift through the glass; open invitingly when the traveller steps forward to enter',
+    'silent: this entity cannot speak or make sounds; describe only physical actions — opening, closing, admitting warmth and scent, the quality of light through glass panels'
 );
 
 
@@ -622,8 +683,8 @@ VALUES (
 
 INSERT INTO character_visited_location (character_id, location_id)
 VALUES
-    -- The Traveller: Common Room only
-    (1, 1),
+    -- The Traveller: Outside only (has not yet entered the hostel)
+    (1, 6),
     -- Marta: Common Room + Kitchen
     (2, 1),
     (2, 2),
@@ -638,3 +699,20 @@ VALUES
     (5, 3),
     -- Gin-chan: Common Room (has not moved from the fire today)
     (6, 1);
+
+
+-- =============================================================================
+-- ITEMS AND CHARACTER INVENTORY
+-- =============================================================================
+
+-- The sencha canister: seeded starting item always in The Traveller's pack.
+-- Revealed to the player via the engine's self-definition confirmation pass —
+-- whether or not the player declares it, it is there. Can be offered to others
+-- (e.g. shared tea with Gin-chan or Marta).
+INSERT INTO item (game_id, name, description, properties)
+VALUES (1, 'sencha canister',
+    'A battered tin canister, half-full of fine Japanese green tea. The lid is engraved with a small crane. A parting gift from someone who loved you.',
+    '{"weight": "light", "container": true, "capacity": "small"}');
+
+INSERT INTO character_item (character_id, item_id, slot)
+VALUES (1, last_insert_rowid(), 'in_pack');
