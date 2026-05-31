@@ -1,7 +1,7 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-05-31, session 20 (open).*
+*Last updated: 2026-05-31, session 20 (closed).*
 
 ---
 
@@ -27,16 +27,20 @@
     - Items reset section: DELETE all game_id=1 items + character_item, then re-INSERT sencha canister + character_item row
   - Both seed and reset verified against clean build in Python sqlite3 (sandbox lacks sqlite3 CLI binary)
 
+- **Engine item system + player self-definition support (v9 engine):**
+  - `engine/db.py`: fixed two stale pre-v9 item query methods (`get_items_at_location` used wrong column `location_id`; `get_items_held_by` used removed column `held_by_character_id`). Replaced both with v9-correct implementations. Added: `get_character_inventory` (joins through `character_item`), `create_item`, `transfer_item_to_character`, `transfer_item_to_location`, `update_player_character`.
+  - `engine/context.py`: player inventory now included in Pass 2 packet (`player.inventory`). `speech_filter` now included in all character profiles (Blue Door's `'silent: ...'` and Gin-chan's `'unintelligible: ...'` reach Pass 2). Location item summary updated to v9 fields (`properties`, `is_confirmed`; removed stale `quality`, `held_by_character_id`).
+  - `engine/engine.py`: `item_changes` allowed-field list updated to v9 columns. Two new outcome handlers: `item_instantiations` (creates item + places in inventory or at location; includes duplicate guard) and `player_character_update` (writes description/gender/pronouns to player character record). Both handlers added to Pass 2 prompt with full instructions. The default mirror text for undefined players ("The image in the mirror is vague and undefined. Perhaps the mirror needs to be cleaned.") is in the Pass 2 prompt instruction — the LLM supplies it; the engine just applies whatever it gets.
+  - Design decision: `player_definition_mode` field is retained in the schema as documentation metadata (module authors signal intent), but the engine does not branch on it. The narrative elements (mirror in the door, opening scene) do the work; the normal turn loop handles player self-description via `player_character_update`.
+  - All changes verified: imports clean, inventory query returns sencha canister, context packet contains inventory and Blue Door speech_filter, character update writes correctly.
+
 **Pending from this session (carried forward):**
 
-- Rebuild hidden_hostel.db from terminal (`rm` + `sqlite3` fresh build)
-- Engine changes for `player_definition_mode='define'` flow:
-  - Add items to Pass 2 context packet (item at location + character inventory)
-  - `item_instantiations` as a Pass 2 outcome field + db.py methods
-  - Outside-location mirror prompt, self-description parse, engine confirmation in 2nd person
+- Rebuild `hidden_hostel.db` from terminal (`rm` old db + `sqlite3` fresh build from schema + seed)
 - Add `"format": "json"` to Ollama Pass 1 and Pass 2 payloads in `engine/llm/ollama.py`
 - Verbal tic review: scan Haiku transcript for `[verb] with the air/manner of someone who` pattern
-- Test coverage for new v9 seed elements (Blue Door, sencha canister, location 6)
+- Test coverage for v9 seed elements (Blue Door npc_object role, sencha canister inventory, location 6, player_character_update outcome handler)
+- Playtest the self-definition entrance once hidden_hostel.db is rebuilt
 
 ---
 
