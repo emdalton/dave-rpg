@@ -31,6 +31,28 @@
   - New `internal_state` row: The Traveller `hunger = 0.65` (high from travel, drifts up slowly)
   - `reset_instance.sql` updated to match: Wanderer's intent and hunger reset included
 
+- **NPC wander narration:** When an NPC wanders into or out of the player's current
+  location, the move is currently silent — Pass 3 just sees the NPC already in the new
+  position. The Wanderer appeared in the Kitchen on turn 2 with no narrated departure
+  from the Common Room. The fix design is already captured in lower-priority notes
+  (session 14): pass a `newly_arrived_npcs` list in the Pass 2 context packet.
+  This should also cover the Elizabeth Bennet assembly-arrival case. No schema change needed.
+
+- **Item system — motivating use cases from Hidden Hostel playtest:**
+  The session demonstrated two distinct item scenarios that lazy ambient instantiation
+  cannot cover:
+  1. **Known item at game start**: The player arrives carrying a specific object from
+     their world (a tin of fine tea, a teacup). This requires an `item` record and
+     `character_item` join row seeded at game start. The object persists across turns
+     and can be given, lost, or used.
+  2. **Player-driven lazy instantiation**: The teapot, linden flower jar, mismatched
+     teacups, and painted tray were conjured by the player's descriptions and rendered
+     faithfully — but exist only in prose. A cup the player wants to *give* Marta as a
+     gift requires a real item record to persist and be referenced in future turns.
+  These two cases should be implemented and tested separately. The Hidden Hostel is the
+  right test module for both (neutral setting, no faction complexity, gift-giving and
+  collecting fit the iyashikei tone).
+
 **Pending from this session (carried forward):**
 
 - Rebuild hidden_hostel.db from terminal (`rm` blocked in sandbox) and run a play session
