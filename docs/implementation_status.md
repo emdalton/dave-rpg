@@ -31,6 +31,30 @@
   - New `internal_state` row: The Traveller `hunger = 0.65` (high from travel, drifts up slowly)
   - `reset_instance.sql` updated to match: Wanderer's intent and hunger reset included
 
+- **Playtest validation — emergent attitude and faction outcomes (2026-05-30):**
+  A 15-turn Hidden Hostel session (Haiku backend) produced the following end state,
+  entirely from adjudication with no hand-coded special cases:
+
+  | Character | Start | End | Driver |
+  |-----------|-------|-----|--------|
+  | The Wanderer | 0.65 | 0.96 | Warmth + acknowledging his travel experience |
+  | Gin-chan | 0.50 | 0.87 | Offering tea as a peer, not a pet |
+  | Marta | 0.35 | 0.73 | Helping chop vegetables; quiet, respectful presence |
+  | The Scholar | 0.60 | 0.60 | No contact |
+  | The Old Soldier | −0.30 | −0.30 | No contact |
+
+  Faction standing (`hosts_of_the_hostel`): 0.40 → 0.97.
+  Pass 2 notes: *"Respectful gesture of hospitality toward a hostel resident; tea as shared comfort."*
+
+  Key observations: Marta's shift (wary → warm) came from OCEAN + goals responding to
+  collaborative work, with no explicit instruction to reward kitchen help. Faction standing
+  jumped on the Gin-chan tea offer, correctly identifying it as the hostel-etiquette moment
+  the faction description singles out. The Old Soldier's suspicion was correctly stable — no
+  contact, no change. Documented in README as a canonical example of intended engine behavior.
+
+  Also noted: `outcome_type` is NULL in all `action_log` rows — it is not being stored in
+  `action_json` by Pass 2. Minor gap; add to action_json storage if needed for analytics.
+
 - **NPC wander narration:** When an NPC wanders into or out of the player's current
   location, the move is currently silent — Pass 3 just sees the NPC already in the new
   position. The Wanderer appeared in the Kitchen on turn 2 with no narrated departure

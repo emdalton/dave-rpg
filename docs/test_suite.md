@@ -270,3 +270,37 @@ Activity expiry reference: Marta's activity expires at clock 1230 (started 1140 
 **When a new engine feature needs Tier 1 coverage:** add the corresponding scenario to the Hidden Hostel seed (`modules/hidden_hostel/seed.sql`) and a test class in `test_hidden_hostel.py`. If the feature involves a new wander suppression condition or a new context packet field, also add a test in `test_engine.py` or `test_context.py` using the minimal world. Update `docs/module_authoring.md` if the feature introduces new seed conventions.
 
 **Known gotcha — `get_or_create_faction` parameter name:** the method signature is `get_or_create_faction(game_id, name, description="")`. The parameter is `name`, not `faction_name`. Pass it as a keyword argument to avoid confusion.
+
+---
+
+## Validated behavior to protect with future Tier 2/3 tests
+
+The following outcomes were observed in a 15-turn Hidden Hostel playtest (Haiku backend,
+2026-05-30) and represent intended engine behavior that regression tests should protect.
+These are not currently covered by automated tests — they require real LLM calls (Tier 2
+or Tier 3). When Tier 2 attitude and faction tests are added, use these as ground-truth
+reference points.
+
+**Attitude accumulation from sustained positive interaction:**
+Marta started at 0.35 (wary toward a new guest). After the player helped chop vegetables,
+worked quietly alongside her, and asked permission before using kitchen supplies, her
+attitude reached 0.73. No single action caused the shift; it accumulated across multiple
+turns from consistent, respectful behavior. A regression test should verify that a
+sequence of low-intensity positive interactions with a low-starting-attitude NPC produces
+meaningful cumulative attitude gain — not just that a single generous action does.
+
+**Faction standing from category-correct behavior:**
+Offering tea to Gin-chan with genuine courtesy (treating them as a peer) moved the
+player's `hosts_of_the_hostel` standing from 0.40 to 0.97. Helping Marta in the kitchen
+— which was the more salient social event from a narrative standpoint — did not change
+faction standing, because the faction description ties standing to how guests treat the
+hostel's permanent residents and rules, not to whether they are useful to Marta
+personally. Pass 2 correctly distinguished these. A regression test should verify that
+the faction-relevant action (deferring to a resident) earns standing and that
+an adjacent but faction-irrelevant action (helping with work) does not.
+
+**NPC-specific isolation:**
+The Scholar and the Old Soldier had no contact with the player. Their attitudes were
+unchanged at the end of the session (0.60 and −0.30 respectively). A regression test
+should verify that NPCs with no scene presence have stable attitude and state values
+across a multi-turn session.

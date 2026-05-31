@@ -137,6 +137,41 @@ dave-rpg/
 
 ---
 
+## The engine working as intended
+
+From a Hidden Hostel playtest session (Claude Haiku backend, 2026-05-30):
+
+The player arrived as a hungry traveller, was greeted by the Wanderer (who introduced
+Gin-chan as a resident, not a pet, and suggested asking Marta for food), then spent
+the session in the kitchen helping Marta with the evening meal and eventually making
+linden flower tea, which they brought to the common room and offered to Gin-chan with
+genuine courtesy.
+
+The end-of-session attitude and reputation values tell the story:
+
+| Character | Attitude toward player | Starting value |
+|-----------|----------------------|----------------|
+| The Wanderer | 0.96 | 0.65 |
+| Gin-chan | 0.87 | 0.50 |
+| Marta | 0.73 | 0.35 |
+| The Scholar | 0.60 | 0.60 (unchanged — no contact) |
+| The Old Soldier | −0.30 | −0.30 (unchanged — no contact) |
+
+Faction standing with `hosts_of_the_hostel`: **0.97** (from 0.40), with the note:
+*"Respectful gesture of hospitality toward a hostel resident; tea as shared comfort."*
+
+Nothing about this outcome was hand-coded. Marta's attitude shift from wary (0.35) to warm
+(0.73) came from her OCEAN profile (high conscientiousness), her goals (esteem,
+resource acquisition), and accumulated positive interactions — helping chop vegetables,
+working quietly alongside her, asking permission before using the kitchen supplies.
+The faction standing jump came from recognising Gin-chan as a resident and offering tea
+as an equal — exactly the behaviour the hostel's rules single out as mattering.
+
+The Old Soldier's suspicion of strangers persisted unchanged, as it should: the player
+never encountered them.
+
+---
+
 ## Local LLM
 
 The engine targets local inference for privacy, offline capability, and cost. All data remains on-device.
