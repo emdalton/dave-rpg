@@ -135,7 +135,7 @@ UPDATE character SET current_location_id = 4, emotional_state = 'pleasant',
     pending_intent = 'wants to dance; will seek a partner when a new set forms'
     WHERE id = 17;
 
--- Thomas Philips: ballroom; will seek a partner when a new set forms
+-- Thomas Phillips: ballroom; will seek a partner when a new set forms
 UPDATE character SET current_location_id = 4, emotional_state = 'dutiful',
     pending_intent = 'wants to dance; will seek a partner when a new set forms'
     WHERE id = 18;
@@ -218,7 +218,7 @@ INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type
 INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type) VALUES (1, 15, 0.12, 'surface');
 -- Elizabeth → Edward Long: neighborhood acquaintance
 INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type) VALUES (1, 17, 0.10, 'surface');
--- Elizabeth → Thomas Philips: first cousin; familiar, slightly obligatory warmth
+-- Elizabeth → Thomas Phillips: first cousin; familiar, slightly obligatory warmth
 INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type) VALUES (1, 18, 0.18, 'surface');
 -- Elizabeth → William Goulding: neighborhood acquaintance
 INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type) VALUES (1, 19, 0.12, 'surface');
@@ -275,7 +275,7 @@ INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type
 INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type) VALUES (16, 14, 0.72,'surface');
 -- Edward Long → Elizabeth
 INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type) VALUES (17, 1, 0.15, 'surface');
--- Thomas Philips → Elizabeth
+-- Thomas Phillips → Elizabeth
 INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type) VALUES (18, 1, 0.22, 'surface');
 -- William Goulding → Elizabeth
 INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type) VALUES (19, 1, 0.15, 'surface');
@@ -324,9 +324,9 @@ VALUES (16, 2, 0.62, 'Well-regarded; son of the most prominent local family.');
 INSERT INTO character_faction_reputation (character_id, faction_id, reputation, notes)
 VALUES (17, 2, 0.52, 'Ordinary neighborhood standing; known through Mrs. Long.');
 
--- Thomas Philips
+-- Thomas Phillips
 INSERT INTO character_faction_reputation (character_id, faction_id, reputation, notes)
-VALUES (18, 2, 0.55, 'Unremarkable neighborhood standing; known through the Philips connection.');
+VALUES (18, 2, 0.55, 'Unremarkable neighborhood standing; known through the Phillips connection.');
 
 -- William Goulding
 INSERT INTO character_faction_reputation (character_id, faction_id, reputation, notes)

@@ -48,7 +48,7 @@ BEGIN TRANSACTION;
 -- ---------------------------------------------------------------------------
 
 -- Natural language description of what the character is currently doing.
--- Examples: 'dancing with Thomas Philips', 'greeting arrivals at the top
+-- Examples: 'dancing with Thomas Phillips', 'greeting arrivals at the top
 -- of the stairs', 'playing cards in the card room'. NULL = no activity.
 ALTER TABLE character ADD COLUMN current_activity TEXT DEFAULT NULL;
 

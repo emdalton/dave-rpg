@@ -43,6 +43,10 @@
 - Hidden Hostel: Gin-chan potion mechanic (future; requires items + player state)
 - Hidden Hostel: The Old Soldier changed to female (seed.sql updated; reset_instance.sql
   not affected as gender/pronouns are stable data)
+- Ollama `format: json` parameter: add `"format": "json"` to the `/api/generate` payload
+  in `engine/llm/ollama.py`. Currently omitted; Mistral may wrap JSON in markdown fences,
+  which `call_json()` strips — but explicit format enforcement is more robust and should
+  be conditional on pass type (Pass 1 and Pass 2 only; Pass 3 is prose).
 
 ---
 

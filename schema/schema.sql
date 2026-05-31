@@ -380,7 +380,7 @@ CREATE TABLE character (
     -- -------------------------------------------------------------------------
 
     -- Natural language description of the current activity. NULL = no tracked
-    -- activity. Examples: 'dancing with Thomas Philips', 'greeting arrivals
+    -- activity. Examples: 'dancing with Thomas Phillips', 'greeting arrivals
     -- at the top of the stairs', 'playing cards in the card room'.
     current_activity TEXT DEFAULT NULL,
 

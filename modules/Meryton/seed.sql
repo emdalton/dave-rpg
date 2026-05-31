@@ -276,7 +276,7 @@ INSERT INTO faction (id, game_id, name, description) VALUES (
 
 INSERT INTO faction (id, game_id, name, description) VALUES (
     2, 2, 'meryton_neighborhood',
-    'The local social community of Meryton and its surrounds: the Lucas family, the Philips family, and the general neighborhood. This is the primary public reputation metric for the Chapter 3 assembly. The neighborhood values social grace, appropriate behavior, management of one''s family''s excesses, and good dancing. Elizabeth is well-regarded here — she is clever and personable, and her family''s eccentricities are familiar enough to be forgiven. Behavior that draws favorable comment raises standing; public embarrassments (especially caused by Mrs. Bennet or the younger Bennet sisters) lower it, as the family is seen as a unit.'
+    'The local social community of Meryton and its surrounds: the Lucas family, the Phillips family, and the general neighborhood. This is the primary public reputation metric for the Chapter 3 assembly. The neighborhood values social grace, appropriate behavior, management of one''s family''s excesses, and good dancing. Elizabeth is well-regarded here — she is clever and personable, and her family''s eccentricities are familiar enough to be forgiven. Behavior that draws favorable comment raises standing; public embarrassments (especially caused by Mrs. Bennet or the younger Bennet sisters) lower it, as the family is seen as a unit.'
 );
 
 INSERT INTO faction (id, game_id, name, description) VALUES (
@@ -873,7 +873,7 @@ INSERT INTO game_instance (
 -- SESSION 10 ADDITIONS
 --
 -- New characters: Sir William Lucas (14), Mr. Robinson (15), John Lucas (16),
---   Edward Long (17), Thomas Philips (18), William Goulding (19).
+--   Edward Long (17), Thomas Phillips (18), William Goulding (19).
 -- Pre-snub start: scene opens as the Bennet family arrives at the vestibule.
 --   Elizabeth and Darcy are strangers; attitudes reset accordingly.
 -- Miss Bingley and Mrs. Hurst: internal states added.
@@ -935,7 +935,7 @@ UPDATE game SET cultural_norms = '{
     "card_room": "The card room is predominantly occupied by older guests and those disinclined to dance. A young lady entering unescorted would be unusual but not impossible.",
     "supper_room": "The supper room is closed for this assembly — no supper is served. The door is unlocked but convention prohibits entry. A well-bred guest would not attempt it without compelling reason.",
     "gentlemen_scarcity": "There are notably more ladies than gentlemen willing to dance at this assembly. This reflects the ongoing depletion of young men from country society by the European wars. Ladies sitting out a set carry no stigma; it is simply the circumstance of the evening.",
-    "local_families": "Known local families and residences: Bennet of Longbourn; Lucas of Lucas Lodge; Goulding of Haye-Park; Long (Mrs. Long and her nephews); Philips (attorney in Meryton, related to the Bennets by marriage); Bingley of Netherfield Park (recently arrived). Other nearby properties whose resident family names may be generated as needed: Purvis Lodge, Ashworth, Oakham Mount, Stoke. The militia is not yet quartered in the area."
+    "local_families": "Known local families and residences: Bennet of Longbourn; Lucas of Lucas Lodge; Goulding of Haye-Park; Long (Mrs. Long and her nephews); Phillips (attorney in Meryton, related to the Bennets by marriage); Bingley of Netherfield Park (recently arrived). Other nearby properties whose resident family names may be generated as needed: Purvis Lodge, Ashworth, Oakham Mount, Stoke. The militia is not yet quartered in the area."
 }'
 WHERE id = 2;
 
@@ -1194,7 +1194,7 @@ VALUES (1, 17, 0.10, 'surface');  -- Elizabeth → Edward Long: familiar acquain
 
 -- =============================================================================
 -- THOMAS PHILIPS (id = 18)
--- Nephew of Mr. Philips the attorney (Mrs. Bennet's brother-in-law).
+-- Nephew of Mr. Phillips the attorney (Mrs. Bennet's brother-in-law).
 -- Present partly from family obligation; decent but lacking initiative.
 -- The family connection makes him a semi-obligatory dance partner for the
 -- Bennet girls, which Elizabeth is aware of.
@@ -1210,10 +1210,10 @@ INSERT INTO character (
     voice_register, voice_warmth, voice_verbosity,
     wander_range, wander_probability
 ) VALUES (
-    18, 2, 'Thomas Philips', 'npc_active', 'human', 'male',
+    18, 2, 'Thomas Phillips', 'npc_active', 'human', 'male',
     '[{"case":"nominative","form":"he"},{"case":"accusative","form":"him"},{"case":"genitive","form":"his"}]',
-    'Nephew of Mr. Philips the attorney; a decent young man who attends assemblies partly from family duty. He is perfectly pleasant but lacks initiative.',
-    'Nephew of Mr. Philips, attorney of Meryton.',
+    'Nephew of Mr. Phillips the attorney; a decent young man who attends assemblies partly from family duty. He is perfectly pleasant but lacks initiative.',
+    'Nephew of Mr. Phillips, attorney of Meryton.',
     4,  -- Ballroom
     0.45, 0.68, 0.48, 0.68, 0.32,
     'belonging', 'dutiful',
@@ -1230,12 +1230,12 @@ INSERT INTO character_goal (character_id, goal_name, goal_type, priority, orient
 VALUES (18, 'belonging — a pleasant enough evening in familiar company', 'surface', 0.58, 'approach', 'person_environment');
 
 INSERT INTO character_faction_reputation (character_id, faction_id, reputation, notes)
-VALUES (18, 2, 0.55, 'Unremarkable neighborhood standing; known through the Philips connection.');
+VALUES (18, 2, 0.55, 'Unremarkable neighborhood standing; known through the Phillips connection.');
 
 INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
 VALUES (18, 1, 0.22, 'surface');  -- Elizabeth: cousin-by-connection; mild obligation
 INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
-VALUES (1, 18, 0.18, 'surface');  -- Elizabeth → Thomas Philips: familiar; slightly obligatory
+VALUES (1, 18, 0.18, 'surface');  -- Elizabeth → Thomas Phillips: familiar; slightly obligatory
 
 
 -- =============================================================================
@@ -1330,7 +1330,7 @@ WHERE id = 10;
 
 -- Young men: all actively seeking partners when a set forms
 UPDATE character SET pending_intent = 'wants to dance; will seek a partner when a new set forms'
-WHERE id IN (15, 16, 17, 18, 19);  -- Robinson, John Lucas, Edward Long, Thomas Philips, William Goulding
+WHERE id IN (15, 16, 17, 18, 19);  -- Robinson, John Lucas, Edward Long, Thomas Phillips, William Goulding
 
 -- Lydia: will dance with anyone immediately; no patience for waiting
 UPDATE character SET pending_intent = 'desperate to dance; will accept any partner without hesitation'
@@ -1445,16 +1445,16 @@ WHERE id = 12;  -- Mr. Hurst
 -- descriptions. character_attitude has no notes column, so descriptions are the
 -- only place Pass 2 can see these connections.
 --
--- Thomas Philips was also incorrectly described as Mr. Philips's nephew rather
+-- Thomas Phillips was also incorrectly described as Mr. Phillips's nephew rather
 -- than his son, making the stated cousin relationship to Elizabeth impossible.
 -- =============================================================================
 
--- Thomas Philips: correct error (was "nephew", should be "son") and add cousin
--- relationship to Elizabeth. Mrs. Philips is Mrs. Bennet's sister, making
--- Thomas Elizabeth's first cousin on the Philips side.
+-- Thomas Phillips: correct error (was "nephew", should be "son") and add cousin
+-- relationship to Elizabeth. Mrs. Phillips is Mrs. Bennet's sister, making
+-- Thomas Elizabeth's first cousin on the Phillips side.
 UPDATE character SET description =
-    'Son of Mr. Philips the attorney and Mrs. Philips, who is Mrs. Bennet''s sister; Elizabeth Bennet''s first cousin. A decent young man who attends assemblies partly from family duty. He is perfectly pleasant but lacks initiative.'
-WHERE id = 18;  -- Thomas Philips
+    'Son of Mr. Phillips the attorney and Mrs. Phillips, who is Mrs. Bennet''s sister; Elizabeth Bennet''s first cousin. A decent young man who attends assemblies partly from family duty. He is perfectly pleasant but lacks initiative.'
+WHERE id = 18;  -- Thomas Phillips
 
 -- Charlotte Lucas: add family context so Pass 2 can resolve "Charlotte's brother"
 -- and similar relational references.
