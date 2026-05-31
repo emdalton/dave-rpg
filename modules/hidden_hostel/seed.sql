@@ -31,7 +31,10 @@
 --   Hidden motivation + access control  — The Scholar (access_hidden_motivation=0)
 --   Faction + status designation        — hosts_of_the_hostel (Marta=keeper, player=guest)
 --   Attitudes                           — positive, negative, and NPC-to-NPC pairs
---   Internal state drift                — positive (curiosity), negative (sleepiness)
+--   Internal state drift                — positive (curiosity, hunger), negative (sleepiness)
+--   Hunger + food interaction          — Traveller starts hungry; Marta satisfies via
+--                                         Pass 2 internal_state_delta (no item system needed)
+--   Tone: iyashikei                    — healing/slice-of-life; small comforts, unhurried warmth
 --   Lazy world generation               — Common Room has pre-seeded detail (retrieval
 --                                         path); Rooms A and B have skeleton only
 --   Pronouns (they/them)                — The Scholar, Gin-chan
@@ -71,13 +74,13 @@ INSERT INTO game (
     1,
     'The Hidden Hostel',
     'liminal_fantasy',
-    'mysterious_whimsical',
+    'iyashikei',   -- healing/slice-of-life warmth; unhurried; small comforts matter
     NULL,   -- timeless; guests arrive from many eras
     NULL,   -- no consistent technology level across worlds
     'The hostel exists in a liminal space between worlds. Guests from impossible origins, minor uncanny events, and the occasional impossible architecture are unremarkable here. No rules of physics or chronology are guaranteed within these walls — but the fire in the Common Room always burns, and Marta''s meals are always ready.',
     'second_person',
     '{}',   -- no game-level speech filter; character-level filter for Gin-chan pending schema v9
-    '{"curiosity": "prose", "fatigue": "prose", "sleepiness": "prose"}',
+    '{"curiosity": "prose", "fatigue": "prose", "sleepiness": "prose", "hunger": "prose"}',
     '{
         "hospitality": "The hostel is neutral ground. Violence or threats against other guests are grounds for immediate expulsion. Marta enforces this without exception and without appeal.",
         "the_locked_room": "Room B at the end of the upper corridor has been locked for as long as anyone can remember. Marta will not discuss it. Attempting to force entry is considered a serious transgression against the hostel.",
@@ -97,7 +100,7 @@ INSERT INTO location (id, game_id, name, location_type, description_skeleton,
                       social_setting, witness_count, situation_flags)
 VALUES (
     1, 1, 'Common Room', 'common_room',
-    'A wide, low-ceilinged room with mismatched chairs arranged around a central hearth. The fire is lit. A staircase rises along one wall toward the upper floor; a door leads to the kitchen. The furniture suggests many origins: carved oak, cushioned velvet, something that was once a throne.',
+    'The door swings shut behind you with a soft, definite click. The room is wide and low-ceilinged, warmer than outside by several degrees. A fire burns in the central hearth — steadily, as though it has never not been burning. Mismatched chairs are arranged around it: carved oak, cushioned velvet, something that was once a throne. A staircase rises along one wall toward the upper floor; a door on the far side leads to the kitchen, where something warm is cooking.',
     'public', 3,
     '["evening", "fire_lit", "guests_present"]'
 );
@@ -245,6 +248,7 @@ INSERT INTO character (
     surface_motivation, hidden_motivation, access_hidden_motivation,
     voice_register, voice_warmth, voice_verbosity,
     wander_range, wander_probability,
+    pending_intent,
     current_activity, activity_started_at,
     activity_estimated_duration, activity_duration_confidence, activity_renewable
 ) VALUES (
@@ -263,6 +267,11 @@ INSERT INTO character (
     0,
     'matter_of_fact', 0.52, 0.42,
     NULL, 0.0,
+    -- When the evening meal is ready (cooking activity expires at game clock 1230,
+    -- i.e. 8:30 PM), serve it to any guests present in the kitchen; if no guest is
+    -- present, call out from the kitchen doorway that food is available. This intent
+    -- persists until Pass 2 clears it after the meal is served.
+    'when the evening meal is ready (cooking activity will finish at 8:30 PM), serve it to guests present in the kitchen; if no guest is in the kitchen, call out through the doorway that food is available',
     -- Activity: preparing the evening meal. Started 7:00 PM (1140), duration 90 min.
     -- Expires at 1230 (8:30 PM, 30 minutes into play). Not yet expired at start.
     -- activity_duration_confidence=0.72 > ACTIVITY_AUTO_CLEAR_CONFIDENCE (0.60),
@@ -289,7 +298,8 @@ INSERT INTO character (
     capability_beliefs, context_beliefs,
     surface_motivation,
     voice_register, voice_warmth, voice_verbosity,
-    wander_range, wander_probability
+    wander_range, wander_probability,
+    pending_intent
 ) VALUES (
     3, 1, 'The Wanderer', 'npc_active', 'human', 'male',
     '[{"case":"nominative","form":"he"},{"case":"accusative","form":"him"},{"case":"genitive","form":"his"}]',
@@ -304,7 +314,11 @@ INSERT INTO character (
     'Curious about the other guests and the hostel itself. Happy to talk, equally happy to roam.',
     'casual_warm', 0.82, 0.78,
     '[1, 2, 3]',    -- Common Room, Kitchen, Upper Corridor
-    0.75            -- WANDER POSITIVE CONTROL: no pending_intent, no activity, sleepiness not tracked
+    0.75,           -- wander_probability; pending_intent below suppresses wandering until discharged
+    -- Speaks aloud to the Traveller on the first turn. Intent is imperative:
+    -- he must say words this turn (not just smile or gesture). Once discharged,
+    -- wander suppression lifts and he resumes his natural roaming.
+    'greet the newly arrived traveller warmly; introduce Gin-chan by name and explain they are a permanent resident, not a pet; tell the traveller that Marta in the kitchen can provide food if they ask'
 );
 
 -- ---------------------------------------------------------------------------
@@ -504,6 +518,11 @@ INSERT INTO internal_state (
 VALUES
     -- The Traveller: curiosity increases as she explores the hostel
     (1, 'curiosity',  0.40, 'prose', 0,  0.001),
+    -- The Traveller: hunger starts noticeably high (long journey, no recent meal).
+    -- Positive drift: grows slowly if not addressed. Satisfied by eating — Pass 2
+    -- applies a negative internal_state_delta when the player eats. No item system
+    -- is required; food is consumed immediately in the narrative interaction with Marta.
+    (1, 'hunger',     0.65, 'prose', 0,  0.001),
 
     -- Marta: fatigue builds over a long evening of preparation
     (2, 'fatigue',    0.55, 'prose', 0,  0.002),

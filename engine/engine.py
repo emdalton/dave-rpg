@@ -123,6 +123,17 @@ Rules:
   If an NPC is in characters_nearby (adjacent room), they may be audible or
   detectable by smell, but do not describe them as present, visible, or
   physically interacting with the scene.
+- PENDING INTENT IS MANDATORY: if an NPC at the current location has a
+  non-null pending_intent, they MUST act on it this turn. This is not optional
+  flavor — it is an unfulfilled obligation seeded by the module author or a
+  prior turn's adjudication. The NPC must take the described action (speak,
+  gesture, move, etc.) in your narrative_beat and in npc_initiated_actions,
+  even if the player's action did not address them. Once the intent is
+  fulfilled (or explicitly abandoned), clear it via pending_intent_updates
+  with pending_intent: null. Do not let pending_intent persist across multiple
+  turns without being acted on. If the NPC's intent involves speaking, they
+  must produce actual dialogue — not a smile, a nod, or a description of
+  their expression.
 - RELATIONSHIP REFERENCES: when the player refers to a character by relationship
   ("my cousin", "Charlotte's brother", "Sir William's daughter"), resolve the
   referent from the descriptions in the character profiles before acting. Do not

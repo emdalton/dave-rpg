@@ -67,7 +67,7 @@ UPDATE character
 SET current_location_id          = 2,      -- Kitchen
     emotional_state              = 'focused',
     maslow_tier                  = 'esteem',
-    pending_intent               = NULL,
+    pending_intent               = 'when the evening meal is ready (cooking activity will finish at 8:30 PM), serve it to guests present in the kitchen; if no guest is in the kitchen, call out through the doorway that food is available',
     current_activity             = 'preparing the evening meal',
     activity_started_at          = 1140,   -- 7:00 PM
     activity_estimated_duration  = 90,
@@ -81,7 +81,7 @@ UPDATE character
 SET current_location_id          = 1,      -- Common Room
     emotional_state              = 'content',
     maslow_tier                  = 'self_actualization',
-    pending_intent               = NULL,
+    pending_intent               = 'greet the newly arrived traveller warmly; introduce Gin-chan by name and explain they are a permanent resident, not a pet; tell the traveller that Marta in the kitchen can provide food if they ask',
     current_activity             = NULL,
     activity_started_at          = NULL,
     activity_estimated_duration  = NULL,
@@ -140,6 +140,9 @@ WHERE id = 6;
 
 UPDATE internal_state SET value = 0.40, updated_at = datetime('now')
 WHERE character_id = 1 AND state_name = 'curiosity';
+
+UPDATE internal_state SET value = 0.65, updated_at = datetime('now')
+WHERE character_id = 1 AND state_name = 'hunger';
 
 UPDATE internal_state SET value = 0.55, updated_at = datetime('now')
 WHERE character_id = 2 AND state_name = 'fatigue';
