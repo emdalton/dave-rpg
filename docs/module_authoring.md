@@ -491,6 +491,18 @@ Use passive drift for physiological states with genuine background change:
 sleepiness, hunger, thirst, fatigue. Do not use it for activity-dependent states
 (impatience, excitement) — manage those entirely through Pass 2.
 
+**Satisfying physiological states without an item system:** DAVE does not require
+an item or inventory system to model consumption. When a player asks for food or
+drink, Pass 2 adjudicates the social interaction and applies a negative
+`internal_state_delta` to the relevant state (e.g., `hunger` drops by −0.40 if
+Marta serves a meal). Pass 3 narrates the result. No persistent item record is
+created or consumed. This pattern works well for any state that can be satisfied
+through a plausible social/narrative action: a character brings food, offers a
+drink, provides rest. Seed the state high enough to be narratively present at
+game start; let passive drift keep it rising; let Pass 2 adjudication resolve it
+when the player acts. An item system becomes worth adding only when you need
+persistent carrying, transferable objects, or partial consumption across turns.
+
 **Wander suppression via sleepiness:** the engine suppresses a character's wander
 roll when their sleepiness value is at or above `WANDER_SLEEPINESS_THRESHOLD`
 (config default: 0.60). Only the state named `'sleepiness'` triggers this

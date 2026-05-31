@@ -1,7 +1,41 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-05-30, session 18 (closed).*
+*Last updated: 2026-05-30, session 19 (open).*
+
+---
+
+## Session 19 notes (2026-05-30)
+
+**Completed this session:**
+
+- **`--transcript` argparse fix:** `--transcript` now accepts an optional PATH argument
+  (`nargs='?'`). Bare `--transcript` (no path) auto-generates a timestamped file in
+  `transcripts/`, same as the default behavior. Supplying a path still works as before.
+  Updated the docstring in `main()` to document the bare-flag form.
+
+- **Hunger as emergent feature (design note):** The Hidden Hostel seed gives The Traveller
+  a `hunger` internal state (value=0.65, rate=+0.001/min). No item system or explicit
+  "eat food" handler is required. When the player asks Marta for food, Pass 2 adjudicates
+  the interaction and applies a negative `internal_state_delta` to `hunger`. The state
+  drops, Pass 3 narrates the meal, and the system works without any item-tracking
+  machinery. This is documented as a feature of DAVE's architecture: social/narrative
+  actions can satisfy physical-state needs through adjudication alone, deferring an item
+  system until it adds distinct value.
+
+- **Hidden Hostel seed updates for playability:**
+  - `game.tone` → `'iyashikei'` (healing/slice-of-life warmth; unhurried)
+  - `internal_state_display` → includes `"hunger": "prose"`
+  - Common Room `description_skeleton` rewritten as arrival framing (door clicking shut behind player)
+  - The Wanderer gains `pending_intent` to greet the player, introduce Gin-chan, and suggest asking Marta for food
+  - New `internal_state` row: The Traveller `hunger = 0.65` (high from travel, drifts up slowly)
+  - `reset_instance.sql` updated to match: Wanderer's intent and hunger reset included
+
+**Pending from this session (carried forward):**
+
+- Rebuild hidden_hostel.db from terminal (`rm` blocked in sandbox) and run a play session
+- Add `"format": "json"` to Ollama Pass 1 and Pass 2 payloads in `engine/llm/ollama.py`
+- Verbal tic review: scan Haiku transcript for `[verb] with the air/manner of someone who` pattern
 
 ---
 

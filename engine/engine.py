@@ -1661,6 +1661,7 @@ def main() -> None:
 
     With transcript output:
         python -m engine                        # auto-saves to transcripts/<name>_<timestamp>.txt
+        python -m engine --transcript           # same (explicit bare flag)
         python -m engine --transcript path.txt  # saves to specified path
         DAVE_TRANSCRIPT_PATH=path.txt python -m engine  # same via env var
         DAVE_NO_TRANSCRIPT=1 python -m engine   # disable transcript entirely
@@ -1678,11 +1679,13 @@ def main() -> None:
     parser.add_argument(
         "--transcript",
         metavar="PATH",
-        default=None,
+        nargs="?",           # 0 or 1 arguments: bare --transcript uses the auto-path
+        const="",            # sentinel: --transcript with no PATH → auto-generate
+        default=None,        # --transcript absent → fall through to env var / auto
         help=(
-            "Path to save a transcript of this session (player inputs + prose). "
-            "Overrides DAVE_TRANSCRIPT_PATH. If neither is set, a timestamped "
-            "file is auto-saved to the transcripts/ directory."
+            "Save a transcript of this session (player inputs + prose). "
+            "If PATH is omitted, a timestamped file is auto-saved to transcripts/. "
+            "Overrides DAVE_TRANSCRIPT_PATH. Use DAVE_NO_TRANSCRIPT=1 to disable."
         ),
     )
     args = parser.parse_args()
@@ -1740,12 +1743,13 @@ def main() -> None:
     if no_transcript:
         transcript_path = None
     elif args.transcript:
+        # --transcript PATH: explicit path supplied (non-empty string)
         transcript_path = args.transcript
     elif os.environ.get("DAVE_TRANSCRIPT_PATH"):
         transcript_path = os.environ["DAVE_TRANSCRIPT_PATH"]
     else:
-        # Auto-generate a timestamped filename. Transcripts directory mirrors
-        # the logs directory: one file per session, named by module + timestamp.
+        # --transcript (bare flag, no path) or no transcript flag at all:
+        # auto-generate a timestamped filename in transcripts/.
         transcript_dir = Path("transcripts")
         transcript_dir.mkdir(exist_ok=True)
         transcript_path = str(transcript_dir / f"{db_stem}_{timestamp}.txt")
