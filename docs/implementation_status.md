@@ -1,7 +1,46 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-05-29, session 17 (closed).*
+*Last updated: 2026-05-30, session 18 (closed).*
+
+---
+
+## Session 18 closing notes (2026-05-30)
+
+**This session:** Phillips spelling fix (§6 complete); Hidden Hostel test suite.
+
+**Completed this session:**
+
+- **§6 closed:** Fixed Thomas Philips → Thomas Phillips throughout: `modules/Meryton/seed.sql`,
+  `modules/Meryton/reset_instance.sql`, `schema/schema.sql`, `schema/migrations/migrate_v7_to_v8.sql`,
+  and all affected fields in the live `meryton.db` (name, description, apparent_status,
+  faction_reputation notes).
+
+- `tests/test_hidden_hostel.py`: New Tier 1 test file, 37 tests across 8 classes.
+  Covers all Hidden Hostel feature coverage goals:
+  - §A Staircase connection traversal (Common Room ↔ Upper Corridor)
+  - §B Impassable connection (Upper Corridor → Room B blocked)
+  - §C Wander suppression: pending_intent (The Scholar)
+  - §D Wander suppression: active timed activity (Marta)
+  - §E Wander suppression: sleepiness threshold (Gin-chan)
+  - §F Activity expiry: non-renewable activity auto-clears after clock passes expiry
+  - §G Renewable activity is NOT auto-cleared by engine
+  - §H Hidden motivation access control (Scholar, access_hidden_motivation=0)
+  - §I Faction reputation (Traveller and Marta in hosts_of_the_hostel)
+  - §J Passive state drift (curiosity+, fatigue+, sleepiness−) with clamping
+  - §K Negative attitude reads correctly (Old Soldier → Traveller −0.30)
+  - §L Attitude delta application and clamping at ±1.0
+  - §M Pre-seeded location_detail retrieval for Common Room; Kitchen starts clean
+
+  Uses a `tmp_hostel_db` fixture (function-scoped) that loads the real
+  `modules/hidden_hostel/seed.sql` against the canonical schema. A
+  `hostel_engine` fixture provides a full `GameEngine` instance with mock LLM
+  for tests that call engine methods directly.
+
+**Pending from this session:**
+- Run `tests/test_hidden_hostel.py` on the real machine (sandbox has Python 3.10;
+  project venv requires Python 3.12). Expected to pass; one probabilistic test
+  (`test_ginchan_can_wander_when_not_sleepy`) may need iteration-count tuning.
 
 ---
 
@@ -34,12 +73,12 @@
   inventory system + player state modifier. Tracked in pending work below.
 
 **Pending from this session:**
-- Phillips spelling fix (id=18 and all references) — §6 remainder
+- ~~Phillips spelling fix~~ — **DONE in session 18**
 - Verbal tic review: scan Haiku transcript for `[verb] with the air of someone who`
 - §7: Logging to file + transcript auto-save
 - §8: Schema v9 — character-level `speech_filter` field (for Gin-chan)
 - §9: Player character gender and self-definition (Hidden Hostel Traveller currently hardcoded female)
-- §10: Hidden Hostel test suite integration
+- §10: Hidden Hostel test suite — **test file written in session 18; needs first run**
 - Hidden Hostel: Gin-chan potion mechanic (future; requires items + player state)
 - Hidden Hostel: The Old Soldier changed to female (seed.sql updated; reset_instance.sql
   not affected as gender/pronouns are stable data)
