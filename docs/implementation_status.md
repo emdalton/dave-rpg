@@ -75,7 +75,8 @@
 - Verbal tic review: scan Haiku transcript for `[verb] with the air of someone who`
 - §7: Logging to file + transcript auto-save
 - §8: Schema v9 — character-level `speech_filter` field (for Gin-chan)
-- §9: Player character gender and self-definition (Hidden Hostel Traveller currently hardcoded female)
+- §9: Player self-definition on game start — prompt for name, gender, pronouns, description, belongings (when item system exists). Module-controlled; not used in Meryton or I Am a Cat.
+- §11: Allow player to choose from a list of pre-defined characters at game start (alternative to self-definition; useful for modules with fixed casts like Meryton).
 - ~~§10: Hidden Hostel test suite~~ — **DONE; 37/37 passing**
 - Hidden Hostel: Gin-chan potion mechanic (future; requires items + player state)
 - Hidden Hostel: The Old Soldier changed to female (seed.sql updated; reset_instance.sql
@@ -798,33 +799,56 @@ updated throughout for id=20.
 
 ---
 
-### §9. Player character gender and self-definition
+### §9. Player self-definition on game start
 
-The Hidden Hostel seed sets The Traveller as `gender='female'` with she/her
-pronouns. This is appropriate for fixed-PC modules (Toulouse in I Am a Cat,
-Elizabeth Bennet in Meryton) but not for modules where the player defines their
-own character.
+Some modules have a fixed player character (Elizabeth Bennet in Meryton,
+Toulouse in I Am a Cat). Others — like the Hidden Hostel — are designed for an
+undefined player who should be able to describe themselves before play begins.
 
-**Immediate fix (Hidden Hostel seed):** Set `gender=NULL` and `pronouns=NULL`
-on The Traveller. The LLM will infer from context, which is acceptable for a
-test world but imprecise.
+**Design:** A module-level flag (e.g. `player_definition_mode` on the `game`
+table) controls whether the self-definition step runs. Values:
+- `'fixed'` — no prompt; player character is fully seeded (current behavior).
+- `'define'` — engine prompts the player at startup to describe themselves.
+- `'choose'` — see §11.
 
-**Broader design question:** how does the engine handle player-defined identity
-in modules that support it? Options:
+When `player_definition_mode='define'`, the engine runs a brief interactive
+step before the opening scene: the player is asked for name, gender/pronouns,
+and a short description. Optionally, starting belongings when an item system
+exists (§future). A single LLM call parses the player's free-text responses
+into structured fields and writes them to the `character` row before play begins.
 
-- Null gender/pronouns and let the LLM infer (current default behavior; risks
-  inconsistent pronoun use across a session)
-- Prompt the player at game start with a brief character definition step (name,
-  gender, pronouns), store the result in the character record before play begins
-- Allow `DAVE_PLAYER_PRONOUNS` environment variable as a session-level override
+The Hidden Hostel Traveller should have `gender=NULL` and `pronouns=NULL` in
+the seed as an immediate fix; the full self-definition step is implemented as
+part of this feature.
 
-The second option (game-start definition step) is the most robust and fits the
-engine's existing architecture: a short LLM call at startup that parses player
-input into structured character fields and writes them to the database before the
-opening scene renders. This is a small but self-contained feature.
+Modules that do not use this feature are unaffected. Meryton and I Am a Cat
+will not use it.
 
-Affects: `modules/hidden_hostel/seed.sql` (immediate null fix), engine startup
-flow, and any future module that does not have a fixed player character.
+Affects: `game` table (new `player_definition_mode` column → schema v10+),
+`modules/hidden_hostel/seed.sql` (set Traveller gender/pronouns to NULL),
+engine startup flow in `engine.py`.
+
+---
+
+### §11. Allow player to choose from a list of pre-defined characters
+
+Some modules may want to offer the player a choice among several pre-defined
+characters rather than a blank-slate self-definition (§9). For example, a
+Meryton variant could let the player choose to be Elizabeth, Jane, or Charlotte
+Bennet — each fully seeded with OCEAN traits, goals, relationships, and
+starting reputation.
+
+**Design:** When `player_definition_mode='choose'` on the `game` record, the
+engine presents a numbered list of available characters (seeded with
+`role='player_option'`) and the player selects one. The selected character's
+role is updated to `'player'`; others are set to `'npc_background'` or
+removed.
+
+This is complementary to §9, not a replacement. A module can use either or
+neither. The two features share the same `player_definition_mode` field.
+
+Affects: `game` table (`player_definition_mode`; same column as §9),
+`character` table (new `role` value `'player_option'`), engine startup flow.
 
 ---
 
