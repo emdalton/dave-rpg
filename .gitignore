@@ -16,6 +16,10 @@ env/
 *.sqlite3
 *.db
 
+# Engine runtime output (logs and transcripts are local; not for version control)
+logs/
+transcripts/
+
 # Node
 node_modules/
 npm-debug.log*

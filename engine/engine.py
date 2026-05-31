@@ -27,11 +27,14 @@ Logging:
     turn summaries and any involuntary events.
 """
 
+import argparse
 import json
 import logging
 import os
 import sys
 import textwrap
+from datetime import datetime
+from pathlib import Path
 
 from engine import config
 from engine.context import build_pass1_packet, build_pass2_packet, build_pass3_packet
@@ -354,13 +357,23 @@ class GameEngine:
         _player:  Cached player character record (refreshed each turn).
     """
 
-    def __init__(self, db: Database, game_id: int) -> None:
+    def __init__(
+        self,
+        db: Database,
+        game_id: int,
+        transcript_path: str | None = None,
+    ) -> None:
         """
         Initialise the engine for a specific game.
 
         Args:
-            db:      An open Database instance with the schema applied.
-            game_id: The id of the game to run. Must exist in the game table.
+            db:              An open Database instance with the schema applied.
+            game_id:         The id of the game to run. Must exist in the game table.
+            transcript_path: Optional path to a transcript file. If provided,
+                             all player-visible prose and player inputs are written
+                             there in addition to being printed to stdout. The file
+                             is created (or appended to) on first write and closed
+                             when run() exits. If None, no transcript is saved.
 
         Raises:
             ValueError: If game_id does not exist or has no player character.
@@ -413,6 +426,11 @@ class GameEngine:
         # Initialise the LLM client (validates config, opens connection).
         self.llm: LLMClient = get_llm_client()
 
+        # Transcript file handle. Opened lazily on first write in run() so that
+        # the file is not created if the engine errors before play begins.
+        self._transcript_path: str | None = transcript_path
+        self._transcript_file = None  # opened in run()
+
         logger.info(
             "GameEngine ready: game=%d (%s) player=%s backend=%s instance=%s",
             game_id,
@@ -444,6 +462,45 @@ class GameEngine:
         return self.db.get_game_clock(self._instance["id"])
 
     # -------------------------------------------------------------------------
+    # Transcript helpers
+    # -------------------------------------------------------------------------
+
+    def _transcript_write(self, text: str) -> None:
+        """
+        Write a block of text to the transcript file.
+
+        Opens the file on the first call (creating it and any parent directories
+        if needed). Subsequent calls append to the same open handle. Does nothing
+        if no transcript path was configured.
+
+        Args:
+            text: The text to append. A trailing newline is added if absent.
+        """
+        if self._transcript_path is None:
+            return
+
+        if self._transcript_file is None:
+            transcript_path = Path(self._transcript_path)
+            transcript_path.parent.mkdir(parents=True, exist_ok=True)
+            # Open in append mode so multiple sessions can be captured to the
+            # same file if the caller supplies a fixed path. The auto-generated
+            # path in main() is always unique (timestamped), so append vs write
+            # makes no practical difference there.
+            self._transcript_file = open(transcript_path, "a", encoding="utf-8")  # noqa: WPS515
+            logger.info("Transcript writing to: %s", transcript_path)
+
+        if not text.endswith("\n"):
+            text += "\n"
+        self._transcript_file.write(text)
+        self._transcript_file.flush()  # ensure each turn is persisted immediately
+
+    def _transcript_close(self) -> None:
+        """Close the transcript file if it is open. Safe to call multiple times."""
+        if self._transcript_file is not None:
+            self._transcript_file.close()
+            self._transcript_file = None
+
+    # -------------------------------------------------------------------------
     # Main loop
     # -------------------------------------------------------------------------
 
@@ -460,14 +517,19 @@ class GameEngine:
             6. Run Pass 3 (prose rendering)
             7. Display prose to the player
         """
-        print(f"\n=== {self._game.get('name', 'DAVE RPG')} ===\n")
+        game_title = self._game.get('name', 'DAVE RPG')
+        print(f"\n=== {game_title} ===\n")
         try:
             opening = self._render_opening_scene()
-            print(textwrap.fill(opening, width=80))
+            wrapped_opening = textwrap.fill(opening, width=80)
+            print(wrapped_opening)
+            self._transcript_write(f"=== {game_title} ===\n\n{wrapped_opening}")
         except (LLMError, LLMJSONError) as exc:
             # Degrade gracefully: fall back to bare name if opening render fails.
             logger.warning("Opening scene render failed (%s); using fallback.", exc)
-            print(f"You are {self._player['name']}.")
+            fallback = f"You are {self._player['name']}."
+            print(fallback)
+            self._transcript_write(f"=== {game_title} ===\n\n{fallback}")
         print()
 
         while True:
@@ -495,13 +557,18 @@ class GameEngine:
                 raw_input = input("> ").strip()
             except (EOFError, KeyboardInterrupt):
                 print("\nFarewell.")
+                self._transcript_write("\n> [session ended]\n")
                 break
 
             if not raw_input:
                 continue
 
+            # Capture the player's input in the transcript before processing.
+            self._transcript_write(f"\n> {raw_input}")
+
             if raw_input.lower() in ("quit", "exit", "q"):
                 print("\nFarewell.")
+                self._transcript_write("\n> [session ended]\n")
                 break
 
             # ------------------------------------------------------------------
@@ -521,9 +588,17 @@ class GameEngine:
             # ------------------------------------------------------------------
             # Step 7: Display prose
             # ------------------------------------------------------------------
+            wrapped_prose = textwrap.fill(prose, width=80)
             print()
-            print(textwrap.fill(prose, width=80))
+            print(wrapped_prose)
             print()
+            self._transcript_write(f"\n{wrapped_prose}")
+
+        # ------------------------------------------------------------------
+        # Close transcript (if open) before exit summary logging so the file
+        # is fully written regardless of what happens in the summary block.
+        # ------------------------------------------------------------------
+        self._transcript_close()
 
         # ------------------------------------------------------------------
         # Exit summary: game time, player boredom, token totals.
@@ -1577,37 +1652,127 @@ class GameEngine:
 
 def main() -> None:
     """
-    Command-line entry point. Reads configuration from environment variables,
-    validates it, opens the database, and starts the engine.
+    Command-line entry point. Reads configuration from environment variables
+    and optional CLI arguments, validates it, opens the database, and starts
+    the engine.
 
     Typical invocation:
         DAVE_DB_PATH=modules/i_am_a_cat/i_am_a_cat.db python -m engine
 
-    For debug-level logging:
+    With transcript output:
+        python -m engine                        # auto-saves to transcripts/<name>_<timestamp>.txt
+        python -m engine --transcript path.txt  # saves to specified path
+        DAVE_TRANSCRIPT_PATH=path.txt python -m engine  # same via env var
+        DAVE_NO_TRANSCRIPT=1 python -m engine   # disable transcript entirely
+
+    For debug-level logging (written to log file, not terminal):
         DAVE_LOG_LEVEL=DEBUG DAVE_DB_PATH=... python -m engine
     """
-    # Configure logging before anything else.
-    log_level = os.environ.get("DAVE_LOG_LEVEL", "INFO").upper()
-    logging.basicConfig(
-        level=getattr(logging, log_level, logging.INFO),
-        format="%(asctime)s %(name)s %(levelname)s %(message)s",
-        stream=sys.stderr,
+    # ------------------------------------------------------------------
+    # CLI argument parsing
+    # ------------------------------------------------------------------
+    parser = argparse.ArgumentParser(
+        description="DAVE RPG Engine — text-based RPG with LLM adjudication.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    parser.add_argument(
+        "--transcript",
+        metavar="PATH",
+        default=None,
+        help=(
+            "Path to save a transcript of this session (player inputs + prose). "
+            "Overrides DAVE_TRANSCRIPT_PATH. If neither is set, a timestamped "
+            "file is auto-saved to the transcripts/ directory."
+        ),
+    )
+    args = parser.parse_args()
 
-    # Validate configuration (will raise ValueError with a clear message on
-    # any problem, e.g. missing API key or unknown backend).
+    # ------------------------------------------------------------------
+    # Logging setup
+    #
+    # Engine logs go to a timestamped file in logs/ at the configured level.
+    # The stderr handler is set to WARNING so only genuine problems appear
+    # on the terminal during play — no httpx INFO chatter, no turn summaries
+    # breaking prose immersion.
+    # ------------------------------------------------------------------
+    log_level_name = os.environ.get("DAVE_LOG_LEVEL", "INFO").upper()
+    log_level = getattr(logging, log_level_name, logging.INFO)
+
+    # Root logger accepts everything; handlers filter independently.
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
+
+    log_fmt = logging.Formatter("%(asctime)s %(name)s %(levelname)s %(message)s")
+
+    # File handler: full engine log at configured level.
+    log_dir = Path("logs")
+    log_dir.mkdir(exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    db_stem = Path(config.DB_PATH).stem  # e.g. "meryton" from "meryton.db"
+    log_path = log_dir / f"{db_stem}_{timestamp}.log"
+    file_handler = logging.FileHandler(log_path, encoding="utf-8")
+    file_handler.setLevel(log_level)
+    file_handler.setFormatter(log_fmt)
+    root_logger.addHandler(file_handler)
+
+    # Stderr handler: WARNING and above only, so terminal stays clean during play.
+    stderr_handler = logging.StreamHandler(sys.stderr)
+    stderr_handler.setLevel(logging.WARNING)
+    stderr_handler.setFormatter(log_fmt)
+    root_logger.addHandler(stderr_handler)
+
+    # Suppress httpx INFO/DEBUG (Anthropic SDK uses httpx internally; its
+    # connection and request logs would otherwise appear on every LLM call).
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("anthropic").setLevel(logging.WARNING)
+
+    logger.info("Log file: %s  (level=%s)", log_path, log_level_name)
+
+    # ------------------------------------------------------------------
+    # Transcript path resolution
+    #
+    # Priority: --transcript CLI arg > DAVE_TRANSCRIPT_PATH env var >
+    # auto-generated timestamped file in transcripts/ > disabled if
+    # DAVE_NO_TRANSCRIPT=1.
+    # ------------------------------------------------------------------
+    no_transcript = os.environ.get("DAVE_NO_TRANSCRIPT", "").strip() not in ("", "0")
+    if no_transcript:
+        transcript_path = None
+    elif args.transcript:
+        transcript_path = args.transcript
+    elif os.environ.get("DAVE_TRANSCRIPT_PATH"):
+        transcript_path = os.environ["DAVE_TRANSCRIPT_PATH"]
+    else:
+        # Auto-generate a timestamped filename. Transcripts directory mirrors
+        # the logs directory: one file per session, named by module + timestamp.
+        transcript_dir = Path("transcripts")
+        transcript_dir.mkdir(exist_ok=True)
+        transcript_path = str(transcript_dir / f"{db_stem}_{timestamp}.txt")
+
+    if transcript_path:
+        logger.info("Transcript: %s", transcript_path)
+    else:
+        logger.info("Transcript: disabled (DAVE_NO_TRANSCRIPT=1)")
+
+    # ------------------------------------------------------------------
+    # Configuration validation
+    # ------------------------------------------------------------------
     try:
         config.validate()
     except ValueError as exc:
         print(f"Configuration error: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    # Default game_id to 1; a future CLI arg parser could override this.
+    # Default game_id to 1; override with DAVE_GAME_ID for multi-game setups.
     game_id = int(os.environ.get("DAVE_GAME_ID", "1"))
 
+    # ------------------------------------------------------------------
+    # Engine startup
+    # ------------------------------------------------------------------
     try:
         with Database(config.DB_PATH) as db:
-            engine = GameEngine(db, game_id=game_id)
+            engine = GameEngine(db, game_id=game_id, transcript_path=transcript_path)
             engine.run()
     except FileNotFoundError as exc:
         print(f"Database not found: {exc}", file=sys.stderr)
