@@ -393,35 +393,228 @@ class Database:
         return rows
 
     # -------------------------------------------------------------------------
-    # Item queries
+    # Item queries (v9+)
     # -------------------------------------------------------------------------
 
     def get_items_at_location(
-        self, location_id: int, visible_only: bool = True, max_results: int = 12
+        self, location_id: int, max_results: int = 12
     ) -> list[dict]:
         """
-        Return items present at a location. By default returns only visible
-        items (is_visible=1); pass visible_only=False to include hidden items
-        (e.g. when the player is specifically searching for hidden items).
+        Return items currently at a location (current_location_id = location_id).
+
+        Only items not held by a character are returned — an item's canonical
+        position is either a location OR a character_item row, never both.
+        Properties JSON is parsed before returning.
+
+        Args:
+            location_id: The location to query.
+            max_results: Cap on rows returned (guards against very cluttered spaces).
         """
-        if visible_only:
-            return self._rows(
-                """SELECT * FROM item
-                   WHERE location_id = ? AND is_visible = 1
-                   ORDER BY id
-                   LIMIT ?""",
-                (location_id, max_results),
-            )
-        return self._rows(
-            "SELECT * FROM item WHERE location_id = ? ORDER BY id LIMIT ?",
+        rows = self._rows(
+            """SELECT * FROM item
+               WHERE current_location_id = ?
+               ORDER BY id
+               LIMIT ?""",
             (location_id, max_results),
         )
+        for row in rows:
+            row["properties"] = json.loads(row.get("properties") or "{}")
+        return rows
 
-    def get_items_held_by(self, character_id: int) -> list[dict]:
-        """Return all items currently held by a character."""
-        return self._rows(
-            "SELECT * FROM item WHERE held_by_character_id = ?",
+    def get_character_inventory(self, character_id: int) -> list[dict]:
+        """
+        Return all items currently held by a character, joined with slot data.
+
+        Each returned dict contains the item fields plus a 'slot' key from the
+        character_item join row (e.g. 'in_pack', 'worn', 'right_hand').
+        Properties JSON is parsed before returning.
+
+        Args:
+            character_id: The character whose inventory to fetch.
+        """
+        rows = self._rows(
+            """SELECT i.*, ci.slot, ci.acquired_at_minutes
+               FROM item i
+               JOIN character_item ci ON ci.item_id = i.id
+               WHERE ci.character_id = ?
+               ORDER BY i.id""",
             (character_id,),
+        )
+        for row in rows:
+            row["properties"] = json.loads(row.get("properties") or "{}")
+        return rows
+
+    def create_item(
+        self,
+        game_id: int,
+        name: str,
+        description: str | None = None,
+        properties: dict | None = None,
+        is_confirmed: int = 1,
+        current_location_id: int | None = None,
+    ) -> int:
+        """
+        Insert a new item record and return its id.
+
+        Called by the engine when Pass 2 emits an item_instantiations entry —
+        either during player self-definition (claimed items) or mid-play
+        ("I have a book in my pack"). Seeded items are inserted directly by
+        seed.sql at game build time and do not go through this method.
+
+        Args:
+            game_id:             The game this item belongs to.
+            name:                Short canonical name (e.g. 'sencha canister').
+            description:         Prose description, or None if not yet known.
+            properties:          Dict of module-specific attributes (serialised
+                                 to JSON). Defaults to {} if None.
+            is_confirmed:        1 = real item (default); 0 = player-claimed
+                                 placeholder not yet adjudicated.
+            current_location_id: Location id if the item is placed at a location
+                                 rather than in a character's inventory. None
+                                 when the item will be assigned via
+                                 transfer_item_to_character immediately after.
+
+        Returns:
+            The new item's id.
+        """
+        props_json = json.dumps(properties or {})
+        cursor = self._execute(
+            """INSERT INTO item
+                   (game_id, name, description, properties, is_confirmed,
+                    current_location_id, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            (game_id, name, description, props_json, is_confirmed, current_location_id),
+        )
+        item_id = cursor.lastrowid
+        logger.info(
+            "Item created: id=%d name=%r game=%d confirmed=%d",
+            item_id, name, game_id, is_confirmed,
+        )
+        return item_id
+
+    def transfer_item_to_character(
+        self,
+        item_id: int,
+        character_id: int,
+        slot: str = "carried",
+        acquired_at_minutes: int | None = None,
+    ) -> None:
+        """
+        Move an item from a location (or unassigned) into a character's inventory.
+
+        Clears current_location_id on the item and upserts the character_item row.
+        The item table's UNIQUE constraint on character_item.item_id ensures an
+        item cannot be in two inventories simultaneously.
+
+        Args:
+            item_id:              The item to transfer.
+            character_id:         The character who will hold the item.
+            slot:                 How the character carries it. Must be one of the
+                                  character_item slot values (see schema.sql).
+            acquired_at_minutes:  Game clock minute of acquisition, or None for
+                                  items that were always in inventory (seeded).
+        """
+        # Clear location — item is now held, not placed.
+        self._execute(
+            "UPDATE item SET current_location_id = NULL, updated_at = datetime('now') WHERE id = ?",
+            (item_id,),
+        )
+        # Upsert the character_item row (item_id is UNIQUE in character_item).
+        self._execute(
+            """INSERT INTO character_item (character_id, item_id, slot, acquired_at_minutes)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(item_id)
+               DO UPDATE SET character_id         = excluded.character_id,
+                             slot                 = excluded.slot,
+                             acquired_at_minutes  = excluded.acquired_at_minutes""",
+            (character_id, item_id, slot, acquired_at_minutes),
+        )
+        logger.info(
+            "Item %d transferred to char=%d slot=%s", item_id, character_id, slot
+        )
+
+    def transfer_item_to_location(
+        self,
+        item_id: int,
+        location_id: int,
+    ) -> None:
+        """
+        Move an item from a character's inventory (or unassigned) to a location.
+
+        Sets current_location_id on the item and removes any character_item row.
+        Used when the player drops an item, gives it away, or places it somewhere.
+
+        Args:
+            item_id:     The item to place.
+            location_id: The destination location.
+        """
+        self._execute(
+            """UPDATE item
+               SET current_location_id = ?, updated_at = datetime('now')
+               WHERE id = ?""",
+            (location_id, item_id),
+        )
+        self._execute(
+            "DELETE FROM character_item WHERE item_id = ?",
+            (item_id,),
+        )
+        logger.info("Item %d transferred to location=%d", item_id, location_id)
+
+    def update_player_character(
+        self,
+        character_id: int,
+        description: str | None = None,
+        gender: str | None = None,
+        pronouns: str | None = None,
+    ) -> None:
+        """
+        Update identity fields on the player character record.
+
+        Called by the engine when Pass 2 returns a player_character_update entry
+        — most commonly during self-definition at the start of a 'define'-mode
+        module, but usable in any module where the player corrects or elaborates
+        their character's appearance. Only non-None arguments are written; passing
+        None for a field leaves that field unchanged.
+
+        Args:
+            character_id: The player character's id.
+            description:  Prose description (as would appear in a mirror).
+            gender:       Gender label string, or None to leave unchanged.
+            pronouns:     JSON-serialisable pronoun list, or a JSON string, or
+                          None to leave unchanged. The engine passes either a
+                          Python list (from Pass 2 JSON) or an already-serialised
+                          string; this method normalises both.
+        """
+        updates: list[str] = []
+        params: list[Any] = []
+
+        if description is not None:
+            updates.append("description = ?")
+            params.append(description)
+        if gender is not None:
+            updates.append("gender = ?")
+            params.append(gender)
+        if pronouns is not None:
+            # Normalise: accept a Python list or a JSON string.
+            if isinstance(pronouns, list):
+                pronouns = json.dumps(pronouns)
+            updates.append("pronouns = ?")
+            params.append(pronouns)
+
+        if not updates:
+            logger.debug("update_player_character: no fields to update for char=%d", character_id)
+            return
+
+        updates.append("updated_at = datetime('now')")
+        params.append(character_id)
+        self._execute(
+            f"UPDATE character SET {', '.join(updates)} WHERE id = ?",
+            tuple(params),
+        )
+        logger.info(
+            "Player character updated: char=%d fields=%s",
+            character_id,
+            [u.split(' =')[0] for u in updates[:-1]],
         )
 
     # -------------------------------------------------------------------------

@@ -262,6 +262,39 @@ Required output fields:
                         will insert the character and they will appear in future
                         context packets as full cast members. Empty list if no
                         new characters are needed.)
+  item_instantiations  (list of new items to create and place. Use when:
+                          - the player describes carrying an item during self-definition
+                          - the player claims a mid-play item ("I have a book in my pack")
+                          - an NPC gives the player a tangible object
+                        Each entry must include:
+                          name (string, required — short canonical name)
+                          description (string or null — prose appearance/condition)
+                          properties (object — module-specific attributes, or {})
+                          character_id (integer, if held) OR location_id (integer, if placed)
+                          slot (string, required if character_id set — one of:
+                               right_hand, left_hand, both_hands, mouth, worn,
+                               pocket, in_pack, carried)
+                          is_confirmed (1 = real item, default; 0 = claimed but
+                                        not yet fully adjudicated)
+                        Do NOT instantiate items already in player.inventory.
+                        Empty list if no new items are created this turn.)
+  player_character_update (object or null. Use when the player describes themselves
+                        or corrects their appearance — most commonly at a mirror or
+                        self-introduction, or when they claim a physical attribute
+                        not previously established. Fields (all optional):
+                          description (string) — prose description of the player
+                              character as data (third-person); Pass 3 renders it
+                              in second person. If the player gave no self-description
+                              this turn, use exactly: "The image in the mirror is
+                              vague and undefined. Perhaps the mirror needs to be
+                              cleaned."
+                          gender (string or null)
+                          pronouns (list of {case, form} objects or null)
+                        Set the entire field to null if the player made no
+                        self-defining statements AND player.description is already
+                        set. Only populate when player.description is null (first
+                        self-definition) or the player explicitly corrects their
+                        appearance.)
   narrative_point_delta (integer, typically 0; positive for dramatically significant turns)
   adjudication_notes   (string: brief private notes on reasoning, not player-visible)
 
@@ -1386,12 +1419,14 @@ class GameEngine:
                 logger.warning("Skipping malformed location_change %r: %s", loc_change, exc)
 
         # ------------------------------------------------------------------
-        # Item changes
+        # Item changes (field-level updates to existing items)
         # ------------------------------------------------------------------
-        # The outcome specifies item changes as a list of {item_id, field, new_value}.
-        # We apply them as direct UPDATE statements. Only a narrow set of fields
-        # is permitted to prevent the LLM from making unintended schema changes.
-        _ALLOWED_ITEM_FIELDS = {"is_visible", "quality", "held_by_character_id", "location_id"}
+        # Each entry: {item_id, field, new_value}. Only the fields below are
+        # permitted — prevents the LLM from making unintended schema changes.
+        # To move an item, use item_instantiations (new item) or have Pass 2
+        # emit a transfer via this mechanism using current_location_id or the
+        # character_item table indirectly via transfer helpers.
+        _ALLOWED_ITEM_FIELDS = {"current_location_id", "is_confirmed", "description"}
         for change in outcome.get("item_changes") or []:
             try:
                 field = str(change["field"])
@@ -1403,11 +1438,116 @@ class GameEngine:
                     continue
                 # Use a parameterised query; field name is validated above.
                 self.db._execute(  # noqa: SLF001 — direct access justified here
-                    f"UPDATE item SET {field} = ? WHERE id = ?",
+                    f"UPDATE item SET {field} = ?, updated_at = datetime('now') WHERE id = ?",
                     (change["new_value"], int(change["item_id"])),
+                )
+                logger.debug(
+                    "item_change applied: item=%d %s=%r",
+                    int(change["item_id"]), field, change["new_value"],
                 )
             except (KeyError, TypeError, ValueError) as exc:
                 logger.warning("Skipping malformed item_change %r: %s", change, exc)
+
+        # ------------------------------------------------------------------
+        # Item instantiations (v9+)
+        # ------------------------------------------------------------------
+        # Pass 2 emits these when the player claims a new item (mid-play or
+        # during self-definition) or when an NPC gives the player something.
+        # Each entry creates a new item record and optionally places it in a
+        # character's inventory or at a location.
+        for entry in outcome.get("item_instantiations") or []:
+            try:
+                name        = str(entry["name"])
+                description = entry.get("description")
+                properties  = entry.get("properties") or {}
+                is_confirmed = int(entry.get("is_confirmed", 1))
+                char_id     = entry.get("character_id")
+                loc_id      = entry.get("location_id")
+                slot        = entry.get("slot", "carried")
+
+                # Guard: don't create a duplicate if the item is already in
+                # the player's inventory by the same name.
+                if char_id is not None:
+                    existing = self.db._row(  # noqa: SLF001
+                        """SELECT ci.item_id FROM character_item ci
+                           JOIN item i ON i.id = ci.item_id
+                           WHERE ci.character_id = ? AND i.name = ?""",
+                        (int(char_id), name),
+                    )
+                    if existing:
+                        logger.debug(
+                            "item_instantiation skipped: %r already in char=%d inventory",
+                            name, int(char_id),
+                        )
+                        continue
+
+                item_id = self.db.create_item(
+                    game_id=self.game_id,
+                    name=name,
+                    description=description,
+                    properties=properties if isinstance(properties, dict) else {},
+                    is_confirmed=is_confirmed,
+                )
+
+                if char_id is not None:
+                    acquired = self._current_game_time() or None
+                    self.db.transfer_item_to_character(
+                        item_id=item_id,
+                        character_id=int(char_id),
+                        slot=str(slot),
+                        acquired_at_minutes=acquired,
+                    )
+                    logger.info(
+                        "Item instantiated: %r (id=%d) → char=%d slot=%s confirmed=%d",
+                        name, item_id, int(char_id), slot, is_confirmed,
+                    )
+                elif loc_id is not None:
+                    self.db.transfer_item_to_location(
+                        item_id=item_id,
+                        location_id=int(loc_id),
+                    )
+                    logger.info(
+                        "Item instantiated: %r (id=%d) → location=%d confirmed=%d",
+                        name, item_id, int(loc_id), is_confirmed,
+                    )
+                else:
+                    # Neither character nor location specified — item is unplaced.
+                    logger.info(
+                        "Item instantiated: %r (id=%d) unplaced confirmed=%d",
+                        name, item_id, is_confirmed,
+                    )
+
+            except (KeyError, TypeError, ValueError) as exc:
+                logger.warning(
+                    "Skipping malformed item_instantiation %r: %s", entry, exc
+                )
+
+        # ------------------------------------------------------------------
+        # Player character update (v9+)
+        # ------------------------------------------------------------------
+        # Pass 2 emits this when the player describes themselves (self-definition
+        # at game start or mid-play appearance correction). Updates description,
+        # gender, and/or pronouns on the player character record. The engine
+        # applies whatever Pass 2 returns — including the default mirror text
+        # when the player gave no self-description.
+        pcu = outcome.get("player_character_update")
+        if pcu and self._player:
+            try:
+                self.db.update_player_character(
+                    character_id=self._player["id"],
+                    description=pcu.get("description"),
+                    gender=pcu.get("gender"),
+                    pronouns=pcu.get("pronouns"),
+                )
+                logger.info(
+                    "Player character updated: char=%d description=%.60s",
+                    self._player["id"],
+                    (pcu.get("description") or "")[:60],
+                )
+            except (KeyError, TypeError, ValueError) as exc:
+                logger.warning(
+                    "Skipping malformed player_character_update %r: %s", pcu, exc
+                )
 
         # ------------------------------------------------------------------
         # New location details (lazy world generation results)
@@ -1644,16 +1784,19 @@ class GameEngine:
 
         logger.info(
             "Outcome applied: type=%s attitudes=%d states=%d moves=%d "
-            "items=%d details=%d faction_reps=%d pending_intents=%d activities=%d",
+            "item_changes=%d item_instantiations=%d details=%d "
+            "faction_reps=%d pending_intents=%d activities=%d player_update=%s",
             outcome.get("outcome_type"),
             len(outcome.get("attitude_deltas") or []),
             len(outcome.get("internal_state_deltas") or []),
             len(loc_changes),
             len(outcome.get("item_changes") or []),
+            len(outcome.get("item_instantiations") or []),
             len(outcome.get("new_location_details") or []),
             len(outcome.get("faction_reputation_changes") or []),
             len(outcome.get("pending_intent_updates") or []),
             len(outcome.get("activity_updates") or []),
+            "yes" if outcome.get("player_character_update") else "no",
         )
 
 

@@ -243,6 +243,14 @@ def build_pass2_packet(
         player["id"]
     )
 
+    # Player inventory (v9+): items currently held by the player character,
+    # joined with slot information. Empty list for modules without an item
+    # system or when the player holds nothing. Gives Pass 2 the information
+    # needed to adjudicate item-related actions (offering tea, claiming a book,
+    # handing something to an NPC) and to generate item_instantiations for
+    # newly claimed items.
+    player_profile["inventory"] = db.get_character_inventory(player["id"])
+
     # ------------------------------------------------------------------
     # Current location (full: description, details, items)
     # ------------------------------------------------------------------
@@ -365,13 +373,14 @@ def build_pass2_packet(
 
     logger.debug(
         "Pass 2 packet built: game=%d player=%d location=%d "
-        "chars_present=%d chars_nearby=%d involuntary=%d",
+        "chars_present=%d chars_nearby=%d involuntary=%d inventory=%d",
         game_id,
         player["id"],
         location_id,
         len(characters_present),
         len(characters_nearby),
         len(inv_event_summaries),
+        len(player_profile.get("inventory", [])),
     )
     return packet
 
@@ -677,6 +686,14 @@ def _build_character_profile(
     if include_hidden and character.get("access_hidden_motivation"):
         profile["hidden_motivation"] = character.get("hidden_motivation")
 
+    # speech_filter (v9+): per-character natural-language instruction to Pass 3
+    # on how this character's communication should be rendered. None means no
+    # filter for this character (the game-level filter may still apply).
+    # Included in Pass 2 so adjudication knows which characters communicate
+    # non-verbally (npc_object role) or unintelligibly, and can author
+    # narrative_beat text accordingly.
+    profile["speech_filter"] = character.get("speech_filter")
+
     # pending_intent (v7+): working-memory slot for unfulfilled social
     # obligations. Included in Pass 2 profiles so the LLM knows which NPCs
     # are mid-obligation and can adjudicate their behaviour accordingly.
@@ -731,20 +748,18 @@ def _build_location_context(
     )
     items = db.get_items_at_location(
         location_id,
-        visible_only=True,
         max_results=config.PASS2_MAX_ITEMS,
     )
 
-    # Summarise items into a compact representation; the full item record
-    # has fields (quality, held_by_character_id, etc.) that are relevant to
-    # adjudication — include them all.
+    # Compact item representation for the context packet.
+    # properties is already parsed to a dict by get_items_at_location.
     item_summaries = [
         {
             "id": item["id"],
             "name": item["name"],
             "description": item["description"],
-            "quality": item["quality"],
-            "held_by_character_id": item["held_by_character_id"],
+            "properties": item["properties"],
+            "is_confirmed": item["is_confirmed"],
         }
         for item in items
     ]
