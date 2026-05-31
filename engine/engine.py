@@ -54,6 +54,15 @@ logger = logging.getLogger(__name__)
 # serialised context packet. Pass-specific requirements are spelled out here
 # rather than buried in the context packet so that the model sees them as
 # instructions, not as data.
+#
+# BRACE ESCAPING — read this before editing any template:
+# These strings are processed by Python's str.format(), which treats any
+# single { or } as a placeholder. Literal braces that should appear in the
+# prompt text — JSON examples, object shapes, set notation — must be doubled:
+#   Write {{ and }} in the source; the player sees { and } in the prompt.
+# The one real placeholder, {context_json}, stays as a single pair.
+# Forgetting this causes an IndexError at runtime when the template is
+# formatted. Search for {{ in the existing templates to see the pattern.
 
 PASS1_PROMPT_TEMPLATE = """\
 You are the intent parser for the DAVE RPG Engine. Your only job is to convert
@@ -269,7 +278,7 @@ Required output fields:
                         Each entry must include:
                           name (string, required — short canonical name)
                           description (string or null — prose appearance/condition)
-                          properties (object — module-specific attributes, or {})
+                          properties (object — module-specific attributes, or {{}})
                           character_id (integer, if held) OR location_id (integer, if placed)
                           slot (string, required if character_id set — one of:
                                right_hand, left_hand, both_hands, mouth, worn,
@@ -289,7 +298,7 @@ Required output fields:
                               vague and undefined. Perhaps the mirror needs to be
                               cleaned."
                           gender (string or null)
-                          pronouns (list of {case, form} objects or null)
+                          pronouns (list of {{case, form}} objects or null)
                         Set the entire field to null if the player made no
                         self-defining statements AND player.description is already
                         set. Only populate when player.description is null (first
@@ -328,6 +337,13 @@ Rules:
   list. If a location has is_passable=false, convey the barrier in tone
   (a closed door, a passage not meant for guests) rather than stating it as
   a rule. Keep this light; the goal is orientation, not a door inventory.
+- Mirror invitation: if `player.description` is null in the context, the
+  player has not yet defined themselves. In this case, end the opening scene
+  with a brief, natural invitation to look into the mirror — something that
+  draws the player's attention to it and suggests they might see who they are
+  reflected there. Do not break the fictional frame; phrase this as an
+  in-world moment, not a game instruction. If `player.description` is not
+  null, do not mention the mirror unless it is otherwise scenically relevant.
 
 Context:
 {context_json}

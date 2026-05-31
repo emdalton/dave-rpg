@@ -459,6 +459,10 @@ def build_pass3_packet(
         "name": player["name"],
         "species": player["species"],
         "emotional_state": player["emotional_state"],
+        # description is null until the player has defined their character.
+        # Pass 3 (and the opening scene renderer) use this to decide whether
+        # to invite self-description via the mirror.
+        "description": player["description"],
     }
 
     # ------------------------------------------------------------------
