@@ -181,6 +181,36 @@ The engine targets local inference for privacy, offline capability, and cost. Al
 
 Phase 1 development uses Claude Haiku as the game loop backend — the three-pass architecture is validated at a capability level close to the Phase 2 local model target. Claude Sonnet is used separately as a construction tool for seeding module data and generating ground-truth adjudication examples.
 
+### Hardware estimates for local inference
+
+*These estimates are speculative and will be revised as Phase 2 testing progresses. All figures assume 4-bit quantisation (Q4) via Ollama/llama.cpp.*
+
+The three passes have different computational demands:
+
+| Pass | Task | Minimum model size |
+|------|------|--------------------|
+| Pass 1 — Intent Parsing | Structured extraction; small context | ~3B parameters |
+| Pass 2 — Outcome Adjudication | Complex reasoning; large context; many output fields | 7B (simple modules) / 13B+ (complex social modules) |
+| Pass 3 — Prose Rendering | Creative writing; tone matching | 7B |
+
+Pass 2 is the bottleneck — it generates the most tokens and requires the most capable model. A single 7B model for all three passes is a reasonable starting point.
+
+Approximate turn times (all three passes, ~600–900 tokens generated total):
+
+| Hardware | Throughput | Est. turn time |
+|----------|------------|----------------|
+| Modern CPU only | ~10 t/s | 60–90 sec — too slow for interactive play |
+| Apple Silicon M2 Pro, 16GB | ~35–45 t/s | 13–25 sec — acceptable |
+| NVIDIA RTX 3060 12GB | ~55–70 t/s | 8–15 sec — comfortable |
+| Apple Silicon M2 Max, 32GB | ~30–40 t/s for 13B | 15–30 sec for complex modules |
+| NVIDIA RTX 3090 24GB | ~80–100 t/s | 6–10 sec — comfortable |
+
+For simple modules (Hidden Hostel, I Am a Cat) with a 7B model: an M2 Pro Mac or a machine with an RTX 3060 12GB is the practical minimum for interactive play. For socially complex modules (Meryton, with 20+ characters and dense faction mechanics), 13B is recommended for Pass 2, which requires 16GB+ VRAM or Apple Silicon with 32GB+ unified memory.
+
+### Longer-term target
+
+The engine's design is intended to be viable on consumer hardware including future game consoles (PlayStation 5 successor class and equivalents). More selectively trained or fine-tuned models — smaller models with deeper specialisation in the specific tasks each pass performs — may significantly lower these requirements. Voice control is a natural fit for the existing pass architecture and is a long-term design goal. These remain aspirational targets; current development proceeds via the Claude API.
+
 ---
 
 ## Contributing
