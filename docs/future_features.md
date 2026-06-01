@@ -1,6 +1,108 @@
 # DAVE RPG Engine — Future Feature Ideas
 
-*Captured May 2026. None of these are scoped or designed; this is a reference list.*
+*Captured May–June 2026. None of these are scoped or designed; this is a reference list.*
+
+---
+
+## 19. Common Corpus model support and author module development
+
+*Captured 2026-06-01.*
+
+### 19a. Salamandra 7B as the local inference target
+
+The current Phase 2 local model target is Mistral 7B via Ollama. A preferred
+alternative — on ethical grounds and for multilingual capability — is
+Salamandra 7B (Barcelona Supercomputing Center), trained on Common Corpus
+(public domain and openly licensed sources only, no copyrighted training data).
+Salamandra 7B is available via Ollama.
+
+**Why this matters:**
+
+- Common Corpus training eliminates the ethical concern of using copyrighted
+  material in the model's training data. This is a meaningful distinction for
+  a project that builds modules on public domain literature.
+- Multilingual capability is a genuine asset: a Salamandra-backed module could
+  support Spanish or Catalan text natively, and similar Common Corpus models
+  from other language communities (e.g. Pleias for French) could support their
+  respective languages.
+- Hardware trajectory: 7B models at interactive speeds will be feasible on
+  inexpensive consumer hardware within the next year or two, as inference
+  efficiency and accessible GPU/unified-memory hardware continue to improve.
+
+**Expected trade-off:** Pass 2 adjudication quality may be below Mistral 7B on
+complex social reasoning — Common Corpus models have generally had less RLHF and
+instruction-following training than the mainstream fine-tuned models. Pass 1
+(structured JSON extraction) and Pass 3 (prose generation) should be comparable.
+Fine-tuning is the lever to close the gap (see 19b).
+
+**Implementation:** The Ollama backend stub (`engine/llm/ollama.py`) needs to
+be completed before any local model can be tested. Once complete, Salamandra 7B
+should be testable by setting `DAVE_OLLAMA_MODEL=salamandra` (or whatever the
+Ollama model string is). No engine changes required beyond the Ollama backend.
+
+---
+
+### 19b. Fine-tuning for Pass 2 adjudication
+
+If Salamandra 7B (or any 7B Common Corpus model) proves insufficient for Pass 2
+on complex social modules, fine-tuning is the most tractable path to improvement.
+
+**Why this is well-scoped:**
+Pass 2 has a constrained, well-defined input/output format. DAVE already has a
+mechanism for generating ground-truth examples — Sonnet serves as the
+construction tool for seeding module data and generating exemplary adjudication
+outputs. A fine-tuning dataset of DAVE-format context packets paired with high-
+quality Pass 2 adjudication outputs (Sonnet-generated, human-reviewed) is
+achievable without a large corpus. The target task is narrow: structured JSON
+adjudication with OCEAN + MST reasoning, not general instruction following.
+
+**Dependency:** Sufficient ground-truth examples from real play sessions and
+construction runs. The test suite's ground-truth adjudication examples
+(`tests/test_pass2_contract.py`) are a starting point.
+
+---
+
+### 19c. Author module development pipeline (longer-term)
+
+*The most speculative of the three, but the highest-value use case if it becomes
+feasible.*
+
+Authors who want to build a DAVE module from their own published or unpublished
+work face a distinct set of requirements from the current development workflow:
+
+1. **Privacy:** Their manuscript must not be sent to a commercial API. The model
+   must run locally or on a explicitly trusted service.
+2. **Training data ethics:** Authors are likely to resist using a model trained
+   on copyrighted works — including, potentially, their own works ingested
+   without consent by a commercial model provider.
+3. **Module construction capability:** The current workflow (E writes seed SQL
+   manually, Sonnet assists with character/location design) requires deep
+   familiarity with the DAVE schema. An author workflow would need a much
+   higher-level interface: "here is my novel; here are the characters and scenes
+   I want to make playable; generate the module seed."
+
+The third requirement is the hard one. Extracting structured character profiles
+(OCEAN traits, goals, relationships, attitudes), location graphs, and faction
+dynamics from prose fiction requires a model with substantially more capability
+than 7B. The current estimate is that this task needs something in the range of
+a frontier model (Sonnet-class or better). No Common Corpus model at that
+capability level exists as of mid-2026, but the trajectory of the field suggests
+this gap will close within a year or two — particularly as Common Corpus expands
+and training compute becomes more accessible to non-commercial organizations.
+
+**The near-term partial solution:** A human-assisted pipeline where the author
+provides structured input (character descriptions, relationships, locations) via
+a guided form or template, and a 7B Common Corpus model assists with OCEAN
+inference and goal taxonomy mapping from that structured input. This is lower
+capability than full prose-to-module extraction but avoids the frontier-model
+dependency and keeps everything local.
+
+**The longer-term goal:** A local or trusted-hosted frontier-class Common Corpus
+model that can read a novel (or selected chapters) and generate a DAVE module
+seed — characters with full psychological profiles, location graph, faction
+structure, and starting attitudes — from the prose directly, with author review
+and correction. This is genuinely aspirational as of mid-2026 but worth
+designing toward.
 
 ---
 
