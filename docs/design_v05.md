@@ -214,9 +214,9 @@ The engine intentionally avoids rigid character classes. Growth is possible acro
 
 The engine targets a small, locally-running LLM for privacy, offline capability, and cost. All data remains on-device. Structured JSON output reliability is the primary selection criterion, since the three-pass architecture depends on parseable structured responses.
 
-Current recommended starting point: Mistral 7B via Ollama. In benchmark testing, Mistral 7B achieves approximately 90% first-try JSON accuracy with minimal retry overhead, runs on 6–7 GB RAM, and is Apache 2.0 licensed. Its 32K context window is sufficient for the context packets described in this document at current design scale.
+Current primary target: Salamandra 7B via Ollama (Barcelona Supercomputing Center). Trained exclusively on Common Corpus (public domain and openly licensed sources), which eliminates ethical concerns about copyrighted training data and makes the engine suitable for authors developing modules from their own unpublished work. Salamandra 7B is Apache 2.0 licensed, available via Ollama, and supports multilingual inference — an asset for non-English modules. Structured JSON output reliability is to be validated against DAVE's Pass 2 requirements during Phase 2 testing; fine-tuning on DAVE-format adjudication examples is a planned optimisation path if baseline quality is insufficient.
 
-Llama 3.3 8B is the recommended fallback or upgrade path if context window size becomes a bottleneck. It achieves strong instruction-following scores and supports a 128K context window, at somewhat higher RAM cost.
+Fallback: Mistral 7B via Ollama. Approximately 90% first-try JSON accuracy with minimal retry overhead, 6–7 GB RAM, Apache 2.0 licensed. 32K context window is sufficient for current context packet sizes.
 
 Phi-4-mini (3.8B) offers the smallest footprint for resource-constrained hardware but has shown less reliable structured output compliance in the Phi model family and is not recommended as the primary model for this architecture.
 

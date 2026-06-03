@@ -54,10 +54,10 @@ Early development. The engine is currently in Phase 1: prototyping with Claude H
 - For Phase 2 (Ollama backend): [Ollama](https://ollama.com) installed and running
 
 **Hardware requirements for local inference (Phase 2 / Ollama):**
-Mistral 7B requires meaningful GPU or Apple Silicon to run at interactive speeds.
-On Intel CPUs or machines with less than 16GB RAM, inference will be very slow
-(2–5 minutes per LLM call; three calls per turn). Recommended minimum for
-acceptable play:
+Salamandra 7B (and Mistral 7B) require meaningful GPU or Apple Silicon to run at
+interactive speeds. On Intel CPUs or machines with less than 16GB RAM, inference
+will be very slow (2–5 minutes per LLM call; three calls per turn). Recommended
+minimum for acceptable play:
 
 - Apple Silicon Mac (M1 or later) with 16GB unified memory
 - Or a machine with a dedicated NVIDIA GPU (8GB VRAM+) running Ollama with CUDA
@@ -176,8 +176,10 @@ never encountered them.
 
 The engine targets local inference for privacy, offline capability, and cost. All data remains on-device.
 
-- **Primary:** Mistral 7B via [Ollama](https://ollama.com) — ~90% first-try JSON accuracy, 6–7 GB RAM, Apache 2.0
-- **Fallback/upgrade:** Llama 3.3 8B — 128K context window, stronger instruction-following
+- **Primary target:** Salamandra 7B via [Ollama](https://ollama.com) — trained on Common Corpus (public domain and openly licensed sources only); multilingual; Apache 2.0. Prioritised over Mistral on ethical training data grounds and for multilingual capability.
+- **Fallback:** Mistral 7B via Ollama — strong JSON accuracy, Apache 2.0, widely available.
+
+The Common Corpus training constraint matters for two reasons: it eliminates concerns about copyrighted material in the model's training data, and it makes the engine more suitable for authors who want to develop modules from their own unpublished work without their content being processed by a model trained on others' writing.
 
 Phase 1 development uses Claude Haiku as the game loop backend — the three-pass architecture is validated at a capability level close to the Phase 2 local model target. Claude Sonnet is used separately as a construction tool for seeding module data and generating ground-truth adjudication examples.
 
