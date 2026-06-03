@@ -56,7 +56,7 @@ DAVE_LOG_LEVEL=DEBUG DAVE_DB_PATH=... python3 -m engine
 | Variable | Default | Description |
 |---|---|---|
 | `DAVE_LLM_BACKEND` | `claude` | Which LLM backend to use. `claude` uses the Anthropic API; `ollama` uses a local model via the Ollama HTTP API. The Ollama backend is currently a stub. |
-| `DAVE_CLAUDE_MODEL` | `claude-sonnet-4-6` | Claude model string. Use `claude-haiku-4-5-20251001` for faster, cheaper runs at some quality cost. |
+| `DAVE_CLAUDE_MODEL` | `claude-haiku-4-5-20251001` | Claude model string. Haiku is the Phase 1 game loop target. Use `claude-sonnet-4-6` for construction work (seeding, ground-truth generation). |
 | `DAVE_CLAUDE_MAX_TOKENS` | `2048` | Maximum tokens the model may generate per call. |
 | `DAVE_OLLAMA_BASE_URL` | `http://localhost:11434` | URL of the Ollama HTTP API. |
 | `DAVE_OLLAMA_MODEL` | `mistral` | Model name as registered in Ollama. |

@@ -39,9 +39,12 @@ LLM_BACKEND: str = os.environ.get("DAVE_LLM_BACKEND", "claude")
 # Override with env var: ANTHROPIC_API_KEY
 CLAUDE_API_KEY: str = os.environ.get("ANTHROPIC_API_KEY", "")
 
-# Model string. claude-sonnet-4-6 is the Phase 1 prototyping model.
+# Model string. Haiku is the Phase 1 game loop target — close in capability to
+# the Phase 2 local model (Mistral/Salamandra 7B) and much cheaper to run.
+# Sonnet is used separately as a construction tool (seeding, ground-truth
+# adjudication examples) but should not be the default for play sessions.
 # Override with env var: DAVE_CLAUDE_MODEL
-CLAUDE_MODEL: str = os.environ.get("DAVE_CLAUDE_MODEL", "claude-sonnet-4-6")
+CLAUDE_MODEL: str = os.environ.get("DAVE_CLAUDE_MODEL", "claude-haiku-4-5-20251001")
 
 # Maximum tokens the model may generate per call. Prose rendering is the most
 # verbose pass; adjudication produces structured JSON and needs less.

@@ -125,16 +125,15 @@ class ClaudeLLMClient(LLMClient):
         self._total_input_tokens += in_tok
         self._total_output_tokens += out_tok
 
-        logger.debug(
-            "Claude response: stop_reason=%s response_len=%d "
-            "tokens=in:%d/out:%d  session_total=in:%d/out:%d",
-            message.stop_reason,
-            len(response_text),
+        logger.info(
+            "tokens=in:%d/out:%d  session_total=in:%d/out:%d  stop=%s",
             in_tok,
             out_tok,
             self._total_input_tokens,
             self._total_output_tokens,
+            message.stop_reason,
         )
+        logger.debug("Claude response detail: response_len=%d", len(response_text))
         return response_text.strip()
 
     # Anthropic API pricing per million tokens (USD), keyed by model name prefix.
