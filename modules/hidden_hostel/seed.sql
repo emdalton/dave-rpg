@@ -422,8 +422,8 @@ INSERT INTO character (
     '{"current_safety": 0.55, "hostel_as_neutral_ground": 0.62, "other_guests_as_threat": 0.45}',
     'Resting near the door. Not looking for conversation; watching who enters.',
     'terse_gruff', 0.18, 0.22,
-    '[1, 3]',   -- Common Room + Upper Corridor
-    0.28,       -- suppressed by current_activity
+    '[1, 1]',   -- Common Room only; she is stationed near the entrance and does not wander upstairs
+    0.28,       -- suppressed by current_activity; range restricted so Upper Corridor stays clear
     -- Activity: sharpening a blade. Started 7:30 PM (1170), duration 60 min.
     -- Expires at 1230 (8:30 PM, 30 minutes into play). Not yet expired at start.
     'sharpening a blade by the door, watching the entrance',
@@ -724,20 +724,30 @@ VALUES
 -- Revealed to the player via the engine's self-definition confirmation pass —
 -- whether or not the player declares it, it is there. Can be offered to others
 -- (e.g. shared tea with Gin-chan or Marta).
-INSERT INTO item (game_id, name, description, properties)
+-- v10: char_id + slot set directly on the item row; no character_item insert needed.
+INSERT INTO item (game_id, name, description, properties, char_id, slot)
 VALUES (1, 'sencha canister',
     'A battered tin canister, half-full of fine Japanese green tea. The lid is engraved with a small crane. A parting gift from someone who loved you.',
-    '{"weight": "light", "container": true, "capacity": "small"}');
-
-INSERT INTO character_item (character_id, item_id, slot)
-VALUES (1, last_insert_rowid(), 'in_pack');
+    '{"weight": "light", "container": true, "capacity": "small"}',
+    1, 'in_pack');  -- The Traveller (id=1), carried in their pack
 
 -- Tray of hot rolls: freshly baked, sitting on the kitchen worktable.
 -- Available to any guest who enters the kitchen before the evening meal is served.
 -- Marta's pending_intent directs her to offer these and let guests help themselves.
 -- is_confirmed=1 because this is a seeded, canonical item, not lazily generated.
-INSERT INTO item (game_id, name, description, properties, is_confirmed, current_location_id)
+-- v10: loc_id replaces current_location_id.
+INSERT INTO item (game_id, name, description, properties, is_confirmed, loc_id)
 VALUES (1, 'tray of hot rolls',
     'A wooden tray holding a dozen small rolls, still warm from the oven. The crust is just set; the inside will be soft. A cloth was draped over them to keep the heat in.',
     '{"weight": "light", "edible": true, "servings": "several", "temperature": "hot"}',
     1, 2);  -- Kitchen (id=2)
+
+-- Mysteries of the Hidden Hostel: the Scholar's book, carried in their pack.
+-- A small act of worldbuilding: the hostel has stories told about it. The Scholar
+-- brought this as research material. They can give it to a kind guest — Pass 2
+-- has a concrete item_id to reference in an item_transfers entry.
+INSERT INTO item (game_id, name, description, properties, char_id, slot)
+VALUES (1, 'Mysteries of the Hidden Hostel',
+    'A battered hardcover with an ornate tooled cover. It contains stories set in the Hidden Hostel.',
+    '{"weight": "light", "readable": true, "genre": "stories"}',
+    4, 'in_pack');  -- The Scholar (id=4)

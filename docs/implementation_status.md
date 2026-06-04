@@ -1,7 +1,97 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-06-03, session 24 (closed).*
+*Last updated: 2026-06-04, session 25 (closed).*
+
+---
+
+## Session 25 notes (2026-06-04)
+
+**Completed this session:**
+
+- **Schema v10: unified item location (loc_id / char_id / item_id)**
+  - `schema/schema.sql`: `item` table replaced with v10 definition. Three nullable
+    FK columns (`loc_id → location`, `char_id → character`, `item_id → item`) with
+    table-level CHECK enforcing exactly one non-null. Added `location_description`
+    and `slot` columns. `character_item` table replaced with tombstone comment.
+    Indexes updated: `idx_item_location` + `idx_character_item` replaced by
+    `idx_item_loc_id` + `idx_item_char_id`.
+  - `schema/migrations/migrate_v9_to_v10.sql`: new migration; migrates existing
+    item rows and character_item rows; drops character_item; renames item_new → item.
+    CHECK constraint correctly placed after all column definitions (SQLite requirement).
+
+- **`engine/db.py` updated for v10:**
+  - `get_items_at_location`: `current_location_id` → `loc_id`
+  - `get_character_inventory`: JOIN on character_item replaced with direct
+    `WHERE char_id = ?` query on item row
+  - `create_item`: now takes `loc_id`, `char_id`, `item_id`, `slot`,
+    `location_description`; sets all in a single INSERT
+  - `transfer_item_to_character`: single UPDATE (sets char_id, clears loc_id/item_id)
+  - `transfer_item_to_location`: single UPDATE (sets loc_id, clears char_id/item_id;
+    optional `is_confirmed` override for deliberate player drops)
+  - `transfer_item_to_container`: new method (sets item_id FK)
+
+- **`engine/engine.py` updated for v10:**
+  - `item_transfers` outcome handler added: moves existing items between
+    character/location/container; validates exactly one destination; sets
+    `is_confirmed=1` on location drops
+  - `item_instantiations` handler: rewritten to pass FK directly to `create_item`
+    (no two-step create-then-transfer); supports `container_item_id` and
+    `location_description`; fallback to player's current location when unspecified
+  - `_ALLOWED_ITEM_FIELDS` updated: `current_location_id` removed; `is_visible` and
+    `quality` added; FK columns correctly excluded (CHECK requires atomic update)
+  - Pass 2 prompt: `item_transfers` field documented; `item_instantiations` updated
+    with `container_item_id` and `location_description`; `item_changes` note clarified
+  - Fallback outcome schema: `item_transfers: []` added
+
+- **`engine/context.py`: NPC inventory added to character profiles**
+  - `_build_character_profile` now includes an `inventory` field for all characters
+    (compact: id, name, slot). Pass 2 can now reference item_ids held by NPCs when
+    generating `item_transfers` entries (e.g. Scholar giving a book to the player).
+
+- **Hidden Hostel seed and reset updated for v10:**
+  - Sencha canister: INSERT now uses `char_id=1, slot='in_pack'`; no character_item row
+  - Tray of hot rolls: INSERT uses `loc_id=2`
+  - Scholar's book seeded: "Mysteries of the Hidden Hostel" (char_id=4, slot='in_pack')
+    — gives Pass 2 a concrete item_id for the Scholar→player gift turn
+  - Old Soldier `wander_range` changed from `[1,3]` to `[1,1]` (Common Room only).
+    She is stationed near the entrance; wandering to the Upper Corridor was both
+    out of character and caused test_110 (multi-hop return) to fail non-deterministically.
+  - `reset_instance.sql`: `DELETE FROM character_item` removed; all three seeded
+    items restored on reset
+
+- **`tests/test_scenario_entrance.py` updated:**
+  - `get_inventory_names` helper: JOIN on character_item replaced with `WHERE char_id=?`
+  - Tests 090/100: `@pytest.mark.xfail` removed (item_transfers now implemented)
+  - Test docstrings and summary comments updated to reference v10 column names
+
+**Test results (last run, session 25):**
+  - 15/18 passing
+  - test_040 (enter hostel): LLM nondeterminism — "go inside" occasionally routes
+    to Kitchen (2) instead of Common Room (1). Not a code bug; likely a Pass 1
+    interpretation issue with the Blue Door pending_intent routing.
+  - test_055 (Wanderer pending_intent cleared): cascade from test_040 — if player
+    arrived in Kitchen, the greeting turn in test_050 ran without Wanderer present.
+  - test_100 (Scholar gives book): Pass 2 generates correct prose but does not emit
+    `item_transfers` despite Scholar's inventory (book id=3) now visible in context.
+    Cause unclear — may need a stronger prompt instruction or an NPC intent mechanism.
+
+**Pending / known issues:**
+  - test_040/055 flakiness: "go inside" routing sometimes lands in Kitchen.
+    Investigate Blue Door routing logic or tighten the pending_intent wording.
+  - test_100 persistent failure: Scholar gives appropriate prose but no item_transfers.
+    NPC giving an item may need explicit support (pending_intent? engine-side NPC action?).
+  - Tray of hot rolls sometimes ends up in player inventory (carried whole) instead
+    of player receiving a portion. Not a crash; test_065 still passes because "tray
+    of hot rolls" contains "roll". Correct behavior would instantiate a "rolls" item.
+    Noted as known behavior; portability semantics deferred to next session.
+  - NPC notification / reaction mechanic (Old Soldier reacting to Wanderer introductions):
+    deferred to future session.
+  - Interruptable activities: deferred.
+  - i_am_a_cat `seed.sql` still uses v1 column names (`location_id`, `held_by_character_id`);
+    not updated since that module is not in active test scope. Needs update before
+    the i_am_a_cat module is playable.
+  - Add `"format": "json"` to Ollama Pass 1/Pass 2 payloads (`engine/llm/ollama.py`).
 
 ---
 

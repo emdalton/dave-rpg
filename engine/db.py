@@ -400,10 +400,10 @@ class Database:
         self, location_id: int, max_results: int = 12, visible_only: bool = False
     ) -> list[dict]:
         """
-        Return items currently at a location (current_location_id = location_id).
+        Return items whose loc_id matches location_id (v10 schema).
 
-        Only items not held by a character are returned — an item's canonical
-        position is either a location OR a character_item row, never both.
+        Items held by characters (char_id set) or inside containers (item_id set)
+        are not returned — this query is scoped to location-resident items only.
         Properties JSON is parsed before returning.
 
         Args:
@@ -416,7 +416,7 @@ class Database:
         confirmed_clause = " AND is_confirmed = 1" if visible_only else ""
         rows = self._rows(
             f"""SELECT * FROM item
-               WHERE current_location_id = ?{confirmed_clause}
+               WHERE loc_id = ?{confirmed_clause}
                ORDER BY id
                LIMIT ?""",
             (location_id, max_results),
@@ -427,21 +427,20 @@ class Database:
 
     def get_character_inventory(self, character_id: int) -> list[dict]:
         """
-        Return all items currently held by a character, joined with slot data.
+        Return all items currently held by a character (v10 schema).
 
-        Each returned dict contains the item fields plus a 'slot' key from the
-        character_item join row (e.g. 'in_pack', 'worn', 'right_hand').
-        Properties JSON is parsed before returning.
+        In v10 the slot field lives directly on the item row (char_id FK replaces
+        the old character_item join table). Each returned dict is a full item row
+        including slot and location_description. Properties JSON is parsed before
+        returning.
 
         Args:
             character_id: The character whose inventory to fetch.
         """
         rows = self._rows(
-            """SELECT i.*, ci.slot, ci.acquired_at_minutes
-               FROM item i
-               JOIN character_item ci ON ci.item_id = i.id
-               WHERE ci.character_id = ?
-               ORDER BY i.id""",
+            """SELECT * FROM item
+               WHERE char_id = ?
+               ORDER BY id""",
             (character_id,),
         )
         for row in rows:
@@ -455,28 +454,35 @@ class Database:
         description: str | None = None,
         properties: dict | None = None,
         is_confirmed: int = 1,
-        current_location_id: int | None = None,
+        loc_id: int | None = None,
+        char_id: int | None = None,
+        item_id: int | None = None,
+        slot: str | None = None,
+        location_description: str | None = None,
     ) -> int:
         """
-        Insert a new item record and return its id.
+        Insert a new item record and return its id (v10 schema).
 
-        Called by the engine when Pass 2 emits an item_instantiations entry —
-        either during player self-definition (claimed items) or mid-play
-        ("I have a book in my pack"). Seeded items are inserted directly by
-        seed.sql at game build time and do not go through this method.
+        Exactly one of loc_id, char_id, or item_id must be provided — the schema
+        CHECK constraint enforces this at the database layer. Called by the engine
+        when Pass 2 emits an item_instantiations entry. Seeded items are inserted
+        directly by seed.sql at game build time and do not go through this method.
 
         Args:
-            game_id:             The game this item belongs to.
-            name:                Short canonical name (e.g. 'sencha canister').
-            description:         Prose description, or None if not yet known.
-            properties:          Dict of module-specific attributes (serialised
-                                 to JSON). Defaults to {} if None.
-            is_confirmed:        1 = real item (default); 0 = player-claimed
-                                 placeholder not yet adjudicated.
-            current_location_id: Location id if the item is placed at a location
-                                 rather than in a character's inventory. None
-                                 when the item will be assigned via
-                                 transfer_item_to_character immediately after.
+            game_id:              The game this item belongs to.
+            name:                 Short canonical name (e.g. 'sencha canister').
+            description:          Prose description, or None if not yet known.
+            properties:           Dict of module-specific attributes (serialised
+                                  to JSON). Defaults to {} if None.
+            is_confirmed:         1 = real item (default); 0 = player-claimed
+                                  placeholder not yet adjudicated.
+            loc_id:               Location id if item is at a location.
+            char_id:              Character id if item is held by a character.
+            item_id:              Container item id if item is inside another item.
+            slot:                 How the character carries/wears the item — only
+                                  meaningful when char_id is set.
+            location_description: Natural-language description of where within the
+                                  location/character/container the item sits.
 
         Returns:
             The new item's id.
@@ -485,53 +491,51 @@ class Database:
         cursor = self._execute(
             """INSERT INTO item
                    (game_id, name, description, properties, is_confirmed,
-                    current_location_id, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
-            (game_id, name, description, props_json, is_confirmed, current_location_id),
+                    loc_id, char_id, item_id,
+                    slot, location_description,
+                    created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            (game_id, name, description, props_json, is_confirmed,
+             loc_id, char_id, item_id,
+             slot, location_description),
         )
-        item_id = cursor.lastrowid
+        new_id = cursor.lastrowid
         logger.info(
-            "Item created: id=%d name=%r game=%d confirmed=%d",
-            item_id, name, game_id, is_confirmed,
+            "Item created: id=%d name=%r game=%d confirmed=%d loc=%s char=%s container=%s",
+            new_id, name, game_id, is_confirmed, loc_id, char_id, item_id,
         )
-        return item_id
+        return new_id
 
     def transfer_item_to_character(
         self,
         item_id: int,
         character_id: int,
         slot: str = "carried",
-        acquired_at_minutes: int | None = None,
+        location_description: str | None = None,
     ) -> None:
         """
-        Move an item from a location (or unassigned) into a character's inventory.
+        Move an item to a character's inventory (v10 schema).
 
-        Clears current_location_id on the item and upserts the character_item row.
-        The item table's UNIQUE constraint on character_item.item_id ensures an
-        item cannot be in two inventories simultaneously.
+        Sets char_id and clears loc_id and the container item_id in a single
+        UPDATE. The slot field is updated in the same statement. The schema CHECK
+        constraint guarantees exactly one FK is non-null after the update.
 
         Args:
             item_id:              The item to transfer.
             character_id:         The character who will hold the item.
-            slot:                 How the character carries it. Must be one of the
-                                  character_item slot values (see schema.sql).
-            acquired_at_minutes:  Game clock minute of acquisition, or None for
-                                  items that were always in inventory (seeded).
+            slot:                 How the character carries it (e.g. 'in_pack',
+                                  'worn', 'right_hand'). Descriptive only — no
+                                  uniqueness enforced at the schema layer.
+            location_description: Optional natural-language description of where
+                                  on the character the item is positioned.
         """
-        # Clear location — item is now held, not placed.
         self._execute(
-            "UPDATE item SET current_location_id = NULL, updated_at = datetime('now') WHERE id = ?",
-            (item_id,),
-        )
-        # Upsert the character_item row (item_id is UNIQUE in character_item).
-        self._execute(
-            """INSERT INTO character_item (character_id, item_id, slot, acquired_at_minutes)
-               VALUES (?, ?, ?, ?)
-               ON CONFLICT(item_id)
-               DO UPDATE SET character_id         = excluded.character_id,
-                             slot                 = excluded.slot,
-                             acquired_at_minutes  = excluded.acquired_at_minutes""",
-            (character_id, item_id, slot, acquired_at_minutes),
+            """UPDATE item
+               SET char_id = ?, loc_id = NULL, item_id = NULL,
+                   slot = ?, location_description = ?,
+                   updated_at = datetime('now')
+               WHERE id = ?""",
+            (character_id, slot, location_description, item_id),
         )
         logger.info(
             "Item %d transferred to char=%d slot=%s", item_id, character_id, slot
@@ -541,28 +545,70 @@ class Database:
         self,
         item_id: int,
         location_id: int,
+        location_description: str | None = None,
+        is_confirmed: int | None = None,
     ) -> None:
         """
-        Move an item from a character's inventory (or unassigned) to a location.
+        Move an item to a location (v10 schema).
 
-        Sets current_location_id on the item and removes any character_item row.
-        Used when the player drops an item, gives it away, or places it somewhere.
+        Sets loc_id and clears char_id and container item_id in a single UPDATE.
+        When the player deliberately drops an item, pass is_confirmed=1 to mark
+        the item as intentionally placed and known to be there.
 
         Args:
-            item_id:     The item to place.
-            location_id: The destination location.
+            item_id:              The item to place.
+            location_id:          The destination location.
+            location_description: Natural-language description of where within
+                                  the location the item sits.
+            is_confirmed:         If provided, overrides the item's is_confirmed
+                                  flag (pass 1 when player drops deliberately).
+        """
+        confirmed_clause = ", is_confirmed = ?" if is_confirmed is not None else ""
+        params: tuple = (
+            (location_id, location_description, is_confirmed, item_id)
+            if is_confirmed is not None
+            else (location_id, location_description, item_id)
+        )
+        self._execute(
+            f"""UPDATE item
+               SET loc_id = ?, char_id = NULL, item_id = NULL,
+                   slot = NULL, location_description = ?{confirmed_clause},
+                   updated_at = datetime('now')
+               WHERE id = ?""",
+            params,
+        )
+        logger.info("Item %d transferred to location=%d", item_id, location_id)
+
+    def transfer_item_to_container(
+        self,
+        item_id: int,
+        container_item_id: int,
+        location_description: str | None = None,
+    ) -> None:
+        """
+        Move an item inside a container item (v10 schema).
+
+        Sets the item_id FK (pointing to the container) and clears loc_id and
+        char_id. Container hierarchy is resolved at query time via recursive CTE;
+        moving a container does not cascade-update its contents.
+
+        Args:
+            item_id:              The item to place inside the container.
+            container_item_id:    The item that acts as the container.
+            location_description: Natural-language description of where within
+                                  the container the item is positioned.
         """
         self._execute(
             """UPDATE item
-               SET current_location_id = ?, updated_at = datetime('now')
+               SET item_id = ?, loc_id = NULL, char_id = NULL,
+                   slot = NULL, location_description = ?,
+                   updated_at = datetime('now')
                WHERE id = ?""",
-            (location_id, item_id),
+            (container_item_id, location_description, item_id),
         )
-        self._execute(
-            "DELETE FROM character_item WHERE item_id = ?",
-            (item_id,),
+        logger.info(
+            "Item %d transferred into container item=%d", item_id, container_item_id
         )
-        logger.info("Item %d transferred to location=%d", item_id, location_id)
 
     def update_player_character(
         self,

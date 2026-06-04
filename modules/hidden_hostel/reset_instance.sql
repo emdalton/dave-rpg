@@ -20,8 +20,8 @@
 --   - character_faction_reputation: all reputation values and notes
 --   - character_visited_location: trimmed to seeded set
 --   - location_detail: lazily generated details removed; seeded detail restored
---   - item and character_item: non-seeded items removed; sencha canister and tray
---                of hot rolls restored to starting positions
+--   - item: non-seeded items removed; sencha canister and tray of hot rolls
+--           restored to starting positions (v10: char_id/loc_id on item row)
 --   - action_log: cleared entirely
 --
 -- What this does NOT touch (stable world data):
@@ -264,26 +264,32 @@ VALUES (
 -- Player-claimed items from a prior session are discarded on reset.
 -- =============================================================================
 
-DELETE FROM character_item
-WHERE item_id IN (SELECT id FROM item WHERE game_id = 1);
-
+-- v10: character_item table removed; item FK lives directly on item row (char_id).
+-- No DELETE FROM character_item needed.
 DELETE FROM item WHERE game_id = 1;
 
 -- Re-seed the sencha canister in The Traveller's pack
-INSERT INTO item (game_id, name, description, properties)
+-- v10: char_id + slot on item row; no character_item insert needed.
+INSERT INTO item (game_id, name, description, properties, char_id, slot)
 VALUES (1, 'sencha canister',
     'A battered tin canister, half-full of fine Japanese green tea. The lid is engraved with a small crane. A parting gift from someone who loved you.',
-    '{"weight": "light", "container": true, "capacity": "small"}');
-
-INSERT INTO character_item (character_id, item_id, slot)
-VALUES (1, last_insert_rowid(), 'in_pack');
+    '{"weight": "light", "container": true, "capacity": "small"}',
+    1, 'in_pack');  -- The Traveller (id=1)
 
 -- Re-seed the tray of hot rolls on the kitchen worktable
-INSERT INTO item (game_id, name, description, properties, is_confirmed, current_location_id)
+-- v10: loc_id replaces current_location_id.
+INSERT INTO item (game_id, name, description, properties, is_confirmed, loc_id)
 VALUES (1, 'tray of hot rolls',
     'A wooden tray holding a dozen small rolls, still warm from the oven. The crust is just set; the inside will be soft. A cloth was draped over them to keep the heat in.',
     '{"weight": "light", "edible": true, "servings": "several", "temperature": "hot"}',
     1, 2);  -- Kitchen (id=2)
+
+-- Re-seed the Scholar's book in their pack
+INSERT INTO item (game_id, name, description, properties, char_id, slot)
+VALUES (1, 'Mysteries of the Hidden Hostel',
+    'A battered hardcover with an ornate tooled cover. It contains stories set in the Hidden Hostel.',
+    '{"weight": "light", "readable": true, "genre": "stories"}',
+    4, 'in_pack');  -- The Scholar (id=4)
 
 
 -- =============================================================================

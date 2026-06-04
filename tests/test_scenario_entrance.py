@@ -42,10 +42,10 @@ Scenario outline
 DB assertions (what each checkpoint checks)
 -------------------------------------------
   010  player.current_location_id = 6; player.description IS NULL;
-       Traveller has 'sencha canister' in character_item (almanac not yet seeded)
+       Traveller has 'sencha canister' with char_id=1 (almanac not yet seeded)
   020  player.current_location_id = 6  (door refused entry)
   030  player.description IS NOT NULL; 'travel almanac' (or similar) appears
-       in character_item for the Traveller (item_instantiations)
+       with char_id=1 for the Traveller (item_instantiations)
   040  player.current_location_id = 1
   050  Traveller hosts_of_the_hostel reputation > 0.40 (seed value)
   055  Wanderer (id=3) pending_intent IS NULL
@@ -55,7 +55,7 @@ DB assertions (what each checkpoint checks)
   080  player.current_location_id = 3 (Upper Corridor; first-visit stop)
   085  player.current_location_id = 3 (stayed in corridor; Room B is locked)
   088  player.current_location_id = 4
-  090  [xfail] Traveller has no 'travel almanac' in character_item
+  090  [xfail] Traveller has no 'travel almanac' with char_id=1
   100  [xfail] Traveller has at least one item gained since step 090
   110  player.current_location_id = 1; game clock has advanced since step 040
   120  Marta (id=2) current_activity IS NULL
@@ -167,11 +167,9 @@ def get_player(engine: GameEngine) -> dict:
 
 
 def get_inventory_names(db: Database, character_id: int) -> list[str]:
-    """Return a list of item names held by a character."""
+    """Return a list of item names held by a character (v10: queries item.char_id directly)."""
     rows = db._rows(
-        "SELECT i.name FROM character_item ci "
-        "JOIN item i ON ci.item_id = i.id "
-        "WHERE ci.character_id = ?",
+        "SELECT name FROM item WHERE char_id = ?",
         (character_id,),
     )
     return [r["name"] for r in rows]
@@ -426,14 +424,13 @@ class TestHiddenHostelEntranceScenario:
         self, scenario_db: Database, scenario_engine: GameEngine
     ):
         """
-        The kitchen contains a seeded 'tray of hot rolls' (location_id=2).
-        The player takes one. Pass 2 should issue an item_changes entry that
-        moves a roll into the Traveller's inventory.
+        The kitchen contains a seeded 'tray of hot rolls' (loc_id=2).
+        The player takes one. Pass 2 should issue an item_transfers entry
+        (v10) or item_instantiations entry moving a roll item into the
+        Traveller's inventory.
 
-        This tests the v9 item_changes handler for location → character
-        transfers (before item_transfers is implemented). The roll is a
-        consumable, so any item with 'roll' in the name appearing in the
-        Traveller's character_item rows constitutes a pass.
+        The roll is a consumable, so any item with 'roll' in the name
+        appearing with char_id=1 (the Traveller) constitutes a pass.
         """
         inv_before = set(get_inventory_names(scenario_db, character_id=1))
 
@@ -569,24 +566,15 @@ class TestHiddenHostelEntranceScenario:
 
     # ------------------------------------------------------------------
     # Checkpoint 090: Give travel almanac to Scholar
-    # xfail: item_transfers outcome field not yet implemented (schema v10)
     # ------------------------------------------------------------------
 
-    @pytest.mark.xfail(
-        reason=(
-            "item_transfers outcome field not yet implemented. "
-            "Pass 2 uses item_changes with slot field, which the engine rejects. "
-            "This test will pass once schema v10 and item_transfers are in place."
-        ),
-        strict=False,
-    )
     def test_090_give_almanac_to_scholar(
         self, scenario_db: Database, scenario_engine: GameEngine
     ):
         """
         Giving the travel almanac to the Scholar should remove it from the
-        Traveller's inventory. Currently fails because item_transfers is not
-        implemented — the engine rejects item_changes with a slot field.
+        Traveller's inventory. Pass 2 should emit an item_transfers entry
+        (v10) transferring the almanac to the Scholar's char_id.
         """
         prose = take_turn(
             scenario_engine,
@@ -603,17 +591,8 @@ class TestHiddenHostelEntranceScenario:
 
     # ------------------------------------------------------------------
     # Checkpoint 100: Scholar gives player a book in return
-    # xfail: item_transfers outcome field not yet implemented (schema v10)
     # ------------------------------------------------------------------
 
-    @pytest.mark.xfail(
-        reason=(
-            "item_transfers outcome field not yet implemented. "
-            "Scholar cannot give an item to the player without item_transfers. "
-            "This test will pass once schema v10 and item_transfers are in place."
-        ),
-        strict=False,
-    )
     def test_100_scholar_gives_book(
         self, scenario_db: Database, scenario_engine: GameEngine
     ):

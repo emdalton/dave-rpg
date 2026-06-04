@@ -698,6 +698,16 @@ def _build_character_profile(
     # narrative_beat text accordingly.
     profile["speech_filter"] = character.get("speech_filter")
 
+    # Inventory (v10+): items currently held by this character. Included so
+    # Pass 2 can reference item ids when emitting item_transfers (e.g. an NPC
+    # giving an item to the player requires a valid item_id). Compact format:
+    # id, name, and slot only — full description is not needed for adjudication.
+    inventory_rows = db.get_character_inventory(char_id)
+    profile["inventory"] = [
+        {"id": row["id"], "name": row["name"], "slot": row.get("slot")}
+        for row in inventory_rows
+    ]
+
     # pending_intent (v7+): working-memory slot for unfulfilled social
     # obligations. Included in Pass 2 profiles so the LLM knows which NPCs
     # are mid-obligation and can adjudicate their behaviour accordingly.
