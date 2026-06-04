@@ -287,23 +287,19 @@ Required output fields:
                                         not yet fully adjudicated)
                         Do NOT instantiate items already in player.inventory.
                         Empty list if no new items are created this turn.)
-  player_character_update (object or null. Use when the player describes themselves
-                        or corrects their appearance — most commonly at a mirror or
-                        self-introduction, or when they claim a physical attribute
-                        not previously established. Fields (all optional):
+  player_character_update (object or null. Use when the player explicitly
+                        describes themselves or corrects their appearance —
+                        a self-introduction, a look in a mirror, a declared
+                        physical attribute. Fields (all optional):
                           description (string) — prose description of the player
                               character as data (third-person); Pass 3 renders it
-                              in second person. If the player gave no self-description
-                              this turn, use exactly: "The image in the mirror is
-                              vague and undefined. Perhaps the mirror needs to be
-                              cleaned."
+                              in second person.
                           gender (string or null)
                           pronouns (list of {{case, form}} objects or null)
-                        Set the entire field to null if the player made no
-                        self-defining statements AND player.description is already
-                        set. Only populate when player.description is null (first
-                        self-definition) or the player explicitly corrects their
-                        appearance.)
+                        Set to null if the player made no self-defining statements
+                        this turn. Do not populate based on proximity to a mirror
+                        alone — only populate when the player actively describes
+                        themselves.)
   narrative_point_delta (integer, typically 0; positive for dramatically significant turns)
   adjudication_notes   (string: brief private notes on reasoning, not player-visible)
 
@@ -341,14 +337,11 @@ Rules:
   list. If a location has is_passable=false, convey the barrier in tone
   (a closed door, a passage not meant for guests) rather than stating it as
   a rule. Keep this light; the goal is orientation, not a door inventory.
-- Mirror invitation: if `player.description` is null in the context, end the
-  scene by drawing attention to the mirror set into the door — describe it
-  concretely as a surface in which the player could see their own reflection.
-  Make it clear and direct: the mirror is there, and looking into it is
-  something they can do. Do not break the fictional frame or give a game
-  instruction, but do not be so subtle the player misses it. If
-  `player.description` is not null, do not mention the mirror unless it is
-  otherwise scenically relevant.
+- NPC pending_intents: where a character present has a pending_intent, render
+  it as atmospheric physical action appropriate to their nature. An npc_object
+  acts but does not speak — convey intent through what the player perceives
+  (light, motion, physical presence), not through words or direct instruction.
+  Do not state the intent; let it emerge from what the senses report.
 
 Context:
 {context_json}

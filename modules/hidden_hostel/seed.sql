@@ -515,8 +515,14 @@ INSERT INTO character (
     'Welcome arriving travellers; open when they are ready to enter.',
     'silent', 0.80, 0.0,    -- warmth=0.80 conveys hospitality through physical presence
     NULL, 0.0,
-    'welcome the arriving traveller; allow the warmth, light, and scent of the hostel to drift through the glass; open invitingly when the traveller steps forward to enter',
-    'silent: this entity cannot speak or make sounds; describe only physical actions — opening, closing, admitting warmth and scent, the quality of light through glass panels'
+    -- Precondition: the door invites self-examination before opening. It cannot
+    -- speak but acts through its environment — the mirror glows or shimmers to
+    -- draw the traveller''s gaze. Once player.description is non-null (traveller
+    -- has defined their appearance), the precondition is met and the door opens.
+    -- This is the canonical example of a pending_intent with a player-state
+    -- precondition rather than a simple in-world trigger.
+    'invite the arriving traveller to examine themselves in the mirror before entering; the door cannot speak or make sounds but may act — the mirror may glow, shimmer, or seem to draw the traveller''s gaze; once the traveller has defined their appearance (player.description is non-null), stand ready to open and admit them; do not open or suggest entry before self-definition is complete',
+    'silent: this entity cannot speak or make sounds; describe only physical actions — the mirror glowing or shifting, the quality of light through glass panels, the door standing still or stirring'
 );
 
 

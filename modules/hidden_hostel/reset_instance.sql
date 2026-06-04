@@ -150,7 +150,7 @@ UPDATE character
 SET current_location_id          = 6,      -- Outside the Hostel Door
     emotional_state              = 'welcoming',
     maslow_tier                  = 'belonging',
-    pending_intent               = 'welcome the arriving traveller; allow the warmth, light, and scent of the hostel to drift through the glass; open invitingly when the traveller steps forward to enter',
+    pending_intent               = 'invite the arriving traveller to examine themselves in the mirror before entering; the door cannot speak or make sounds but may act — the mirror may glow, shimmer, or seem to draw the traveller''s gaze; once the traveller has defined their appearance (player.description is non-null), stand ready to open and admit them; do not open or suggest entry before self-definition is complete',
     current_activity             = NULL,
     activity_started_at          = NULL,
     activity_estimated_duration  = NULL,

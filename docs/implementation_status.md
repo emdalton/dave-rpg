@@ -1,7 +1,120 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-05-31, session 21 (closed).*
+*Last updated: 2026-06-03, session 23 (closed).*
+
+---
+
+## Session 23 notes (2026-06-03)
+
+**Completed this session:**
+
+- **Mirror mechanic redesigned — moved from prompt engineering to seed/pending_intent:**
+  - Blue Door `pending_intent` updated in `seed.sql` and `reset_instance.sql` to
+    encode a player-state precondition: invite self-examination before opening;
+    do not open or suggest entry until `player.description` is non-null.
+  - `seed.sql` Blue Door comment block documents this as the canonical example of
+    a pending_intent with a player-state precondition rather than an in-world trigger.
+  - `seed.sql` Blue Door `speech_filter` updated to mention mirror/light behavior
+    (previously only mentioned opening/closing/scent).
+  - `OPENING_SCENE_PROMPT_TEMPLATE` in `engine.py`: removed the fragile mirror-specific
+    rule. Replaced with a general rule: render NPC pending_intents as atmospheric
+    physical action; npc_object acts but does not speak.
+  - Pass 2 `player_character_update` prompt: removed the default mirror-text fallback
+    ("The image in the mirror is vague and undefined..."). Simplified null condition:
+    set to null if no self-defining statements this turn; do not populate based on
+    proximity to a mirror alone.
+  - Net result: mirror behavior is now a module design concern (the door seed), not
+    an engine concern. The engine's opening scene prompt generalizes to any NPC with
+    a pending_intent at the starting location.
+
+**Design note — pending_intent precondition pattern:**
+  The Blue Door is the first example of a pending_intent that references player state
+  (`player.description is non-null`) as its discharge condition rather than an
+  in-world event. This pattern will be useful in other modules: any NPC that needs
+  to wait for a player action before advancing a situation can encode the condition
+  in natural language in their pending_intent, and Pass 2 evaluates it against the
+  context packet. No engine code changes needed.
+
+**Pending from this session (carried forward):**
+
+- Schema v10: item location redesign (loc_id / char_id / item_id split; slot partial
+  unique index; container support). See session 23 design notes below.
+- `item_transfers` outcome field (depends on v10 schema).
+- Mirror mechanic: needs playtest to confirm the pending_intent approach works as
+  intended. Run reset + playtest before next commit on this area.
+- Rebuild `hidden_hostel.db` fresh from terminal.
+- Add `"format": "json"` to Ollama Pass 1 and Pass 2 payloads in `engine/llm/ollama.py`.
+- Verbal tic review: scan Haiku transcript for `[verb] with the air/manner of someone who`.
+- Test coverage for v9 seed elements: tray of hot rolls, multi-part pending_intent,
+  `player_character_update` handler.
+- §3a: `item_transfers` outcome field.
+
+**Session 23 design notes — v10 item schema:**
+  Agreed design for schema v10:
+  - Replace `item.current_location_id` and `character_item` table with three nullable
+    FK columns on `item`: `loc_id` (→ location), `char_id` (→ character), `item_id`
+    (→ item, for container contents). CHECK constraint enforces exactly one is set.
+  - Add `location_description` TEXT NULL — free-text position within the container/
+    location/character (Pass 3 flavor; also encodes slot for character-held items).
+  - Add `slot` TEXT NULL — normalized exclusive position name (e.g. 'right_hand',
+    'worn'). Partial unique index on (char_id, slot) enforces one item per exclusive
+    slot; null slot = non-exclusive (multiple items in pack are all slot=NULL).
+  - Container capacity: `"container": true` in item.properties JSON — no new column.
+  - Location resolution is transitive at query time (recursive CTE); moving a
+    container does not cascade-update its contents.
+  - Visibility is depth-1 by default; recursive query fires on "open container" /
+    "search room" intent.
+
+---
+
+## Session 22 notes (2026-06-03)
+
+**Completed this session:**
+
+- **Default model changed to Haiku:** `engine/config.py` `CLAUDE_MODEL` default
+  changed from `claude-sonnet-4-6` to `claude-haiku-4-5-20251001`. Carried from
+  session 21 "do first" note. `docs/configuration.md` table updated to match.
+
+- **Phase 2 model target updated to Salamandra 7B:** Across all docs and README,
+  Salamandra 7B (Barcelona Supercomputing Center, Common Corpus trained) is now
+  the primary Phase 2 target. Mistral 7B remains a supported fallback. Rationale:
+  Common Corpus training (public domain + openly licensed only); multilingual
+  capability; Apache 2.0. Updated: `README.md`, `docs/design_v05.md`,
+  `docs/configuration.md`, `CLAUDE.md`.
+
+- **Token logging promoted to INFO:** `engine/llm/claude.py` token count log line
+  moved from DEBUG to INFO so per-call token usage is visible in play sessions
+  without enabling full debug output.
+
+- **Feature 19 added:** Three sub-entries in `docs/future_features.md`:
+  19a (Salamandra 7B as inference target), 19b (fine-tuning for Pass 2 adjudication),
+  19c (author module development pipeline — aspirational).
+
+- **Features 20, 21, 22 added** (module design notes captured from playtester
+  suggestions, evening 2026-06-03):
+  - Feature 20: Module — Alice's Adventures in Wonderland (priority). Size as
+    internal_state float; faction rep path to trial win; logical puzzles as social
+    adjudication; Through the Looking Glass as follow-on.
+  - Feature 21: Module — Dracula (Bram Stoker) (priority, alongside 20). Epistolary
+    = partial knowledge; Transylvania opening with Harker as player; Dracula's
+    hidden motivation; "knowing player" design challenge and what-if frame.
+  - Feature 22: Module — The Fall of the House of Usher (Poe). Small cast; Roderick's
+    hidden motivation; escape objective; tone challenge; lower priority; Sonnet as
+    construction tool.
+
+**Pending from this session (carried forward):**
+
+- Mirror mechanic: opening scene may still render a reflection before player has
+  defined themselves. One more prompt pass needed.
+- Rebuild `hidden_hostel.db` fresh from terminal.
+- Add `"format": "json"` to Ollama Pass 1 and Pass 2 payloads in `engine/llm/ollama.py`.
+- Verbal tic review: scan Haiku transcript for `[verb] with the air/manner of someone who`.
+- Test coverage for v9 seed elements: tray of hot rolls, multi-part pending_intent,
+  `player_character_update` handler.
+- §3a: `item_transfers` outcome field design (Pass 2 used `item_changes` with `slot`
+  field to transfer preserves to Marta — engine correctly rejected it; proper
+  transfer mechanism needed).
 
 ---
 
