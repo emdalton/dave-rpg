@@ -1,7 +1,60 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-06-03, session 23 (closed).*
+*Last updated: 2026-06-03, session 24 (closed).*
+
+---
+
+## Session 24 notes (2026-06-03)
+
+**Completed this session:**
+
+- **Three test failures fixed (`test_scenario_entrance.py`):**
+  - `db.py` `get_items_at_location`: added `visible_only: bool = False` parameter;
+    when True, adds `AND is_confirmed = 1` to exclude unconfirmed items from
+    path-interruption checks. Fixes tests 10 and 12.
+  - `test_13`: `action_log` query corrected from nonexistent `game_instance_id`
+    column to `game_id`. Fixes test 13.
+
+- **Activity expiry test redesigned (test_10 + test_11):**
+  - `test_10` now explicitly sets a reading activity on the player via
+    `db.set_character_activity()` with `duration = (1230 - clock_now) + 15`,
+    expiring 15 minutes after Marta's 8:30 PM deadline regardless of current clock.
+  - `test_11` derives expiry times from stored `activity_started_at +
+    activity_estimated_duration` fields (no hard-coded clock values), advances
+    to `max(player_expiry, marta_expiry) + 1`, and asserts both activities clear.
+    Exercises the `activity_estimated_duration` field end-to-end.
+
+- **Old Soldier moved from Upper Corridor (3) to Common Room (1):**
+  - `seed.sql` and `reset_instance.sql` updated: location, description, activity
+    description, `surface_motivation`, `wander_range` (`[3,4]` → `[1,3]`),
+    and `character_visited_location` entry all updated.
+  - Upper Corridor is now empty at session start — the first clean unobstructed
+    multi-hop path in the module (Common Room → Upper Corridor → Room A).
+  - `test_07` docstring updated to explain the first-visit stop at Upper Corridor
+    (BFS requires destination familiarity; adjacent hops skip the check).
+  - `test_10` multi-hop return from Room A now asserts direct arrival at Common
+    Room (1) in a single turn — serves as the multi-hop correctness check.
+
+- **Test suite result: 11 passed, 2 xfailed, 0 failed.**
+
+**Pending from this session (carried forward):**
+
+- Schema v10: item location redesign (loc_id / char_id / item_id split). See
+  session 23 design notes.
+- `item_transfers` outcome field (depends on v10). Tests 08/09 remain xfail.
+- `test_13` gap: test only delivers the dinner message to the Scholar upstairs.
+  A complete version would also go back to the Common Room, tell the Soldier,
+  and assert her emotional_state or attitude shifts. Left for a future session.
+- Future test idea: when the Wanderer greets the player and introduces Gin-chan,
+  if the Wanderer also mentions the Old Soldier (now visible in the Common Room),
+  the Soldier should react — at minimum a visible attitude or emotional_state
+  shift given her distrust of strangers and negative attitude toward the Wanderer
+  (-0.40). Tier 3 / LLM-eval concern. Not yet designed as a test.
+- Add `"format": "json"` to Ollama Pass 1/Pass 2 payloads in `engine/llm/ollama.py`.
+- Verbal tic review: scan Haiku transcript for `[verb] with the air/manner of someone who`.
+- Test coverage for v9 seed elements: tray of hot rolls, multi-part pending_intent,
+  `player_character_update` handler.
 
 ---
 

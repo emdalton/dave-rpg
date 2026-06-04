@@ -107,7 +107,7 @@ VALUES (
     -- player_definition_mode='define'. Self-definition happens at this location
     -- before the player enters. The Blue Door (character 7) is also here.
     6, 1, 'Outside the Hostel Door', 'exterior',
-    'Stone steps rise to an arched doorway. The door is painted a deep, welcoming blue; glass panels surround a central diamond of mirror that catches your reflection as you approach. Behind you, unformed mist obscures any memory of how you came to be standing here. Through the glass, warm light and the faint smell of woodsmoke promise shelter within.',
+    'Stone steps rise to an arched doorway. The door is painted a deep, welcoming blue; glass panels flank a central diamond of mirror, dark and still in the evening light. Behind you, unformed mist obscures any memory of how you came to be standing here. Through the glass, warm light and the faint smell of woodsmoke promise shelter within.',
     'public', 0,
     '["evening", "liminal", "arrival"]'
 );
@@ -392,6 +392,8 @@ INSERT INTO character (
 -- ---------------------------------------------------------------------------
 -- Character 5: The Old Soldier
 -- Arrived recently; origins unclear. Distrustful by long habit.
+-- Seated in the Common Room near the door — she chose the chair with the
+-- best view of the entrance, not the fire. Her blade is across her knees.
 -- WANDER SUPPRESSION TEST: activity suppression (current_activity set below).
 -- ATTITUDE TEST: negative toward player (-0.30) and Wanderer (-0.40, NPC→NPC).
 -- ---------------------------------------------------------------------------
@@ -410,21 +412,21 @@ INSERT INTO character (
 ) VALUES (
     5, 1, 'The Old Soldier', 'npc_active', 'human', 'female',
     '[{"case":"nominative","form":"she"},{"case":"accusative","form":"her"},{"case":"genitive","form":"her"}]',
-    'A heavy-set woman with the build of someone who was once formidable and remains more capable than she looks. A long blade lies across her knees. She has positioned herself against the corridor wall with sight lines to both doors.',
+    'A heavy-set woman with the build of someone who was once formidable and remains more capable than she looks. A long blade lies across her knees. She has chosen the chair nearest the door — not the warmest seat, but the one with the clearest view of who comes and goes.',
     'guest',
-    3,  -- Upper Corridor
+    1,  -- Common Room
     0.22, 0.80, 0.32, 0.22, 0.65,
     'safety',
     'vigilant',
     '{"combat": 0.88, "threat_assessment": 0.85, "trusting_strangers": 0.05, "being_inconspicuous": 0.60}',
     '{"current_safety": 0.55, "hostel_as_neutral_ground": 0.62, "other_guests_as_threat": 0.45}',
-    'Resting. Prefers the corridor to a room — exits visible from both ends. Not looking for conversation.',
+    'Resting near the door. Not looking for conversation; watching who enters.',
     'terse_gruff', 0.18, 0.22,
-    '[3, 4]',   -- Upper Corridor + Room A
+    '[1, 3]',   -- Common Room + Upper Corridor
     0.28,       -- suppressed by current_activity
     -- Activity: sharpening a blade. Started 7:30 PM (1170), duration 60 min.
     -- Expires at 1230 (8:30 PM, 30 minutes into play). Not yet expired at start.
-    'sharpening a blade, seated against the corridor wall with sight lines to both doors',
+    'sharpening a blade by the door, watching the entrance',
     1170,   -- 7:30 PM (30 minutes before game start at 1200)
     60,     -- estimated 60-minute activity; expires at game clock 1230
     0.80,   -- high confidence; engine will auto-clear when expired
@@ -521,7 +523,7 @@ INSERT INTO character (
     -- has defined their appearance), the precondition is met and the door opens.
     -- This is the canonical example of a pending_intent with a player-state
     -- precondition rather than a simple in-world trigger.
-    'invite the arriving traveller to examine themselves in the mirror before entering; the door cannot speak or make sounds but may act — the mirror may glow, shimmer, or seem to draw the traveller''s gaze; once the traveller has defined their appearance (player.description is non-null), stand ready to open and admit them; do not open or suggest entry before self-definition is complete',
+    'invite the arriving traveller to describe themselves by looking in the mirror before entering; the door cannot speak or make sounds but may act — the mirror may glow, shimmer, or seem to draw the traveller''s gaze; once the traveller has defined their appearance (player.description is non-null), stand ready to open and admit them; do not open or suggest entry before self-definition is complete',
     'silent: this entity cannot speak or make sounds; describe only physical actions — the mirror glowing or shifting, the quality of light through glass panels, the door standing still or stirring'
 );
 
@@ -688,7 +690,10 @@ VALUES (
 -- The Traveller knows only the Common Room (just arrived).
 -- Marta knows both ground-floor rooms. The Wanderer has roamed all accessible
 -- ground-floor and upper-corridor locations. The Scholar went straight upstairs.
--- The Old Soldier holds the upper corridor. Gin-chan has not left the fire today.
+-- The Old Soldier is in the Common Room; Upper Corridor is empty (no NPCs).
+-- This makes Common Room → Upper Corridor → Room A a valid unobstructed
+-- multi-hop path for pathfinding tests (once the player has visited both hops).
+-- Gin-chan has not left the fire today.
 -- =============================================================================
 
 INSERT INTO character_visited_location (character_id, location_id)
@@ -705,8 +710,8 @@ VALUES
     -- The Scholar: Upper Corridor + Room A (went straight upstairs)
     (4, 3),
     (4, 4),
-    -- The Old Soldier: Upper Corridor only
-    (5, 3),
+    -- The Old Soldier: Common Room (seated near the door)
+    (5, 1),
     -- Gin-chan: Common Room (has not moved from the fire today)
     (6, 1);
 

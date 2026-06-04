@@ -397,7 +397,7 @@ class Database:
     # -------------------------------------------------------------------------
 
     def get_items_at_location(
-        self, location_id: int, max_results: int = 12
+        self, location_id: int, max_results: int = 12, visible_only: bool = False
     ) -> list[dict]:
         """
         Return items currently at a location (current_location_id = location_id).
@@ -407,12 +407,16 @@ class Database:
         Properties JSON is parsed before returning.
 
         Args:
-            location_id: The location to query.
-            max_results: Cap on rows returned (guards against very cluttered spaces).
+            location_id:  The location to query.
+            max_results:  Cap on rows returned (guards against very cluttered spaces).
+            visible_only: When True, exclude unconfirmed items (is_confirmed = 0).
+                          Used by path-interruption checks so player-declared but
+                          not-yet-adjudicated items don't block movement.
         """
+        confirmed_clause = " AND is_confirmed = 1" if visible_only else ""
         rows = self._rows(
-            """SELECT * FROM item
-               WHERE current_location_id = ?
+            f"""SELECT * FROM item
+               WHERE current_location_id = ?{confirmed_clause}
                ORDER BY id
                LIMIT ?""",
             (location_id, max_results),

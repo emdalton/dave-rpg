@@ -118,11 +118,11 @@ WHERE id = 4;
 
 -- The Old Soldier (id=5)
 UPDATE character
-SET current_location_id          = 3,      -- Upper Corridor
+SET current_location_id          = 1,      -- Common Room
     emotional_state              = 'vigilant',
     maslow_tier                  = 'safety',
     pending_intent               = NULL,
-    current_activity             = 'sharpening a blade, seated against the corridor wall with sight lines to both doors',
+    current_activity             = 'sharpening a blade by the door, watching the entrance',
     activity_started_at          = 1170,   -- 7:30 PM
     activity_estimated_duration  = 60,
     activity_duration_confidence = 0.80,
@@ -150,7 +150,7 @@ UPDATE character
 SET current_location_id          = 6,      -- Outside the Hostel Door
     emotional_state              = 'welcoming',
     maslow_tier                  = 'belonging',
-    pending_intent               = 'invite the arriving traveller to examine themselves in the mirror before entering; the door cannot speak or make sounds but may act — the mirror may glow, shimmer, or seem to draw the traveller''s gaze; once the traveller has defined their appearance (player.description is non-null), stand ready to open and admit them; do not open or suggest entry before self-definition is complete',
+    pending_intent               = 'invite the arriving traveller to describe themselves by looking in the mirror before entering; the door cannot speak or make sounds but may act — the mirror may glow, shimmer, or seem to draw the traveller''s gaze; once the traveller has defined their appearance (player.description is non-null), stand ready to open and admit them; do not open or suggest entry before self-definition is complete',
     current_activity             = NULL,
     activity_started_at          = NULL,
     activity_estimated_duration  = NULL,
@@ -234,7 +234,7 @@ VALUES
     (2, 1), (2, 2),
     (3, 1), (3, 2), (3, 3),
     (4, 3), (4, 4),
-    (5, 3),
+    (5, 1),             -- Old Soldier: Common Room (seated near the door)
     (6, 1),
     (7, 6);             -- Blue Door: permanently stationed Outside
 
