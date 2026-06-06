@@ -1,7 +1,79 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-06-04, session 25 (closed).*
+*Last updated: 2026-06-05, session 26 (closed).*
+
+---
+
+## Session 26 notes (2026-06-05)
+
+**Completed this session:**
+
+- **Surface vs. container distinction in item properties:**
+  - `surface: true` — open surface (plate, tray, table, worktable); contents always
+    visible; recursive walk in context packet
+  - `container: true` — closed container (bag, canister); contents NOT shown in context
+    (not visible without opening — future mechanic)
+  - Updated all seeded furniture and kitchen items: low table, worktable, tray, plate
+    all changed from `container: true` to `surface: true` in `seed.sql` and
+    `reset_instance.sql`
+
+- **Recursive surface visibility in context packets (`engine/context.py`):**
+  - Added `_surface_contents(db, item_id, depth, max_depth=3)` helper — recursively
+    collects items on surface items, stopping at closed containers or depth limit
+  - `_build_location_context` now calls `_surface_contents` for `surface: true` items;
+    closed containers show no contents
+  - NPC character profiles also show inventory (added previous session); closed
+    containers in NPC packs remain opaque
+
+- **New seeded items in Hidden Hostel:**
+  - Common Room (loc_id=1): 3 chairs (sittable), low table (surface)
+  - Kitchen (loc_id=2): worktable (surface), tray of hot rolls (surface),
+    12 individual hot rolls (item_id=tray), plate (surface)
+  - Existing standalone tray removed and replaced with the above hierarchy
+
+- **`engine/llm/base.py` — fence-stripping bug fix:**
+  - `call_json` now stops at the first ` ``` ` line after the opening fence,
+    discarding any trailing content the LLM adds after the closing fence.
+    Prevents "Extra data" JSON parse errors when the LLM echoes input or adds
+    explanation text after the code block.
+
+- **`engine/engine.py` — Pass 2 prompt improvements:**
+  - `item_transfers.to_item_id` documentation clarified: covers both "on a surface"
+    and "inside a container"; explicit instruction to prefer `to_item_id` over
+    `to_loc_id` when the player names a specific surface
+  - Added rule: items already in a character's inventory (char_id set) do NOT need
+    an `item_transfers` entry when the character moves — they travel automatically
+
+- **`tests/test_item_container.py` — new test file:**
+  - `TestSurfaceVisibility` (Tier 1, no LLM): 4 tests for the recursive surface walk
+    — kitchen tray contents, empty plate, closed container hidden, depth-2 nesting
+    (plate on table, rolls on plate). All 4 pass in default suite.
+  - `TestItemContainerHierarchy` (Tier 2, --llm): 6 sequential LLM tests for the
+    full item manipulation scenario. All 6 passing.
+
+- **`engine/db.py`:** Added `get_items_in_container(container_item_id)` method.
+
+**Test results (session 26 close):**
+  - `tests/test_item_container.py`: 10/10 passing (4 Tier 1 + 6 Tier 2)
+  - `tests/test_scenario_entrance.py`: not re-run this session
+
+**Pending / known issues:**
+  - `test_scenario_entrance.py` test_100 (Scholar gives book): Scholar inventory now
+    visible in context (session 25 fix), but Pass 2 still not emitting item_transfers.
+    Not re-tested this session; may need a pending_intent or stronger prompt signal.
+  - test_040/055 flakiness: "go inside" occasionally routes to Kitchen instead of
+    Common Room. Investigate Blue Door routing or door pending_intent wording.
+  - Chair single-occupancy (`sittable: true`): chairs typically hold one person.
+    Not enforced — Pass 2 expected to handle naturally. Revisit if a module needs
+    sitting mechanics to be significant. (Memory note saved.)
+  - Hand-slot capacity not enforced: Pass 2 may skip in-hand state and route items
+    directly to nearby surfaces. Testing in-hand intermediate state deferred.
+  - i_am_a_cat `seed.sql` still uses v1 column names (`location_id`,
+    `held_by_character_id`). Needs update before that module is playable.
+  - Closed container "open" mechanic: `container: true` items currently hide contents
+    but there is no "open container" action yet. Deferred.
+  - Add `"format": "json"` to Ollama Pass 1/Pass 2 payloads.
 
 ---
 

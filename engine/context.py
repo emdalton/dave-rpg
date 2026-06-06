@@ -734,6 +734,43 @@ def _build_character_profile(
     return profile
 
 
+def _surface_contents(db: Database, item_id: int, depth: int, max_depth: int = 3) -> list[dict]:
+    """
+    Recursively collect items resting on a surface item, down to max_depth.
+
+    Items on open surfaces (surface: true) are always visible — a roll on a
+    plate on a table is in plain sight. The recursion continues through nested
+    surface items (a plate on a tray on a table) but stops at:
+      - closed containers (container: true) — contents not visible without opening
+      - max_depth, to prevent pathological nesting from ballooning context
+
+    Each entry in the returned list is a compact dict: id, name, is_confirmed,
+    location_description, and (if the item is itself a surface) its own contents.
+    Properties are included so Pass 2 can recognize further surfaces.
+
+    Args:
+        db:        Open Database instance.
+        item_id:   The id of the surface item whose contents to fetch.
+        depth:     Current recursion depth (starts at 1 for direct children).
+        max_depth: Stop recursing beyond this depth.
+    """
+    children = db.get_items_in_container(item_id)
+    result = []
+    for c in children:
+        entry: dict[str, Any] = {
+            "id": c["id"],
+            "name": c["name"],
+            "properties": c["properties"],
+            "is_confirmed": c["is_confirmed"],
+            "location_description": c.get("location_description"),
+        }
+        # Recurse into nested surfaces; stop at closed containers or depth limit.
+        if depth < max_depth and c["properties"].get("surface"):
+            entry["contents"] = _surface_contents(db, c["id"], depth + 1, max_depth)
+        result.append(entry)
+    return result
+
+
 def _build_location_context(
     db: Database,
     location_id: int,
@@ -767,16 +804,28 @@ def _build_location_context(
 
     # Compact item representation for the context packet.
     # properties is already parsed to a dict by get_items_at_location.
-    item_summaries = [
-        {
+    #
+    # Surface items (surface: true — plate, tray, table) show their contents
+    # recursively: items on a plate on a table are all visible at once because
+    # surfaces don't obstruct visibility. The recursion stops at closed containers
+    # (container: true) and at MAX_SURFACE_DEPTH to prevent runaway nesting.
+    #
+    # Closed containers (container: true — pack, canister, box) do NOT show
+    # contents — you cannot see inside a closed container without opening it.
+    _MAX_SURFACE_DEPTH = 3
+    item_summaries = []
+    for item in items:
+        summary = {
             "id": item["id"],
             "name": item["name"],
             "description": item["description"],
             "properties": item["properties"],
             "is_confirmed": item["is_confirmed"],
+            "location_description": item.get("location_description"),
         }
-        for item in items
-    ]
+        if item["properties"].get("surface"):
+            summary["contents"] = _surface_contents(db, item["id"], depth=1)
+        item_summaries.append(summary)
 
     # Adjacent locations: explicitly connected neighbours, passable only.
     # Pass 2 uses this to validate movement actions and to inform the LLM

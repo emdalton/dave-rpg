@@ -605,7 +605,7 @@ class TestHiddenHostelEntranceScenario:
 
         prose = take_turn(
             scenario_engine,
-            "thank the Scholar and ask if they have anything they'd like to share in return",
+            "thank the Scholar warmly, then ask: may I borrow a book to read this evening?",
         )
         assert prose, "Exchange turn should return prose"
 

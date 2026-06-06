@@ -276,13 +276,74 @@ VALUES (1, 'sencha canister',
     '{"weight": "light", "container": true, "capacity": "small"}',
     1, 'in_pack');  -- The Traveller (id=1)
 
--- Re-seed the tray of hot rolls on the kitchen worktable
--- v10: loc_id replaces current_location_id.
-INSERT INTO item (game_id, name, description, properties, is_confirmed, loc_id)
+-- Re-seed Common Room furniture
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'chair by the fire (left)',
+    'A worn wooden chair angled toward the hearth. Someone has left a cushion on the seat.',
+    '{"weight": "heavy", "portable": false, "sittable": true}',
+    1, 'angled toward the left side of the hearth');
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'chair by the fire (right)',
+    'A matching wooden chair, slightly closer to the fire than the other. The arm nearest the hearth is warm to the touch.',
+    '{"weight": "heavy", "portable": false, "sittable": true}',
+    1, 'angled toward the right side of the hearth');
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'chair near the door',
+    'A straight-backed chair positioned near the entrance with a clear view of the room. Currently occupied by The Old Soldier.',
+    '{"weight": "heavy", "portable": false, "sittable": true}',
+    1, 'near the door, facing the room');
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'low table',
+    'A low wooden table between the two chairs by the fire. Its surface is scarred from years of use — cups, candles, books.',
+    '{"weight": "heavy", "portable": false, "surface": true, "capacity": "small"}',
+    1, 'between the two chairs near the hearth');
+
+-- Re-seed kitchen items: worktable, tray, 12 rolls, plate
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'kitchen worktable',
+    'A heavy wooden worktable that takes up most of the kitchen wall. Its surface is flour-dusted and work-worn. Currently holding a tray of fresh rolls and a clean plate.',
+    '{"weight": "very_heavy", "portable": false, "surface": true, "capacity": "large"}',
+    2, 'along the kitchen wall');
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
 VALUES (1, 'tray of hot rolls',
-    'A wooden tray holding a dozen small rolls, still warm from the oven. The crust is just set; the inside will be soft. A cloth was draped over them to keep the heat in.',
-    '{"weight": "light", "edible": true, "servings": "several", "temperature": "hot"}',
-    1, 2);  -- Kitchen (id=2)
+    'A flat wooden tray holding a dozen small rolls fresh from the oven. The crust is just set; the inside will be soft and warm. A cloth was draped over them to keep the heat in.',
+    '{"weight": "medium", "portable": true, "surface": true, "capacity": "medium"}',
+    2, 'on the worktable');
+
+INSERT INTO item (game_id, name, description, properties, item_id)
+SELECT 1, 'hot roll', 'A small soft roll, still warm. The crust is golden.', '{"weight": "negligible", "edible": true, "temperature": "hot"}', id FROM item WHERE name = 'tray of hot rolls' AND game_id = 1;
+INSERT INTO item (game_id, name, description, properties, item_id)
+SELECT 1, 'hot roll', 'A small soft roll, still warm. The crust is golden.', '{"weight": "negligible", "edible": true, "temperature": "hot"}', id FROM item WHERE name = 'tray of hot rolls' AND game_id = 1;
+INSERT INTO item (game_id, name, description, properties, item_id)
+SELECT 1, 'hot roll', 'A small soft roll, still warm. The crust is golden.', '{"weight": "negligible", "edible": true, "temperature": "hot"}', id FROM item WHERE name = 'tray of hot rolls' AND game_id = 1;
+INSERT INTO item (game_id, name, description, properties, item_id)
+SELECT 1, 'hot roll', 'A small soft roll, still warm. The crust is golden.', '{"weight": "negligible", "edible": true, "temperature": "hot"}', id FROM item WHERE name = 'tray of hot rolls' AND game_id = 1;
+INSERT INTO item (game_id, name, description, properties, item_id)
+SELECT 1, 'hot roll', 'A small soft roll, still warm. The crust is golden.', '{"weight": "negligible", "edible": true, "temperature": "hot"}', id FROM item WHERE name = 'tray of hot rolls' AND game_id = 1;
+INSERT INTO item (game_id, name, description, properties, item_id)
+SELECT 1, 'hot roll', 'A small soft roll, still warm. The crust is golden.', '{"weight": "negligible", "edible": true, "temperature": "hot"}', id FROM item WHERE name = 'tray of hot rolls' AND game_id = 1;
+INSERT INTO item (game_id, name, description, properties, item_id)
+SELECT 1, 'hot roll', 'A small soft roll, still warm. The crust is golden.', '{"weight": "negligible", "edible": true, "temperature": "hot"}', id FROM item WHERE name = 'tray of hot rolls' AND game_id = 1;
+INSERT INTO item (game_id, name, description, properties, item_id)
+SELECT 1, 'hot roll', 'A small soft roll, still warm. The crust is golden.', '{"weight": "negligible", "edible": true, "temperature": "hot"}', id FROM item WHERE name = 'tray of hot rolls' AND game_id = 1;
+INSERT INTO item (game_id, name, description, properties, item_id)
+SELECT 1, 'hot roll', 'A small soft roll, still warm. The crust is golden.', '{"weight": "negligible", "edible": true, "temperature": "hot"}', id FROM item WHERE name = 'tray of hot rolls' AND game_id = 1;
+INSERT INTO item (game_id, name, description, properties, item_id)
+SELECT 1, 'hot roll', 'A small soft roll, still warm. The crust is golden.', '{"weight": "negligible", "edible": true, "temperature": "hot"}', id FROM item WHERE name = 'tray of hot rolls' AND game_id = 1;
+INSERT INTO item (game_id, name, description, properties, item_id)
+SELECT 1, 'hot roll', 'A small soft roll, still warm. The crust is golden.', '{"weight": "negligible", "edible": true, "temperature": "hot"}', id FROM item WHERE name = 'tray of hot rolls' AND game_id = 1;
+INSERT INTO item (game_id, name, description, properties, item_id)
+SELECT 1, 'hot roll', 'A small soft roll, still warm. The crust is golden.', '{"weight": "negligible", "edible": true, "temperature": "hot"}', id FROM item WHERE name = 'tray of hot rolls' AND game_id = 1;
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'plate',
+    'A plain ceramic plate, clean and slightly warm from being near the oven. Large enough to hold several rolls.',
+    '{"weight": "light", "portable": true, "surface": true, "capacity": "small"}',
+    2, 'on the worktable');
 
 -- Re-seed the Scholar's book in their pack
 INSERT INTO item (game_id, name, description, properties, char_id, slot)

@@ -579,6 +579,26 @@ class Database:
         )
         logger.info("Item %d transferred to location=%d", item_id, location_id)
 
+    def get_items_in_container(self, container_item_id: int) -> list[dict]:
+        """
+        Return items whose item_id matches container_item_id (v10 schema).
+
+        Used to populate the `contents` field in location context packets so
+        Pass 2 can reference item IDs when issuing item_transfers out of a
+        container (e.g. rolls inside a tray, books on a shelf).
+        Properties JSON is parsed before returning.
+
+        Args:
+            container_item_id: The id of the container item.
+        """
+        rows = self._rows(
+            "SELECT * FROM item WHERE item_id = ? ORDER BY id",
+            (container_item_id,),
+        )
+        for row in rows:
+            row["properties"] = json.loads(row.get("properties") or "{}")
+        return rows
+
     def transfer_item_to_container(
         self,
         item_id: int,
