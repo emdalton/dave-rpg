@@ -56,12 +56,16 @@
 
 **Test results (session 26 close):**
   - `tests/test_item_container.py`: 10/10 passing (4 Tier 1 + 6 Tier 2)
-  - `tests/test_scenario_entrance.py`: not re-run this session
+  - `tests/test_scenario_entrance.py`: 17/18 passing
 
 **Pending / known issues:**
-  - `test_scenario_entrance.py` test_100 (Scholar gives book): Scholar inventory now
-    visible in context (session 25 fix), but Pass 2 still not emitting item_transfers.
-    Not re-tested this session; may need a pending_intent or stronger prompt signal.
+  - `test_scenario_entrance.py` test_100 (Scholar gives book): 17/18 passing, this
+    one remains. Scholar inventory is in context; Pass 2 generates correct warm prose
+    but never emits item_transfers. Tried: seeding book, NPC inventory in context,
+    "may I borrow a book" prompt. Hypothesis: "borrow" is a semantic trap — Pass 2
+    reasons no DB transfer is needed for a loan. Next to try: (a) change verb to
+    "give" or "share"; (b) add Scholar pending_intent to give a book to a kind guest;
+    (c) add `"giftable": true` to book properties. Deferred. (See memory note.)
   - test_040/055 flakiness: "go inside" occasionally routes to Kitchen instead of
     Common Room. Investigate Blue Door routing or door pending_intent wording.
   - Chair single-occupancy (`sittable: true`): chairs typically hold one person.
