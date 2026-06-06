@@ -93,12 +93,16 @@ class LLMClient(ABC):
             # Strip markdown code fences if present (```json ... ``` or ``` ... ```).
             cleaned = raw.strip()
             if cleaned.startswith("```"):
-                # Remove opening fence (with optional language tag) and closing fence.
+                # Remove opening fence (with optional language tag) and any closing
+                # fence plus trailing content. We stop at the first ``` line after
+                # the opening, so content that the LLM adds after the closing fence
+                # (repeat of input, explanation text, etc.) is discarded.
                 lines = cleaned.splitlines()
-                # Drop first line (``` or ```json) and last line (```).
-                inner_lines = lines[1:] if lines[-1].strip() == "```" else lines[1:]
-                if inner_lines and inner_lines[-1].strip() == "```":
-                    inner_lines = inner_lines[:-1]
+                inner_lines = []
+                for line in lines[1:]:  # skip opening ```[json] line
+                    if line.strip() == "```":
+                        break
+                    inner_lines.append(line)
                 cleaned = "\n".join(inner_lines).strip()
 
             try:
