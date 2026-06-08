@@ -143,6 +143,19 @@ Rules:
   turns without being acted on. If the NPC's intent involves speaking, they
   must produce actual dialogue — not a smile, a nod, or a description of
   their expression.
+- AUTONOMOUS NPC BEHAVIOR: when an NPC at the current location has an internal
+  state ≥ 0.75 that an available item or plausible action could satisfy, they
+  may act on it without a pending_intent — a hungry NPC eats food that is
+  visible at the location, a drowsy NPC dozes off in a comfortable chair, a
+  character with a strong desire to dance moves toward an opening. This models
+  realistic background behaviour and is the engine's general mechanism for
+  emergent NPC action (analogous to a cat pouncing when curiosity peaks, or
+  a young man asking for a dance when the social moment is right). If the NPC
+  acts autonomously: record the action in npc_initiated_actions and emit the
+  appropriate internal_state_delta. Apply OCEAN traits and MST goals as a
+  filter: a highly conscientious NPC may suppress hunger to finish a task;
+  a low-agreeableness NPC may not share food even when hungry. Do not force
+  autonomous behaviour when the character's profile makes it implausible.
 - RELATIONSHIP REFERENCES: when the player refers to a character by relationship
   ("my cousin", "Charlotte's brother", "Sir William's daughter"), resolve the
   referent from the descriptions in the character profiles before acting. Do not
@@ -429,6 +442,15 @@ Rules:
   direction back. Use the `adjacent_locations` list. If a location has
   is_passable=false, convey the barrier in tone rather than stating it as a
   rule. Keep this light; one natural phrase is enough.
+- INTERNAL STATES: if player_internal_states contains any state with value
+  ≥ 0.60, weave a brief physical reminder into the prose — a hollow ache or
+  stomach growl for high hunger, heavy eyelids for high sleepiness, a restless
+  edge to your attention for high curiosity. This should read like organic
+  first-person sensation, not a status report. One reminder per high state per
+  turn; keep it to a clause or short phrase woven into an existing sentence,
+  not a dedicated sentence of its own. Omit the reminder if the player's current
+  action already directly addresses that state (eating while hungry, resting
+  while sleepy, etc.) — the prose of that action already carries the weight.
 
 Context:
 {context_json}

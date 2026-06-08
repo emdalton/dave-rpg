@@ -420,8 +420,13 @@ def build_pass3_packet(
 
     Not included in Pass 3:
     - Hidden motivation or hidden attitudes (adjudication-only)
-    - Internal state floats (embedded in the outcome if relevant)
     - NPC full profiles (the outcome already describes what happened)
+
+    Included selectively:
+    - player_internal_states: {state_name: value} for prose-mode states only.
+      Pass 3 uses this to weave high-value states (≥ 0.60) into the prose as
+      organic physical sensation (hunger as a stomach growl, etc.). NPC internal
+      states are not included — NPC behaviour is adjudicated in Pass 2.
 
     Args:
         db: Open Database instance.
@@ -574,6 +579,22 @@ def build_pass3_packet(
             entry["passage_note"] = conn["passage_note"]
         adjacent_locations.append(entry)
 
+    # ------------------------------------------------------------------
+    # Player internal states (prose-mode only)
+    #
+    # States with display_mode='prose' are passed to Pass 3 so the renderer
+    # can weave high-value states into the prose as organic physical sensation
+    # — a stomach growl for high hunger, heavy eyelids for high sleepiness.
+    # Only 'prose' display_mode states are included; 'numeric' states are
+    # dev tools and must not appear in player-facing prose.
+    # ------------------------------------------------------------------
+    player_states_raw = db.get_internal_states(player["id"])
+    player_internal_states = {
+        s["state_name"]: s["value"]
+        for s in player_states_raw
+        if s.get("display_mode") == "prose"
+    }
+
     packet = {
         "pass": 3,
         "description": (
@@ -589,15 +610,18 @@ def build_pass3_packet(
         "adjacent_locations": adjacent_locations,
         "characters_present": characters_present,
         "characters_referenced": characters_referenced,
+        "player_internal_states": player_internal_states,
     }
 
     logger.debug(
-        "Pass 3 packet built: game=%d player=%d chars_present=%d chars_referenced=%d adjacent=%d",
+        "Pass 3 packet built: game=%d player=%d chars_present=%d "
+        "chars_referenced=%d adjacent=%d internal_states=%d",
         game_id,
         player["id"],
         len(characters_present),
         len(characters_referenced),
         len(adjacent_locations),
+        len(player_internal_states),
     )
     return packet
 
