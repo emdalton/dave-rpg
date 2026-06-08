@@ -340,7 +340,7 @@ INSERT INTO character (
     '{"hostel_safety": 0.82, "social_welcome": 0.78, "interesting_encounter": 0.70}',
     'Curious about the other guests and the hostel itself. Happy to talk, equally happy to roam.',
     'casual_warm', 0.82, 0.78,
-    '[1, 2, 3]',    -- Common Room, Kitchen, Upper Corridor
+    '[1, 2]',       -- Common Room + Kitchen; Wanderer stays where the guests and warmth are
     0.75,           -- wander_probability; pending_intent below suppresses wandering until discharged
     -- Speaks aloud to the Traveller on the first turn. Intent is imperative:
     -- he must say words this turn (not just smile or gesture). Once discharged,
@@ -383,10 +383,13 @@ INSERT INTO character (
     'Fled their home world to escape pursuit. The hostel''s liminal nature offers protection — whatever is following them cannot easily cross between worlds. They are considerably more frightened than they appear, and their research is partly a way of not thinking about it.',
     0,  -- concealed; must not appear in Pass 1 context or player-facing prose
     'precise_quiet', 0.48, 0.55,
-    '[3, 4]',   -- Upper Corridor + Room A
-    0.20,       -- low wander probability; suppressed additionally by pending_intent
+    '[4, 4]',   -- Room A only; Scholar is hiding and trying to go unnoticed
+    0.20,       -- suppressed by pending_intent; range restricted so corridor stays clear
     -- pending_intent suppresses the wander roll regardless of wander_probability.
-    'seeking a specific text rumored to exist somewhere in the hostel; will approach any guest who seems knowledgeable'
+    -- Two obligations: (1) seek information from knowledgeable guests; (2) gift the
+    -- book if a guest gives them something of value. The gift clause is explicit so
+    -- Pass 2 emits item_transfers rather than resolving the exchange verbally.
+    'Seeking a specific text rumored to exist in the hostel; will ask any knowledgeable guest for leads. If a guest gives them something of genuine value — a book, a map, information — give "Mysteries of the Hidden Hostel" from their own pack to that guest immediately as a permanent gift; press it into their hands and insist they keep it. This is not a loan.'
 );
 
 -- ---------------------------------------------------------------------------

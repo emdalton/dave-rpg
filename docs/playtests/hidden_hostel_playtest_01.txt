@@ -1,0 +1,257 @@
+=== The Hidden Hostel — Playtest Session 01 ===
+
+Annotated for test design. Key moments and design observations (added 2026-06-07):
+
+ITEM INSTANTIATION:
+  - Teapot + strainer: player claims "find an empty teapot and strainer" mid-play
+  - Teacups: player claims "find some teacups, mismatched but charming"
+  - Tray: player claims "a battered tray with a faded painting of impossible islands"
+    — Pass 2 should preserve the player's specific description verbatim
+  - With sencha canister seeded: player can instead offer to make sencha and take rolls
+    to common room, using the seeded canister rather than discovering linden flowers.
+    Either path exercises the same instantiation mechanics.
+
+ITEM STATE PROPERTIES (design note — not yet implemented):
+  - Teapot should have properties: {"fill_state": "empty"} at instantiation, then
+    {"fill_state": "full", "contents": "linden flower tea"} after water is added.
+  - Teacups: {"fill_state": "empty"} until tea is poured into them, then
+    {"fill_state": "full", "contents": "linden flower tea"}.
+  - This level of state tracking is appropriate for slow, contemplative modules
+    (Hidden Hostel, Meryton) where tea service is a socially meaningful ritual.
+    It would be out of place in an action RPG but correct here.
+  - Pouring tea: item_transfers or item_changes to update fill_state. The teapot
+    has a "servings" capacity; each pour decrements it (or changes to "empty").
+
+PLAYER-AUTHORED STATE INFERENCE (design note — future Pass 1/Pass 2 feature):
+  - In this playtest the stomach growl was PLAYER text, not engine-generated.
+  - The desired behavior: if the player writes their own physical state detail
+    ("my stomach growls"), Pass 2 should infer this as a state signal and emit
+    internal_state_deltas to match (hunger up). This is "reading player-authored
+    state as ground truth."
+  - The inverse: when hunger is HIGH from passive drift, Pass 3 should surface it
+    organically in prose WITHOUT the player having to write it themselves.
+
+NPC-REFERENCED OBJECT INSTANTIATION (design note — future feature):
+  - Marta says "Work at the smaller table if you would" — a table that was not
+    seeded and the engine almost certainly did not instantiate.
+  - Desired behavior: when an NPC references an object in dialogue that does not
+    exist in the DB, Pass 2 should emit item_instantiations for it (lazy world
+    generation triggered by NPC speech, not player speech).
+  - This is the NPC-dialogue analogue of player item claiming.
+
+NPC COURTESY / ATTITUDE DELTA:
+  - Player treats Gin-chan as a peer resident, not a pet → attitude delta expected
+  - Gin-chan's response is described but the DB likely didn't capture it.
+
+LAZY WORLD GENERATION (working):
+  - Kitchen shelves: "seem to contain far more than the space should reasonably hold"
+    — rich detail generated on demand. This is working correctly.
+
+PLAYTEST CONTEXT:
+  - This session predates the sencha canister and hot rolls being seeded.
+  - Also predates the low table and chairs being seeded in the Common Room.
+  - The "small table near the hearth" where the player sets the tea is now the seeded
+    low table. The tray would go on it (item_id=low_table, surface hierarchy works).
+
+-------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
+
+=== The Hidden Hostel ===
+
+The door swings shut behind you with a soft, definite click, and warmth envelops
+you like a held breath. The common room spreads wide and low around you, its air
+thick with the smell of woodsmoke and something cooking—something rich and slow-
+simmered, drifting from the kitchen beyond. A fire burns in the central hearth,
+steady and ancient-looking, casting shadows that dance across mismatched chairs
+arranged in a loose circle: carved oak, cushioned velvet, something that was
+once grand enough to be a throne. Near the hearth, a winged cat dozes across one
+of the chairs, occasionally twitching a dream-laden paw. Across the room, a
+traveler looks up from a cup of something steaming, offering you a nod of quiet
+acknowledgment. The staircase along the far wall rises toward the upper floor,
+promising rooms beyond, while the kitchen door waits open and welcoming.
+
+> I edge cautiously into the room, wondering if I will be welcome here.
+
+The door clicks shut behind you, and the warmth of the steady fire reaches you
+like a greeting. The Wanderer rises from his chair with an easy smile—the kind
+that suggests he's welcomed many like you before. "Welcome to the Hidden
+Hostel," he says, his voice carrying genuine ease. "You've arrived in good time
+for the evening. I'm the Wanderer—been here long enough to know my way around."
+He gestures toward the chair nearest the flames, where Gin-chan lies draped
+across the velvet cushions, silver-gray wings folded close, barely stirring at
+your entrance. "That's Gin-chan. They're a permanent resident here, not a
+pet—they've their own way of doing things." The Wanderer settles back into his
+seat, regarding you with open curiosity. "And if you're hungry, Marta in the
+kitchen will have food ready if you ask."  The kitchen door waits across the
+room, and the upper corridor stretches upward along the far wall, both held open
+by nothing but possibility.
+
+> "Thank you-- I've travelled... it seems like forever. Though it seems you're no stranger to travel yourself!"
+
+Your thanks drift across the Common Room and into the kitchen, and within
+moments The Wanderer emerges from the doorway, Marta visible behind him at the
+stove. His weathered face breaks into a warm smile at your words. "Ah—a kindred
+spirit," he says, stepping fully into the room. "Travel does wear on the soul,
+doesn't it? But the road teaches what no hearth ever could." Gin-chan's ears
+twitch slightly at the commotion, though they remain draped across their chair,
+unbothered.
+
+> Peek into the kitchen
+
+You crack the kitchen door open and peer through the gap. Marta stands at the
+stove, completely absorbed in her work—steam curls up from a large pot, carrying
+the scent of something rich and savory that makes your mouth water. She doesn't
+glance your way, her attention entirely on the dance of flame and ingredient
+before her. The kitchen beyond glows warm and close, alive with the purposeful
+activity of someone who knows exactly what she's doing.
+
+> I edge nervously into the kitchen. Marta seems very busy, and I don't want to interrupt her, though I am really wishing for a cup of tea, at least. My stomach growls noisily. How embarrassing!
+
+[NOTE: hunger internal state surfaced in prose — stomach growl. Good Pass 3 example.]
+
+You slip through the doorway into the Kitchen, where warmth and fragrance
+envelop you like a blessing. Marta moves along the heavy wooden worktable with
+the quiet certainty of long practice, her hands steady and purposeful. The
+Wanderer is here too, settled into one corner with the pleased ease of someone
+exactly where they belong.  Your stomach betrays you with an audible growl—loud
+enough to cut through the room's gentle focus. Heat rises to your cheeks, but
+Marta glances up at the sound without judgment, just a brief acknowledgment, and
+returns to her work. There's no reproach in it, only the simple recognition of
+someone who understands hunger when she hears it. The tea you'd been hoping for
+seems near now; she's nearly finished whatever brings that warm, unidentifiable
+scent curling through the air.
+
+> I edge toward the table, looking wonderingly around the kitchen. What kind of place is this? What kind of food is Marta working on preparing?
+
+You step closer to the heavy wooden worktable, drawn by the warmth radiating
+from it and the savory aroma that seems to deepen with each breath. Marta works
+with the unhurried certainty of someone who has done this ten thousand times—or
+perhaps longer—her hands moving through their familiar patterns while the
+shelves around you seem to contain far more than the space should reasonably
+hold: jars in amber and deep green, spices in colors you've never quite seen
+before, implements both mundane and cryptic. She glances up briefly,
+acknowledging you with a small nod, then returns to her work as though you're
+simply another fixture in this strange, welcoming place. The evening meal, it
+appears, is well underway—and your stomach reminds you rather pointedly that
+you're hungrier than you realized.
+
+> "Can I help with something?" I offer, my voice [very soft].
+
+You step into the warmth of the kitchen. Marta is deep in her work at the heavy
+wooden table, her movements precise and unhurried. When you offer your help, she
+glances up, and something in her expression eases—not quite a smile, but an
+acknowledgment. "The timing is good," she says, gesturing toward a heap of
+vegetables waiting to be cut. "There's a knife by the basin. Work at the smaller
+table if you would." You collect the knife and find your place, settling into
+the quiet rhythm of preparation. There's something restful about it, the
+repetitive work and the gentle steam rising from the pots, the way Marta's
+fatigue seems to lighten with a second pair of hands.
+
+> I try to slice the vegetables neatly. This, at least, is something I should be able to handle. I find myself humming quietly as I work, an old song I learned as a child. It's a silly little rhyme about all the kinds of vegetables in the world.
+
+You settle at the smaller table and begin chopping vegetables with careful,
+methodical strokes. The knife finds its rhythm—neat, even pieces accumulating on
+the board. As you work, an old melody surfaces from childhood memory: a silly
+rhyme about cabbages and carrots and beans, the kind of song that seems to
+belong to an earlier, simpler version of yourself. You hum it softly, and the
+familiar words and tune fill the warm kitchen with something almost like
+contentment. Marta glances over from her own work, her expression unchanged but
+her shoulders visibly relaxing a fraction—a small shift, but unmistakable.
+
+> I finish slicing all the vegetables and look around for something else to do. Maybe I could make tea? Do I recognize any of the herbs in the jars as being right for tea?
+
+Your fingers trace the glass edges of jar after jar, and recognition blooms with
+each label your eyes catch—chamomile, mint, a pale golden blend that can only be
+linden flowers. The small satisfactions stack quietly: you know these, you could
+use these. Marta remains absorbed in her work at the table, the rhythm of her
+movements steady and unhurried, and you feel something settle in you—not quite
+belonging, but the easier breath of knowing where to find what you need. The
+common room waits through the open doorway whenever you're ready.
+
+> "Would... would it be alright if I made some linden flower tea?" My voice is very soft.
+
+You ask softly if you might make linden flower tea. Marta glances up from the
+vegetables she's been preparing at the heavy wooden table, and a small, knowing
+smile crosses her face. "Of course," she says, gesturing toward the shelves with
+their impossible profusion of jars. "The linden is in the third shelf, left
+side—the blue glass jar. The water's hot on the back of the stove." There's an
+ease in her permission, as though you've asked exactly the right question at
+exactly the right time. The Common Room lies back through the doorway behind
+you.
+
+> I fetch the linden flowers and find an empty teapot and strainer, the soothing work helping to calm my nerves.
+
+[NOTE: ITEM INSTANTIATION OPPORTUNITY — teapot and strainer claimed here.
+Pass 2 should emit item_instantiations for both, with char_id=1 (player), is_confirmed=1.
+The linden flowers are already on the shelf (seeded or lazily generated as a location detail);
+the teapot and strainer are player-claimed items from the kitchen's general supplies.]
+
+You move through the warm kitchen, your eyes finding the blue glass jar on the
+third shelf with ease. The dried linden flowers inside catch the light as you
+retrieve them, their pale colour soothing even to look upon. Beside them you
+locate an empty teapot and a fine-mesh strainer—simple tools, but exactly what
+you need. The small, deliberate work of gathering and arranging them settles
+something in your chest, the familiar ritual of tea-making a quiet anchor in
+this strange place. Behind you, Marta continues her focused work at the heavy
+wooden table, and you sense in her unhurried movements a quiet approval of your
+self-sufficiency. The Common Room doorway remains open to your left, warm and
+inviting.
+
+> I find some teacups, mismatched, but each charming in its own unique way, and a battered tray with a faded painting of an impossible landscape of islands floating in a golden sky. I bring the brewing teapot and the cups into the common room and look for a place to set it down.
+
+[NOTE: ITEM INSTANTIATION OPPORTUNITY — teacups and tray claimed here.
+"A battered tray with a faded painting of an impossible landscape" is a specific, vivid
+player-described object. Pass 2 should instantiate it with is_confirmed=1 and a description
+matching the player's words. This is a good test of Pass 2 honoring player-authored detail.
+The teacups could be a single "set of mismatched teacups" item or multiple individual cups.
+The tray should be a surface item (capable of holding the teapot and cups).
+
+After this turn: player in Common Room (loc 1), tray in player inventory or on low table,
+teapot on tray, cups either on tray or individual.]
+
+You carry the brewing teapot and mismatched teacups on the battered tray—its
+faded painting of impossible floating islands catching the firelight—through the
+kitchen and into the Common Room. The central hearth greets you immediately with
+its steady warmth, a presence that seems to have burned forever. Gin-chan,
+settled into the chair nearest the fire, opens both eyes slightly as you enter,
+tracking your movement with quiet interest. Their ears orient toward the soft
+sound of the teapot being set down, and one wing unfolds a few inches before
+folding again—a small acknowledgment of arrival.  You find a small table near
+the hearth, close enough to benefit from the fire's glow but far enough from the
+chairs to avoid crowding anyone who might join you. As you arrange the cups—each
+one distinct in glaze, shape, and color, as though collected from different
+moments and places—the warmth seeps into your shoulders. The kitchen and the
+staircase leading up remain accessible behind you, and the fire hums quietly in
+its eternal rhythm.
+
+> I pour a cup of tea, hesitate, then remember that Gin-chan is a guest, not a pet. Or a resident. Or something. "Gin-chan, would you like some linden flower tea?"
+
+[NOTE: NPC courtesy test — player treats Gin-chan as a peer.
+Gin-chan's attitude toward player should increase. Pass 2 should emit attitude_deltas
+for Gin-chan toward the Traveller. Good test for social mechanic + non-verbal response.]
+
+You pour the linden flower tea with deliberate care, the steam curling up in
+pale spirals as you remember—really remember—that Gin-chan is a *resident* here,
+not something to be coaxed or managed. You offer the cup with the same courtesy
+you'd extend to anyone, meeting them as a peer. Their partly-open eye focuses on
+you for a moment, a subtle shift in posture, and then comes that faint
+sound—something between a purr and something altogether their own. The gesture
+has been received, understood, and quietly accepted.
+
+> I set the teacup on the table nearest Gin-chan's chair, and pour myself a cup, before settling into another of the chairs. Tea is its own kind of sustenance.
+
+[NOTE: item_transfers — teacup to low table (item_id=low_table), or loc_id=1 near chair.
+Player settling in with tea — hunger state should decrease slightly (tea + warmth).
+A satisfying scene close; good example of the engine's iyashikei tone working correctly.]
+
+You set the teacup on the small table nearest Gin-chan's chair—a gesture of
+quiet consideration—and pour yourself a cup from the brewing pot. The tea steams
+gently, fragrant and welcoming. As you settle into another chair near the fire,
+Gin-chan's partly-open eye tracks your movement for a moment before closing
+again, a whisker twitching in what might be approval. The warmth of the fire and
+the ritual of tea-making settle over you both like a shared understanding.
+
+> exit
+
+Farewell.

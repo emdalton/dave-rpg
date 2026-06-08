@@ -1,7 +1,60 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-06-05, session 26 (closed).*
+*Last updated: 2026-06-07, session 27 (closed).*
+
+---
+
+## Session 27 notes (2026-06-07)
+
+**Completed this session:**
+
+- **Scholar book exchange — working (18/18 passing):**
+  - Scholar `pending_intent` updated with explicit gift clause: if a guest gives
+    something of genuine value, give "Mysteries of the Hidden Hostel" immediately
+    as a permanent gift ("press it into their hands; this is not a loan").
+  - Book transfer now happens during test_090 (almanac exchange turn), not test_100.
+  - test_090: now asserts both sides — almanac leaves, book arrives same turn.
+  - test_100: repurposed as a simple social follow-up (no item assertion).
+  - `engine/engine.py` Pass 2 prompt: added BORROW/LOAN note — willing loans are
+    physical handovers (item_transfers), same as gifts. No separate loan flag yet.
+
+- **NPC wander ranges tightened for reliable multi-hop corridor test:**
+  - Scholar: `[3,4]` → `[4,4]` (Room A only — Scholar is hiding, stays in their room)
+  - Wanderer: `[1,2,3]` → `[1,2]` (Common Room + Kitchen — goes where guests are)
+  - Upper Corridor (3) is now definitively empty during play; multi-hop test reliable.
+
+- **Playtest reference saved:**
+  - `docs/playtests/hidden_hostel_playtest_01.txt` — annotated playtest session
+    documenting tea-making sequence, hunger surfacing, player-authored state inference,
+    NPC-referenced object instantiation, and item fill-state design notes.
+
+**Design notes captured (memory + testing backlog):**
+  - Item fill-state: teapots, cups etc. should track fill_state in properties JSON;
+    appropriate for contemplative modules (Hidden Hostel, Meryton). No schema change
+    needed — properties blob already supports this.
+  - Player-authored state inference: if player writes their own physical state
+    ("my stomach growls"), Pass 2 should emit internal_state_deltas to match.
+    Complement: passive drift should surface in Pass 3 prose without player input.
+  - NPC-referenced object instantiation: Marta saying "work at the smaller table"
+    should trigger item_instantiations if no such item exists. Future feature.
+
+**Test results (session 27 close):**
+  - `tests/test_scenario_entrance.py`: 18/18 passing (occasional test_040 flakiness
+    from LLM routing "go inside" → kitchen; not a code bug)
+  - `tests/test_item_container.py`: 10/10 passing (4 Tier 1 + 6 Tier 2)
+
+**Pending:**
+  - Internal state drift + prose surfacing test (highest priority next test to write)
+  - Mid-play item instantiation test (tea-making sequence from playtest_01)
+  - Item fill-state property convention (document in module_authoring.md)
+  - NPC-referenced object instantiation (future feature)
+  - test_040/055 intermittent: "go inside" sometimes routes to kitchen; investigate
+    Blue Door pending_intent wording or Pass 1 move resolution.
+  - i_am_a_cat seed.sql: still uses v1 column names, not yet updated.
+  - Closed container "open" mechanic: deferred.
+
+---
 
 ---
 

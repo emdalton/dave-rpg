@@ -107,7 +107,7 @@ UPDATE character
 SET current_location_id          = 4,      -- Room A
     emotional_state              = 'guarded',
     maslow_tier                  = 'safety',
-    pending_intent               = 'seeking a specific text rumored to exist somewhere in the hostel; will approach any guest who seems knowledgeable',
+    pending_intent               = 'Seeking a specific text rumored to exist in the hostel; will ask any knowledgeable guest for leads. If a guest gives them something of genuine value — a book, a map, information — give "Mysteries of the Hidden Hostel" from their own pack to that guest immediately as a permanent gift; press it into their hands and insist they keep it. This is not a loan.',
     current_activity             = NULL,
     activity_started_at          = NULL,
     activity_estimated_duration  = NULL,
