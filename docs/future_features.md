@@ -4,6 +4,45 @@
 
 ---
 
+## 23. Semantic action log retrieval (RAG over play history)
+
+*Captured 2026-06-09.*
+
+Currently the Pass 2 context packet includes recent action log entries ordered
+by time. For small modules this is sufficient — a few dozen turns of history
+fits comfortably in the context window. For larger or longer-running games,
+time-ordered recency is a poor proxy for relevance: a promise made twenty turns
+ago, or a character's prior emotional state in a specific situation, may matter
+more than the last three turns.
+
+**The idea:** embed action log entries (and potentially location_detail records
+and NPC history) as vectors, then at context assembly time retrieve the N most
+semantically similar entries to the current action. This gives the LLM recall
+of relevant history beyond the recency window.
+
+**Where this becomes useful:**
+
+- Long campaigns where plot threads from earlier in the session affect current
+  adjudication (a debt acknowledged, a secret overheard, a past slight).
+- Modules with large location graphs where detailed generated descriptions
+  accumulate in location_detail over many visits.
+- NPC continuity across long sessions: "the last time you spoke with the
+  Scholar about this topic" retrieved even if fifty turns have passed.
+
+**Current architecture notes:** The engine does not need this for Hidden Hostel,
+Meryton, or the planned Wonderland module at current scale. The action_log table
+already has the right structure for this (text narrative_beat per turn, timestamps,
+character references). The `recent_actions` field in the Pass 2 packet is where
+retrieved entries would go. Implementation would require an embedding model, a
+vector store or SQLite-based ANN index, and a retrieval step in context.py.
+
+**Revisit when:** a module's play session accumulates enough history that
+time-ordered recency produces clearly worse adjudication than a pilot with
+semantic retrieval, or when a module's location_detail volume makes selective
+retrieval necessary.
+
+---
+
 ## 19. Common Corpus model support and author module development
 
 *Captured 2026-06-01.*
@@ -103,6 +142,94 @@ seed — characters with full psychological profiles, location graph, faction
 structure, and starting attitudes — from the prose directly, with author review
 and correction. This is genuinely aspirational as of mid-2026 but worth
 designing toward.
+
+---
+
+## 22. Module: The Fall of the House of Usher (Edgar Allan Poe)
+
+*Captured 2026-06-03. Lower priority than features 20 and 21; suggested as a good candidate for Sonnet as construction tool since the adaptation approach is less developed.*
+
+**IP status:** Poe died 1849. Completely public domain worldwide; no concerns.
+
+**Why it works for DAVE:**
+
+A small-cast chamber piece with a single clear objective (escape the house before it falls) and a central mystery structured as hidden motivation. Roderick Usher's knowledge — that something is wrong with Madeline, that the house is alive, that the ending is coming — is the engine of the story. The player character is the unnamed narrator, arriving as a friend summoned by Roderick's mysterious letter, with no initial knowledge of what is happening.
+
+**Core mechanics it exercises:**
+
+- Hidden motivation: Roderick knows far more than he reveals. His `hidden_motivation` conceals his awareness of Madeline's condition and the nature of their family curse. His visible behavior is manic hospitality and creative collaboration; his actual state is a man who knows he is dying and has summoned the narrator as a witness, not a rescuer.
+- Small cast, high intensity: The cast is essentially three characters (narrator, Roderick, Madeline). Every interaction is weighted.
+- Escape as objective: The engine's existing route/location system handles physical escape; the interesting adjudication is whether the player understands what is happening and leaves *in time*.
+- Atmosphere and pacing: Pass 3 has significant work to do in maintaining Poe's tone — oppressive, suffocating, building dread. The prose rendering prompt for this module would need specific atmospheric guidance.
+
+**Design challenge:** The story has a predetermined ending in the source text — Madeline returns, Roderick dies, the house falls. The design question is whether to treat this as an open "what if" (the player might prevent the collapse, might escape early, might find a different resolution) or to lean into inevitability, making the horror the slow recognition of what cannot be changed. E does not yet have a strong view on this; it may be worth discussing before the module is designed. Sonnet as construction tool is the right approach here since the adaptation path is less obvious.
+
+**Comparison to Alice and Dracula:** Shorter source text; less complex social mechanics; no faction system needed. The challenge is tone, not scale. Lower priority as of capture but a tractable module when the horror-genre question is resolved.
+
+---
+
+## 21. Module: Dracula (Bram Stoker)
+
+*Captured 2026-06-03. Priority module alongside feature 20 (Alice/Wonderland).*
+
+**IP status:** Stoker died 1912. Completely public domain worldwide; no concerns.
+
+**Why it works for DAVE:**
+
+The epistolary structure of *Dracula* — told entirely through diary entries, letters, and telegrams — maps directly onto one of DAVE's most interesting design possibilities: partial knowledge. Each character in the novel has access to different pieces of the puzzle. Jonathan Harker knows what he saw in Transylvania; Mina knows what she wrote and what was written to her; Van Helsing understands what the others cannot name. A DAVE module built on Dracula can be designed so the player's character knows only what their journal contains — and the engine maintains that boundary rigorously.
+
+**Recommended opening: Transylvania (Jonathan Harker as player)**
+
+The Transylvania section is the natural starting point:
+
+- Harker arrives at Castle Dracula as a solicitor completing a real estate transaction. His mission is legitimate, ordinary, and professional. Dracula's hospitality is genuine in surface form — courteous, attentive, intellectually engaged. The horror accumulates through details that are individually explicable.
+- This setup works with the engine's existing mechanics. Dracula's `hidden_motivation` conceals his nature entirely; his visible attitude toward Harker is warmly proprietorial. He is not threatening Harker — he is studying him, enjoying him, preparing.
+- The player's actions in Transylvania have real consequences for what Harker knows when he eventually escapes. A player who explores thoroughly, reads the documents Dracula leaves accessible, and pays attention to what the three women in the castle are doing will reach Mina's chapters with more to work with than a player who stays obedient and incurious.
+
+**The "knowing player" design challenge:**
+
+Most players who choose a Dracula module will know the story. Making Harker's early deference and cooperation feel reasonable — rather than obviously foolish — is the central tone design problem. Two approaches:
+
+1. *Naturalistic play:* Trust that Dracula's social presence (high charisma, status, plausible explanations for every anomaly) will make the player's compliance feel earned rather than ignorant. The engine adjudicates Dracula's social pressure the same way it would any high-status NPC with strong persuasion skill; the player character is not stupid for responding to it.
+2. *What-if as the explicit frame:* Players who know the ending can choose to go off-script. Harker who refuses to be a polite prisoner, who attempts escape on night one, who confronts Dracula directly — these are natural "what if" inputs that produce a different story. The engine supports this without modification; the module simply needs to design for it rather than assuming canonical compliance.
+
+E considers Dracula "very easy to prepare" — the source text is clear, the characters are richly developed, and the social dynamics map cleanly onto existing engine mechanics.
+
+**Later chapters:** Once the Transylvania opening is stable, later chapters (Whitby, London, the hunt) can be added. The epistolary structure means chapter sequencing (feature 13) is load-bearing for the full novel arc — each chapter's player character may be different (Harker, Mina, Van Helsing's group). This is a longer-term design consideration; the Transylvania opening stands alone.
+
+---
+
+## 20. Module: Alice's Adventures in Wonderland (Lewis Carroll)
+
+*Captured 2026-06-03. Priority module alongside feature 21 (Dracula). Through the Looking Glass noted as a follow-on with a cleaner objective structure (chess arc); Wonderland first.*
+
+**IP status:** Carroll died 1898. Completely public domain worldwide; no concerns. The Tenniel illustrations are also public domain.
+
+**Why it works for DAVE:**
+
+Wonderland is a social world structured entirely around absurd authority, arbitrary rules, and characters who take their own logic completely seriously. This is exactly what DAVE's social adjudication layer was designed for. Every Wonderland character has coherent internal psychology (within their own framework) and responds to Alice's behavior based on how it maps onto their values — the Queen's volcanic authority, the Hatter's time-trapped obsession, the Caterpillar's philosophical detachment.
+
+**Recommended design:**
+
+- *Open world, pre-trial:* Alice arrives in Wonderland and can explore freely. The trial of the Knave of Hearts is the endpoint; the question is what condition Alice arrives at the trial in, and whether she can influence the outcome.
+- *Winning condition:* Gaining sufficient faction reputation with Wonderland's inhabitants — the Hatter's faction, the card court faction, the animal faction — to have standing at the trial; then successfully defending the Knave through social adjudication of the trial proceedings. The Queen can be argued with; Alice's famous "You're nothing but a pack of cards!" is a valid endgame move, but it ends the session rather than winning it. Winning requires working within (and around) the system.
+
+**Signature mechanic: size as internal_state float**
+
+Alice's size changes are the most distinctive mechanic the module adds to the engine.
+
+- `size` as a float on Alice's `character_internal_state`: 0.0 = Drink-Me tiny (too small to interact with full-scale objects), 0.5 = normal, 1.0 = Eat-Me giant (physically disruptive, cannot fit through doors, frightening to small creatures).
+- Items in the world (Eat-Me cake, Drink-Me bottle, mushroom pieces) have a `size_delta` property in their JSON. Pass 2 applies the delta when Alice consumes them, clamped to [0.0, 1.0].
+- `passage_note` on location connections encodes size requirements: "requires size < 0.3 to pass" on the tiny door, "blocked if size > 0.8" on normal doorways. Pass 2 checks `size` against these conditions before resolving a move.
+- At 0.0 (maximum tiny), Alice cannot reach most interactive objects. At 1.0 (maximum giant), Alice cannot fit through most exits and her presence frightens nearby characters (automatic attitude penalty from creatures under 0.4 size).
+
+**Logical puzzles as social adjudication:**
+
+Wonderland's riddles and puzzles ("Why is a raven like a writing desk?") are not meant to have correct answers. Pass 2 should be prompted to adjudicate these as social interactions: what matters is Alice's confidence, creativity, and willingness to engage on Wonderland's own terms, not whether the answer is technically correct. A brilliant wrong answer may win more attitude than a mumbled right one.
+
+**Through the Looking Glass as follow-on:**
+
+Through the Looking Glass has a cleaner objective structure — Alice must cross the chessboard to become a queen, and the chess game provides a natural arc with defined intermediate goals (each square = a new scene, each piece encounter = a social challenge). This maps very well onto DAVE's location graph with `passage_note` encoding chess-square adjacency rules. Looking Glass is the planned sequel module, not the starting point.
 
 ---
 
