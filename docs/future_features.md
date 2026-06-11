@@ -1,6 +1,83 @@
 # DAVE RPG Engine — Future Feature Ideas
 
 *Captured May–June 2026. None of these are scoped or designed; this is a reference list.*
+*Last updated: 2026-06-10.*
+
+---
+
+## 27. Module candidate: Sherlock Holmes / Victorian London (Conan Doyle)
+
+*Captured 2026-06-10.*
+
+Conan Doyle died 1930; the original Holmes stories (1887–1927) are public domain in most jurisdictions. A Holmes-adjacent DAVE module requires no author permission and can be published freely. The Victorian London setting has an extensive body of independent public-domain historical material (period maps, newspaper archives, social surveys, Booth's poverty maps, court records) that can be used to build the world independently of the Holmes canon.
+
+**Player character direction:** Playing *as* Holmes is the wrong design choice — it asks the player to out-deduce a character defined by impossible genius, which is either trivial or frustrating. The stronger approach is a player character who moves through the same world by entirely different means: social intelligence, relationships, networks Holmes cannot or would not access. Irene Adler is a strong candidate: an American opera singer living independently in London, financially self-sufficient, occupying an ambiguous social position (cultured and admired, but outside the respectable marriage track) that generates natural tension with Victorian class norms. "Outwit Holmes" is a potential win condition with genuine motivational power.
+
+**The women of Victorian London:** The Holmes period (1887–1927) coincides with a remarkable concentration of women doing historically significant and underrepresented things. Florence Nightingale was still alive (she died 1910) and would be a figure of enormous reputation in the world. Ada Lovelace is slightly earlier (died 1852) but her circle and legacy would still be present in memory and in the scientific community. The era also produced Mary Seacole, Annie Besant, Josephine Butler, Octavia Hill, and a rich network of women navigating medicine, social reform, suffrage, and the arts — a parallel social world Holmes's Baker Street network would never reach. Surfacing this cast and letting the player move through their networks is a strong design goal independent of the mystery structure.
+
+**Why it works for DAVE:** Victorian London's social stratification — class, profession, criminal networks, imperial connections, servant hierarchies — maps well onto DAVE's faction and reputation systems. The deduction mechanic (physical observation → inference) is not naturally modeled by DAVE's social adjudication layer and is best set aside in favor of DAVE's actual strengths: attitude, reputation, and relationship-based information asymmetry. A player character who knows the right people learns things Holmes never would.
+
+**Relationship to Benjamin January:** both are period mystery settings with social complexity as a primary driver. The Holmes case is the cleaner starting point for an independent prototype because the source material is public domain and no author relationship is required.
+
+---
+
+## 26. Module candidate: Benjamin January series (Barbara Hambly)
+
+*Captured 2026-06-10. No current path to author; revisit when proof of concept is established.*
+
+Barbara Hambly's Benjamin January mystery series is set in New Orleans in the 1830s–1840s (antebellum period). Benjamin January is a free Black man — a surgeon and musician — navigating a social world defined by intricate and legally codified status distinctions: free people of color, enslaved people, Creole families, American newcomers, the Catholic Church, European expatriates, and the plaçage system (formalized long-term relationships between free women of color and white men, with legal protections for property and children). Hambly is noted for the quality of her historical research.
+
+**Why it works for DAVE:** The social complexity is exceptional and exactly what the adjudication layer was designed for. Status, faction, and reputation operate on multiple simultaneous axes — race, class, religion, language, nationality — and a player navigating this world must understand that the same action reads very differently depending on who is present and what role they occupy. The mystery structure provides a natural objective and win condition. The setting is rarely represented in games.
+
+**Source note:** E's knowledge of the plaçage system comes primarily from this series. The institution is also E's reference point for understanding Neumeier's "Red Ink Wife" category in the Tuyo world.
+
+**Status:** Copyright held by Hambly; no personal connection to the author. Flag as a candidate when DAVE has a proof of concept strong enough to approach an author with no prior relationship. The historical setting (1830s–1840s New Orleans) means extensive public-domain period research material is available independently of the novels themselves.
+
+---
+
+## 25. Proper noun alias table (character and location disambiguation)
+
+*Captured 2026-06-10.*
+
+Characters and locations in fiction are referred to by many names: full name, short name, title, relationship term, pronoun, epithet. In the Tuyo world, "Ryo," "Ryo inGara," "the young warrior," "my tuyo," and "the boy" may all refer to the same person in different passages and from different points of view. An LLM ingesting the text for world-bible extraction cannot reliably resolve these without a lookup.
+
+A `character_alias` table (and equivalent for locations) would map variant references to canonical entity IDs. This serves two purposes:
+
+- *Ingestion pipeline:* during extraction passes, the system consults the alias table to resolve ambiguous references before creating or merging entity records. An existing world companion (such as Tuyo Vol. 1) can seed the alias table before ingestion begins, since it lists canonical names and common variants.
+- *Game engine (Pass 1/Pass 2):* when a player refers to a character by a non-canonical name ("the Caterpillar," "that blue worm," "the hookah creature"), Pass 1 can resolve it against the alias table rather than failing or guessing. This is already partially handled by the `known_locations` dict in the Pass 1 context packet; a proper alias system extends the same pattern to characters and other named entities.
+
+**Static vs. dynamic aliases.** Most aliases are static — "Marta" and "the innkeeper" both resolve to char_id=2 unconditionally. Some are dynamic: which character "Miss Bennet" refers to in Meryton depends on whether Jane has married yet. Before Jane's wedding, "Miss Bennet" = Jane (the eldest unmarried daughter); after, it shifts to Elizabeth. The alias table needs a `valid_when` condition field (null for unconditional aliases; a structured or natural-language condition for state-dependent ones) that Pass 1 can evaluate against the current game state.
+
+Dynamic alias conditions should reference faction membership and role rather than any dedicated status field. "Miss Bennet" → Jane Bennet is valid while Jane's role in the Bennet family faction is 'unmarried eldest daughter.' Once Jane's faction membership shifts to a Bingley household faction as 'wife,' the condition resolves differently. This is consistent with the existing faction schema and avoids adding marital_status or similar fields that bake in cultural assumptions.
+
+**The engine must not encode relationship assumptions.** Marital and relationship status is faction membership plus role — not a dedicated schema field. This is not merely a matter of Regency naming conventions. An engine designed for use with original fiction cannot assume what kinds of relationships exist, how many parties they involve, how long they last, what legal standing they carry, or what titles they confer. The Tuyo world illustrates why: Neumeier's system distinguishes Jewel Wives (primary wives, full legal status), Red Ink Wives (long-term concubines with specific legal protections for children, analogous to the *placée* institution in antebellum Creole New Orleans), Summer Wives (contracts under one year), One Candle Wives (legal status for the duration of one candle's burning), and Talon Wives (women who marry a group of eight soldiers and travel with them in the field, with considerably better status than typical camp followers). Each has distinct rights, distinct social expectations, distinct titles, and would be referenced differently in prose. A schema field called `marital_status` cannot represent this, and an LLM without explicit guidance will flatten all of them into "wife." The faction system with named roles handles all of these without modification.
+
+**Ingestion pipeline implication.** When extracting relationships from prose during ingestion, the extraction prompt must capture the *type* of relationship as a labeled role, not collapse it into a generic category. The world companion is critical here: Neumeier has explicitly defined the Tuyo relationship taxonomy, so the ingestion pipeline can be seeded with it before parsing relationship mentions in the novels. Without that anchor, an LLM would almost certainly collapse the distinctions.
+
+Schema sketch: `entity_alias(alias_id, entity_type TEXT, canonical_id INT, alias TEXT, valid_when TEXT NULL, source TEXT NULL)` where `entity_type` is 'character' or 'location', `canonical_id` references the appropriate table, `valid_when` encodes any state condition, and `source` notes provenance. The alias table is populated during seed/ingestion and extended during play as new references are encountered.
+
+Fantasy proper nouns are particularly important here — names like "Aras," "inGara," "the Peacock Desert," or "the city in the starlit lands" have no prior existence in any model's training data and cannot be resolved from general knowledge. They must be provided explicitly. This is the same principle as DAVE's `known_locations` dict: the engine tells the LLM what the world contains; it does not rely on the LLM to know.
+
+---
+
+## 24. DAVE as author's assistant platform
+
+*Captured 2026-06-10.*
+
+DAVE's three-pass architecture (parse intent → reason over structured context → render output) is not specific to games. With different prompt prefixes and an ingestion pipeline that builds a structured knowledge base from a novel series, the same engine supports an author's assistant use case:
+
+- *World-bible queries:* "Where was Aras while Tano was at the city in the starlit lands?" "Who are all of Ryo's family members to two degrees?" "How many grandchildren does Marag have?" Retrieved from an indexed and structured DB rather than recalled from model weights.
+- *Synthesis and inference:* "Ryo and Aras are traveling from Avaras to the Peacock Desert the year after Ryo gets his scepter — what known characters are they likely to encounter along the way?" The model reasons over retrieved context rather than generating from training knowledge.
+- *Companion writing:* author asks for a draft entry on a character, place, or concept. System retrieves all relevant passages, synthesizes what's established, flags gaps and contradictions, drafts an entry. Author confirms; confirmed entries enter the canonical DB and improve subsequent queries.
+- *Consistency checking:* flag passages where stated facts contradict earlier established canon. More reliable via RAG over the actual texts than via model recall.
+
+The author's assistant and game engine modes share the same infrastructure: the same database schema (with modest additions for source references, confidence flags, and alias tables), the same context packet assembly, the same RAG retrieval layer. The prompt prefix determines what the LLM does with the information.
+
+**Data sovereignty is the key differentiator.** Commercial hosted APIs require authors to submit their work to third-party infrastructure with uncertain data retention policies. A locally-deployed DAVE instance (or one hosted under NDA by a trusted operator) means the author's unpublished material, internal notes, and world inconsistencies never leave controlled infrastructure. This is a qualitatively different guarantee — not a policy, but an architecture.
+
+**Proof of concept path:** the game engine (DAVE as RPG) is the proof of concept for the author's assistant. A working Hidden Hostel or Meryton demo with a solid Sonnet/Salamandra pipeline demonstrates the core architecture to a prospective author partner. The author's assistant features (ingestion pipeline, confirmation loop, alias table, companion writing mode) are built on top of that foundation. See also Feature 25 (alias table) and `docs/ai_concepts_in_dave.md` for extended discussion.
+
+**First target author:** Rachel Neumeier (rachelneumeier.com), 13-book Tuyo world with existing Vol. 1 world companion. Has publicly expressed concern about feeding manuscripts to commercial APIs. Approach after proof of concept is solid. See memory note `project_dave_neumeier.md`.
 
 ---
 
@@ -199,37 +276,78 @@ E considers Dracula "very easy to prepare" — the source text is clear, the cha
 
 ---
 
-## 20. Module: Alice's Adventures in Wonderland (Lewis Carroll)
+## 20. Module: Return to Wonderland (Lewis Carroll / original design)
 
-*Captured 2026-06-03. Priority module alongside feature 21 (Dracula). Through the Looking Glass noted as a follow-on with a cleaner objective structure (chess arc); Wonderland first.*
+*Captured 2026-06-03; substantially revised 2026-06-10.*
 
-**IP status:** Carroll died 1898. Completely public domain worldwide; no concerns. The Tenniel illustrations are also public domain.
+**IP status:** Carroll died 1898. Completely public domain worldwide; no concerns. The Tenniel illustrations are also public domain. The module design is original (adult-Alice framing) and does not reproduce Carroll's text.
+
+**Concept: adult Alice returns**
+
+Alice is now a young woman. As a child she slipped between worlds; her family dismissed her accounts, though one scholar believed her. The White Rabbit arrives in distress — the Queen of Hearts has become a tyrant. Alice must decide what to do about it.
+
+The central tension: childhood access to Wonderland was effortless. As an adult returning to a changed place, Alice brings different capabilities and different constraints. The characters she knew remember child-Alice; adult-Alice must re-establish who she is.
 
 **Why it works for DAVE:**
 
-Wonderland is a social world structured entirely around absurd authority, arbitrary rules, and characters who take their own logic completely seriously. This is exactly what DAVE's social adjudication layer was designed for. Every Wonderland character has coherent internal psychology (within their own framework) and responds to Alice's behavior based on how it maps onto their values — the Queen's volcanic authority, the Hatter's time-trapped obsession, the Caterpillar's philosophical detachment.
+Wonderland is a social world structured entirely around absurd authority, arbitrary rules, and characters who take their own logic completely seriously. Every Wonderland character has coherent internal psychology (within their own framework) and responds to Alice's behavior based on how it maps onto their values — the Queen's volcanic authority, the Hatter's time-trapped obsession, the Caterpillar's philosophical detachment. This is exactly what DAVE's social adjudication layer was built for.
 
-**Recommended design:**
+**Win condition: NPC happiness, not trial victory**
 
-- *Open world, pre-trial:* Alice arrives in Wonderland and can explore freely. The trial of the Knave of Hearts is the endpoint; the question is what condition Alice arrives at the trial in, and whether she can influence the outcome.
-- *Winning condition:* Gaining sufficient faction reputation with Wonderland's inhabitants — the Hatter's faction, the card court faction, the animal faction — to have standing at the trial; then successfully defending the Knave through social adjudication of the trial proceedings. The Queen can be argued with; Alice's famous "You're nothing but a pack of cards!" is a valid endgame move, but it ends the session rather than winning it. Winning requires working within (and around) the system.
+The win condition is the aggregate happiness (internal states and attitudes) of Alice's NPC friends — not defeating the Queen or winning a trial. Multiple solution paths are equally valid:
+
+- *Joan of Arc:* build coalitions, raise social pressure, organize resistance
+- *Diplomat:* negotiate with the Queen, find her grievances, address them directly
+- *Trickster:* use Wonderland's own logic against the court
+- *Quiet restoration:* help individual friends one by one, shift the social fabric without confrontation
+
+The same Wonderland, the same characters, the same Queen — but genuinely different stories depending on who Alice is. If only one path is satisfying, the module has failed.
+
+**The Queen's hidden motivation (key design decision):**
+
+The Queen is tractable, not a final boss. "Off with their heads!" is almost never carried out, suggesting the court is humoring her. E's hypothesis: the Queen is terrified of being forgotten or ignored. Making her feel secure and seen may be sufficient. The diplomatic path requires high-agreeableness skills and careful attitude management, not confrontation. The Queen's `hidden_motivation` is the design decision that determines whether the diplomatic and trickster paths feel satisfying or cheap — design it first.
+
+**Player self-definition: who did Alice become?**
+
+At game start, Alice's capabilities depend on who the player thinks she grew up to be. The White Rabbit serves double duty as the inciting character and the character-creation interface — his question ("But Alice, what have you *become* these years? What do you know now?") is both in-character and a skill-seeding prompt. Examples:
+
+- *Chess grandmaster:* sees the situation as chess — pieces, positions, the right sacrifice at the right moment. Most natural for strategic/systems play.
+- *Philosopher:* argumentation, paradox-handling (extremely Wonderland-appropriate — Wonderland logic is a kind of philosophy), patience. Most natural for the diplomatic and trickster paths.
+- *WWI nurse:* has seen real death and real tyranny. Wonderland's theatrical executions that never happen read very differently through this lens — she may arrive with almost no fear of the Queen, which is its own power. Most likely to feel genuine compassion for what's beneath the Queen's rage.
+- *Expert chef:* social warmth through hospitality, knowledge of hosting customs; may win characters over through food and care. A Hidden Hostel–style approach inside Wonderland.
+
+The open skill taxonomy already handles this — no rigid skill list, the adjudicator evaluates semantic relevance at resolution time. A gymnast Alice getting past the card soldiers has a different story than a philosopher Alice doing it; both are mechanically valid.
+
+**History mechanic:**
+
+Characters who knew child-Alice have prior attitude data that doesn't match the current player character. Design options: seed skepticism/disappointment (she was gone a long time), seed positive nostalgia (creates pressure to live up to it), or have characters react to adult-Alice's confidence and changed manner as something genuinely new. This is an unresolved design question; seed it carefully and playtest.
+
+**Target players (named, not hypothetical):**
+
+- *Dave (E's husband, engine namesake):* expert tabletop RPG moderator, Dragon Age / Baldur's Gate fan. Likely favors the coalition-building / Joan of Arc approach — strategic, direct, systems mastery.
+- *Their daughter:* plays many games, writes fan fiction. Likely favors character relationships, emotional beats, creative lateral solutions.
+- *E:* suggested the diplomatic path herself. Finds win conditions in making everyone satisfied rather than defeating anyone.
+
+All three should be able to play and feel like they're playing *their* Alice.
 
 **Signature mechanic: size as internal_state float**
 
-Alice's size changes are the most distinctive mechanic the module adds to the engine.
-
-- `size` as a float on Alice's `character_internal_state`: 0.0 = Drink-Me tiny (too small to interact with full-scale objects), 0.5 = normal, 1.0 = Eat-Me giant (physically disruptive, cannot fit through doors, frightening to small creatures).
-- Items in the world (Eat-Me cake, Drink-Me bottle, mushroom pieces) have a `size_delta` property in their JSON. Pass 2 applies the delta when Alice consumes them, clamped to [0.0, 1.0].
-- `passage_note` on location connections encodes size requirements: "requires size < 0.3 to pass" on the tiny door, "blocked if size > 0.8" on normal doorways. Pass 2 checks `size` against these conditions before resolving a move.
-- At 0.0 (maximum tiny), Alice cannot reach most interactive objects. At 1.0 (maximum giant), Alice cannot fit through most exits and her presence frightens nearby characters (automatic attitude penalty from creatures under 0.4 size).
+- `size` as a float on Alice's `character_internal_state`: 0.0 = Drink-Me tiny, 0.5 = normal, 1.0 = Eat-Me giant (physically disruptive, cannot fit through doors, frightening to small creatures).
+- Items (Eat-Me cake, Drink-Me bottle, mushroom pieces) have a `size_delta` property in their JSON. Pass 2 applies the delta clamped to [0.0, 1.0].
+- `passage_note` on location connections encodes size requirements: "requires size < 0.3 to pass" on the tiny door, "blocked if size > 0.8" on normal doorways.
+- At 0.0, Alice cannot reach most interactive objects. At 1.0, she cannot fit through most exits and her presence frightens nearby characters (automatic attitude penalty from creatures under 0.4 size).
 
 **Logical puzzles as social adjudication:**
 
-Wonderland's riddles and puzzles ("Why is a raven like a writing desk?") are not meant to have correct answers. Pass 2 should be prompted to adjudicate these as social interactions: what matters is Alice's confidence, creativity, and willingness to engage on Wonderland's own terms, not whether the answer is technically correct. A brilliant wrong answer may win more attitude than a mumbled right one.
+Wonderland's riddles ("Why is a raven like a writing desk?") are not meant to have correct answers. Pass 2 adjudicates these as social interactions: what matters is Alice's confidence, creativity, and willingness to engage on Wonderland's own terms. A brilliant wrong answer may win more attitude than a mumbled right one.
 
 **Through the Looking Glass as follow-on:**
 
-Through the Looking Glass has a cleaner objective structure — Alice must cross the chessboard to become a queen, and the chess game provides a natural arc with defined intermediate goals (each square = a new scene, each piece encounter = a social challenge). This maps very well onto DAVE's location graph with `passage_note` encoding chess-square adjacency rules. Looking Glass is the planned sequel module, not the starting point.
+A cleaner objective structure — Alice must cross the chessboard to become a queen. Each square = a new scene, each piece encounter = a social challenge. Maps well onto DAVE's location graph with `passage_note` encoding chess-square adjacency rules. Looking Glass is the planned sequel, not the starting point. The chess grandmaster backstory connects directly to this module's framing.
+
+**Salamandra vs. Sonnet seed generation benchmark:**
+
+The Wonderland module seed will be built with Sonnet (existing construction practice). A parallel run using Salamandra 7B is planned for comparison. Because *Alice's Adventures in Wonderland* is Project Gutenberg text and almost certainly in Common Corpus, Salamandra is recalling rather than extracting — this is a known-content test. What it measures is structured output quality, schema adherence, OCEAN inference, and goal/motivation description quality on DAVE's specific prompt format. The comparison establishes how far apart Sonnet and Salamandra are on known content, setting realistic expectations for the gap on genuinely unknown material (e.g. the Tuyo ingestion use case). See `docs/ai_concepts_in_dave.md`.
 
 ---
 

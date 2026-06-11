@@ -1,7 +1,48 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-06-07, session 27 (closed).*
+*Last updated: 2026-06-10, session 28 (closed).*
+
+---
+
+## Session 28 notes (2026-06-10)
+
+**No code changes this session — design and documentation only.**
+
+**New documents:**
+- `docs/ai_concepts_in_dave.md` — personal AI terminology reference connecting RAG,
+  model parameters vs. training corpus size, the inference stack (base → instruct →
+  quantization → format → engine → API), fine-tuning (LoRA/QLoRA, SFT, DPO), and
+  DAVE's DB-as-ground-truth architecture to each concept. Includes a section on
+  quantization degradation asymmetry across DAVE's three passes, and design notes on
+  using DAVE as an author's assistant platform (ingestion pipeline, world-bible
+  queries, fine-tuning for prose style, data sovereignty pitch).
+
+**Future features updated (`docs/future_features.md`):**
+- Feature 20 rewritten: "Return to Wonderland" — adult Alice, NPC happiness win
+  condition, four solution paths, player self-definition via White Rabbit, Queen's
+  hidden tractable motivation, history mechanic.
+- Feature 24 added: DAVE as author's assistant platform — same infrastructure, prompt
+  prefix swap; world-bible queries, consistency checking, companion writing mode;
+  Rachel Neumeier / Tuyo world as primary author partner candidate.
+- Feature 25 added: Proper noun alias table — static and dynamic aliases; `valid_when`
+  condition on faction role; "Miss Bennet" example; Tuyo marriage taxonomy as
+  illustration of why relationship assumptions must not be hardcoded.
+- Feature 26 added: Benjamin January / Barbara Hambly — antebellum New Orleans
+  1830s–1840s; no author connection; revisit after proof of concept.
+- Feature 27 added and expanded: Sherlock Holmes / Victorian London — public domain;
+  player character direction is Irene Adler or similar (not Holmes); "outwit Holmes"
+  as win condition; surfacing the women of Victorian London (Nightingale, Lovelace,
+  Seacole, Besant, etc.) as a design goal; DAVE's social intelligence systems as the
+  right mechanic, not deduction.
+
+**Pending (carried from session 27, unchanged):**
+  - Internal state drift + prose surfacing test (highest priority)
+  - Pass 1 character alias resolution (Feature 25)
+  - Mid-play item instantiation test
+  - Item fill-state property convention
+  - test_040/055 intermittent routing issue
+  - i_am_a_cat seed.sql v1 column names
 
 ---
 
@@ -53,6 +94,16 @@
     Blue Door pending_intent wording or Pass 1 move resolution.
   - i_am_a_cat seed.sql: still uses v1 column names, not yet updated.
   - Closed container "open" mechanic: deferred.
+  - Pass 1 character alias resolution: currently the `known_locations` dict gives
+    Pass 1 explicit name→ID mapping for locations, but no equivalent exists for
+    characters. A player typing "ask the innkeeper about the tea" relies on the LLM
+    inferring that "the innkeeper" is Marta. This works for well-known source material
+    (P&P characters are in the training data) but fails silently for original modules.
+    A `known_characters` dict in the Pass 1 context packet (including common aliases
+    per character) is the fix — same pattern as known_locations. Some aliases are
+    dynamic (e.g. "Miss Bennet" shifts from Jane to Elizabeth after Jane's marriage);
+    dynamic aliases are conditioned on faction membership/role. See Feature 25 in
+    `docs/future_features.md`.
 
 ---
 
