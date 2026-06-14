@@ -48,9 +48,9 @@ class TestBuildPass1Packet:
             db=tmp_db, game_id=1, player_input="look around"
         )
         # Actual keys: current_location, description, game, known_locations,
-        # pass, player, player_input, recent_actions
+        # known_characters, pass, player, player_input, recent_actions
         for key in ("player_input", "game", "player", "current_location",
-                    "recent_actions", "known_locations"):
+                    "recent_actions", "known_locations", "known_characters"):
             assert key in packet, f"Pass 1 packet missing key: {key!r}"
 
     def test_player_input_preserved(self, tmp_db: Database):
@@ -72,6 +72,39 @@ class TestBuildPass1Packet:
         name_str = " ".join(str(n) for n in names).lower()
         assert "antechamber" in name_str
         assert "hall" in name_str
+
+    def test_known_characters_includes_all_npcs(self, tmp_db: Database):
+        """
+        known_characters must list all non-player characters with id, name,
+        and species. The test fixture seeds Guard (id=2, species='human') and
+        Hermit (id=3, species='human') as NPCs; Hero (id=1) is the player and
+        must not appear. Each entry must have 'id', 'name', and 'species' keys
+        so the LLM can resolve both name-based and species-based references.
+        """
+        packet = build_pass1_packet(
+            db=tmp_db, game_id=1, player_input="talk to the guard"
+        )
+        known = packet["known_characters"]
+        assert isinstance(known, list), (
+            f"known_characters should be a list; got {type(known)}"
+        )
+        # Must include both NPCs from the test fixture.
+        ids = {entry["id"] for entry in known}
+        assert 2 in ids, "Guard (id=2) should appear in known_characters"
+        assert 3 in ids, "Hermit (id=3) should appear in known_characters"
+
+        # Player character (Hero, id=1) must be excluded.
+        assert 1 not in ids, (
+            "Player character (Hero, id=1) must not appear in known_characters — "
+            "Pass 1 resolves NPC targets only"
+        )
+
+        # Each entry must carry id, name, and species for disambiguation.
+        for entry in known:
+            for field in ("id", "name", "species"):
+                assert field in entry, (
+                    f"known_characters entry {entry} is missing required field {field!r}"
+                )
 
     def test_player_profile_has_location(self, tmp_db: Database):
         packet = build_pass1_packet(

@@ -86,16 +86,25 @@ Rules:
   with the destination id resolved from known_locations. Do not classify these
   as a different action type or leave target_id null when the destination is
   listed in known_locations.
+- For actions that target a character (speak, interact, examine, take, drop,
+  use, or any other action whose primary object is a person or creature): look
+  up the character in known_characters and set target_character_id to the
+  matching id. Use the species field to disambiguate when the player refers to
+  a character by type ("the cat", "the bird", "the man") rather than by name.
+  Do NOT leave target_character_id null when the character can be resolved from
+  known_characters.
 
 Required output fields:
-  action_type   (string, one of the types above)
-  verb          (string, the player's intended verb in plain English)
-  target        (string or null, the primary object or character of the action)
-  target_id     (integer or null, resolved database id if determinable;
-                 for move actions this MUST be the location id from known_locations)
-  location_id   (integer, the player's current location)
-  detail        (string or null, any additional qualifying information)
-  raw_input     (string, the player's unmodified input text)
+  action_type         (string, one of the types above)
+  verb                (string, the player's intended verb in plain English)
+  target              (string or null, the primary object or character of the action)
+  target_id           (integer or null, for move actions: the location id from
+                       known_locations; null for all other action types)
+  target_character_id (integer or null, resolved from known_characters when the
+                       action targets a character; null for move and item actions)
+  location_id         (integer, the player's current location)
+  detail              (string or null, any additional qualifying information)
+  raw_input           (string, the player's unmodified input text)
 
 Context:
 {context_json}

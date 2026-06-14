@@ -127,6 +127,19 @@ def build_pass1_packet(
     ]
 
     # ------------------------------------------------------------------
+    # Character directory: all non-player characters by id, name, species.
+    # Pass 1 uses this to resolve character references in player input
+    # (e.g. "spook", "the cat", "mama") to their database IDs so that
+    # target_character_id can be set correctly without a full DB lookup.
+    # Species is included to help disambiguate references like "the cat"
+    # or "the bird" when more than one character of that species exists.
+    # ------------------------------------------------------------------
+    known_characters = [
+        {"id": char["id"], "name": char["name"], "species": char["species"]}
+        for char in db.get_all_npcs()
+    ]
+
+    # ------------------------------------------------------------------
     # Recent action log (last N entries, oldest first)
     # ------------------------------------------------------------------
     recent_actions = db.get_recent_actions(game_id, limit=config.PASS1_RECENT_ACTIONS)
@@ -155,14 +168,19 @@ def build_pass1_packet(
         "current_location": location_summary,
         # All locations in the game, for resolving destination names → IDs.
         "known_locations": known_locations,
+        # All NPCs in the game, for resolving character references → IDs.
+        "known_characters": known_characters,
         "recent_actions": recent_summaries,
     }
 
     logger.debug(
-        "Pass 1 packet built: game=%d player=%d location=%d recent_actions=%d",
+        "Pass 1 packet built: game=%d player=%d location=%d "
+        "known_locations=%d known_characters=%d recent_actions=%d",
         game_id,
         player["id"],
         player["current_location_id"],
+        len(known_locations),
+        len(known_characters),
         len(recent_summaries),
     )
     return packet

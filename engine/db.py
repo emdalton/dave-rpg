@@ -308,6 +308,26 @@ class Database:
         """
         return self._rows("SELECT id, name FROM location ORDER BY id")
 
+    def get_all_npcs(self) -> list[dict]:
+        """
+        Return a compact list of all non-player characters: id, name, species.
+
+        Used by Pass 1 to resolve player-supplied character references (e.g.
+        "spook", "the cat", "mama") to their database IDs. Species is included
+        so the LLM can disambiguate references by type ("the cat" vs. "the bird")
+        when the player does not use a character's name directly.
+
+        The player character (role='player') is excluded — Pass 1 needs to
+        resolve NPC targets only; the player is always the actor, not the target.
+        Each module has its own database, so all rows belong to the current game.
+        """
+        return self._rows(
+            """SELECT id, name, species
+               FROM character
+               WHERE role != 'player'
+               ORDER BY id"""
+        )
+
     def get_location_details(
         self, location_id: int, max_results: int = 10
     ) -> list[dict]:
