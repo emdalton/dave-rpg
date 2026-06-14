@@ -102,7 +102,7 @@ The **Gap / notes** column calls out missing coverage or known issues.
 | Speak action → structured record | — | — | `test_pass1_eval:TestPass1Eval::test_simple_speak_action` | — | — |
 | Move: location name → `target_id` | — | — | `test_pass1_eval:TestPass1Eval::test_move_action_resolves_location_name` | — | — |
 | Move: varied phrasings (proceed / head to / make our way) | — | — | `test_pass1_eval:TestPass1Eval` (3 tests) | — | — |
-| Character alias → `target_character_id` (Feature 25) | `test_context:TestBuildPass1Packet::test_known_characters_includes_all_npcs` (packet shape only) | — | — | — | **No Tier 3 eval test yet.** The packet carries `known_characters` but no eval verifies the LLM resolves a character alias correctly. Add `test_pass1_eval` case: "talk to Gin-chan" → `target_character_id` set. |
+| Character alias → `target_character_id` (Feature 25) | `test_context:TestBuildPass1Packet::test_known_characters_includes_all_npcs` (packet shape only) | — | `test_pass1_eval:TestPass1Eval::test_character_name_resolves_to_correct_id`, `test_character_not_at_location_still_resolves` | — | Species disambiguation ("talk to the cat") deferred; requires hostel_db (Gin-chan) |
 
 ---
 
@@ -155,7 +155,7 @@ The **Gap / notes** column calls out missing coverage or known issues.
 
 ## Known Coverage Gaps (summary)
 
-- **Character alias resolution (Feature 25)** — no Tier 3 eval test verifies the LLM actually resolves a character name/species reference to `target_character_id`. The Tier 1 test only confirms the packet carries `known_characters`.
+- **Character alias resolution — species disambiguation** — the two Tier 3 tests cover name-based resolution and cross-location resolution, but species disambiguation ("talk to the cat") is not yet tested. Requires a hostel_db fixture in test_pass1_eval.py (Gin-chan is the only non-human NPC in the hostel module). Also add a new PASS1_CRITERIA rubric criterion `character_id_valid_in_context` is now live; the existing rubric criterion `speak_has_target_character` remains the structural gate.
 - **Engine loop calls `tick_passive_states()`** — no dedicated Tier 2 test verifies the loop itself advances passive states over elapsed turns. The math is solid at Tier 1; the wiring is implicit in the Tier 2 scenario tests.
 - **`get_all_npcs()` unit test** — the DB method is tested only indirectly via the Pass 1 packet; a direct `test_db:TestGetCharacter`-style test is missing.
 - **Post-Pass-2 validation/retry layer** — deferred; no coverage at any tier (by design).

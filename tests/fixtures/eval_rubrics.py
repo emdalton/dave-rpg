@@ -53,6 +53,12 @@ PASS1_CRITERIA: dict[str, str] = {
         "Are all non-null id fields (target_character_id, target_item_id, "
         "target_location_id) integers, not strings or invented names?"
     ),
+    "character_id_valid_in_context": (
+        "If target_character_id is set, does its value appear as an 'id' in "
+        "the known_characters list from the context packet? An id that is not "
+        "present in known_characters is a hallucination. If no character is "
+        "targeted (target_character_id is null), this criterion passes automatically."
+    ),
     "inferred_goal_is_brief": (
         "Is inferred_goal a brief phrase (< 12 words) describing player intent, "
         "not a full sentence?"

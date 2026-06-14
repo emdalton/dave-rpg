@@ -32,14 +32,34 @@ Requires:
     ANTHROPIC_API_KEY environment variable
     These tests are expensive (2 LLM calls per test). Run infrequently.
 
+Feature 25 — Character alias resolution
+----------------------------------------
+Pass 1 now receives a known_characters list (id, name, species) for all NPCs
+so it can resolve player-supplied character references to database IDs at parse
+time, before Pass 2 assembles the full adjudication context.
+
+Tests test_character_name_resolves_to_correct_id and
+test_character_not_at_location_still_resolves cover the two key requirements:
+  1. A character referenced by name produces the correct target_character_id.
+  2. A character not at the player's current location still resolves, because
+     known_characters includes all NPCs regardless of location.
+
+Species disambiguation (e.g. "talk to the cat" when only one cat is in
+known_characters) is not tested here because the tmp_db fixture contains only
+human characters. To add a species test, use a hostel_db fixture (Gin-chan has
+species='cat'; all other hostel NPCs are human). The eval rubric criterion
+character_id_valid_in_context would apply equally to that test.
+
 Extension guidance
 ------------------
 To add a new Pass 1 evaluation test case:
   1. Define a player_input string and an optional expected action_type or
      target for assertion context.
-  2. Call _eval_pass1_output(self, db, player_input) → (action_record, verdict).
-  3. Assert verdict["verdict"] == "pass" and log any failing criteria.
-  4. Optionally add a mechanical assertion for specific fields (e.g. move
+  2. Call self._run_pass1(db, player_input) → action_record.
+  3. Build the context packet and call self._judge_pass1_output(...) → verdict.
+  4. Assert verdict["verdict"] == "pass" and log any failing criteria via
+     _assert_verdict().
+  5. Optionally add a mechanical assertion for specific fields (e.g. move
      actions must have a non-null target_location_id).
 
 Consider adding cases that cover:
@@ -47,6 +67,7 @@ Consider adding cases that cover:
   - Ambiguous destination: "go upstairs" when there is no 'stairs' in known_locations
   - Multi-word action: "slowly walk over to the guard and greet him"
   - Dialect / abbreviation: "wanna go check out the hall"
+  - Species disambiguation: "talk to the cat" against hostel_db (Gin-chan)
 """
 
 import json
@@ -225,12 +246,89 @@ class TestPass1Eval:
         _assert_verdict(verdict, player_input, action_record)
 
     # -----------------------------------------------------------------------
+    # Feature 25: character alias resolution via known_characters
+    # -----------------------------------------------------------------------
+
+    def test_character_name_resolves_to_correct_id(self, tmp_db: Database):
+        """
+        Feature 25 — name-based resolution.
+
+        "Ask the Guard how long he has been on duty." should produce a speak or
+        interact action with target_character_id=2 (Guard). The key assertion is
+        that the ID is the *correct* integer from known_characters, not merely
+        non-null. A null or wrong ID would mean Pass 1 is not using the
+        known_characters list supplied in its context packet.
+
+        Mechanical failure → Pass 1 prompt engineering problem.
+        Rubric failure → character resolution or structural problem.
+        """
+        player_input = "Ask the Guard how long he has been on duty."
+        action_record = self._run_pass1(db=tmp_db, player_input=player_input)
+
+        # Structural check: must be a character-directed action.
+        assert action_record.get("action_type") in ("speak", "interact"), (
+            f"Expected speak or interact, got {action_record.get('action_type')!r}"
+        )
+
+        # Mechanical check: target_character_id must be Guard's exact DB id.
+        assert action_record.get("target_character_id") == 2, (
+            f"Pass 1 should resolve 'the Guard' to character id 2 via known_characters; "
+            f"got target_character_id={action_record.get('target_character_id')!r}"
+        )
+
+        context_packet = build_pass1_packet(
+            db=tmp_db, game_id=1, player_input=player_input
+        )
+        verdict = self._judge_pass1_output(player_input, context_packet, action_record)
+        _assert_verdict(verdict, player_input, action_record)
+
+    def test_character_not_at_location_still_resolves(self, tmp_db: Database):
+        """
+        Feature 25 — resolution across location boundaries.
+
+        "Go find the Hermit." targets the Hermit (id=3), who is at location 2
+        while the player starts at location 1. Because known_characters includes
+        ALL non-player characters regardless of their current location, Pass 1
+        should still resolve target_character_id=3 even though the Hermit is not
+        co-located with the player at parse time.
+
+        This distinguishes known_characters (all NPCs, global directory) from
+        characters_present (Pass 2 context, location-scoped). Pass 1 must use
+        the full directory so players can refer to NPCs they intend to seek out.
+
+        Mechanical failure → Pass 1 is not resolving cross-location characters.
+        Rubric failure → action type or structural problem.
+        """
+        player_input = "Go find the Hermit."
+        action_record = self._run_pass1(db=tmp_db, player_input=player_input)
+
+        # The action type for seeking out a character may reasonably be
+        # interact, move, or examine; what matters is the character ID.
+        assert action_record.get("action_type") is not None, (
+            "action_type must be present"
+        )
+
+        # Mechanical check: Hermit must resolve to id=3 even though not co-located.
+        assert action_record.get("target_character_id") == 3, (
+            f"Pass 1 should resolve 'the Hermit' to character id 3 via known_characters "
+            f"regardless of location; got target_character_id="
+            f"{action_record.get('target_character_id')!r}"
+        )
+
+        context_packet = build_pass1_packet(
+            db=tmp_db, game_id=1, player_input=player_input
+        )
+        verdict = self._judge_pass1_output(player_input, context_packet, action_record)
+        _assert_verdict(verdict, player_input, action_record)
+
+    # -----------------------------------------------------------------------
     # Add more test cases below following the same pattern.
     # Suggested additions (see module docstring for details):
     #   - Pronoun resolution
     #   - Ambiguous destination
     #   - Multi-word/natural action phrasing
     #   - Dialect / abbreviation
+    #   - Species disambiguation (hostel_db: "talk to the cat" → Gin-chan)
     # -----------------------------------------------------------------------
 
 
