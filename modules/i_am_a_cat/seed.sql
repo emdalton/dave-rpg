@@ -9,13 +9,33 @@
 -- Player character: Toulouse, a large older male cat with long black fur.
 -- Goal: avoid boredom until morning.
 --
--- This script populates a fresh database (schema v1) with all seed records
--- for the I Am a Cat module. Run after applying schema.sql.
+-- This script is the complete standalone seed for the I Am a Cat module,
+-- compatible with schema v10. Run after applying schema.sql — no versioned
+-- seed files (seed_v3 through seed_v7) are needed; their content has been
+-- consolidated here.
 --
 -- Usage:
 --   sqlite3 i_am_a_cat.db < ../../schema/schema.sql
 --   sqlite3 i_am_a_cat.db < seed.sql
 --   sqlite3 i_am_a_cat.db .tables   -- verify
+--
+-- Contents (in order):
+--   GAME RECORD — module parameters (tone, speech filter, cultural norms)
+--   LOCATIONS — 13 locations, IDs 1–13
+--   CHARACTERS — 5 characters (Toulouse, Spook, Mama, Guy, Lillis)
+--   CHARACTER GOALS — MST goal weights per character
+--   CHARACTER ATTITUDES — dyadic attitude floats at session start
+--   INTERNAL STATES — starting values for boredom, hunger, hairball_pressure, sleepiness
+--   ITEMS — 37 items (furniture, food, toys, accidental toys)
+--   CHARACTER SKILLS — Toulouse: fetch, burrowing under blankets
+--   PRE-SEEDED LOCATION DETAILS — established facts and lazy discovery mechanics
+--   NPC-PLAYER HISTORY — relationship summaries at session start
+--   GAME INSTANCE — clock set to 3:00 AM; status = 'ready'
+--   PASSIVE DRIFT RATES — background rate per minute on time-varying states
+--   GENDER AND PRONOUNS — third-person pronoun sets for all characters
+--   NPC WANDER PARAMETERS — range and per-turn probability for each NPC
+--   LOCATION CONNECTIONS — full adjacency graph (13 connections)
+--   TOULOUSE VISITED LOCATIONS — all 13 rooms pre-marked (he knows the house)
 -- =============================================================================
 
 PRAGMA foreign_keys = ON;
@@ -183,6 +203,17 @@ VALUES (12, 1, 'Upper Hallway', 'hallway',
     'The corridor of the upper floor. Smooth floor — good for a running start if the objective warrants it. A small cat tree stands near the wall, its top platform surveying the hallway with commanding detachment. A charging cable dangles near the stairwell end of the hallway, a matter for later. Doors lead off the hallway to the bathroom, bedroom, and study. At the far end, a thin stripe of light sometimes leaks under the bedroom door. The tiled overlook is accessible by squeezing through the railing near the stairwell end.',
     'private', 0,
     json('["night", "quiet", "small_cat_tree_present", "charging_cable_present"]')
+);
+
+-- Main Floor Hallway: the corridor running along the side of the main floor,
+-- connecting the Living Room, Dining Room, Kitchen, Utility Room, and the
+-- basement stairs. The hallway runner can shift if crossed at speed — the only
+-- rug in the house that moves. Good for a fast approach to any main-floor room.
+INSERT INTO location (id, game_id, name, location_type, description_skeleton, social_setting, witness_count, situation_flags)
+VALUES (13, 1, 'Main Floor Hallway', 'hallway',
+    'A corridor running along the side of the main floor, open at both ends into the living room and dining room, and connecting the kitchen, utility room, and the door to the basement stairs. The floor is smooth — good for speed if the destination matters. A long thin runner rug covers most of the length; unlike the rugs in the living room and basement, this one can and does shift at speed. Moving at a full run, a cat can slide it into a satisfying pile at one end. The pantry cupboard is accessible from here via the dining room. At 3am the hallway is quiet and mostly dark.',
+    'private', 0,
+    json('["night", "quiet", "runner_rug_present", "moveable_rug"]')
 );
 
 
@@ -655,57 +686,57 @@ INSERT INTO internal_state (
 
 -- Furniture and fixtures -------------------------------------------------------
 
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (1, 1, 'couch',
     'A large soft thing with cushions, good for sleeping on, nesting in, and jumping off. The arm is especially desirable: flat, slightly elevated, and positioned directly beside the living room window. Sharpening claws on the sides is not permitted, which is an ongoing disagreement.',
     1, 0.80, 1);
 
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (2, 1, 'armchair',
     'A good sitting chair. Not as prime as the couch arm, but a solid secondary position with a decent view of the room.',
     1, 0.75, 1);
 
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (3, 1, 'short cat tree (living room)',
     'A short cat tree with a flat top platform, a lower perch, and a post wrapped in something satisfying to scratch. Positioned well in the living room. Identical to the one upstairs.',
     1, 0.85, 1);
 
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (4, 1, 'TV (living room)',
     'A large dark rectangle mounted on the wall that sometimes shows things that move and make sounds. The humans call it the TV. It is currently off and dark, which makes it boring. When on, it occasionally shows birds or small animals that require close investigation.',
     1, NULL, 1);
 
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (5, 1, 'coffee table (large)',
     'A flat hard surface at a good height. Good for sitting on and observing the room, or for placing objects that then fall off.',
     1, NULL, 1);
 
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (6, 1, 'coffee table (small)',
     'A smaller flat surface. Good for sitting on. Things can be knocked off it.',
     1, NULL, 1);
 
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (7, 1, 'plant (tasty)',
     'A plant the humans have placed in the living room. They do not seem to understand that it is food. It is quite good. Probably a cat grass or something similarly reasonable.',
     1, NULL, 1);
 
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (8, 1, 'plant (not tasty)',
     'Another plant the humans have placed here. Unlike the other one, this one does not taste good. The experience of finding this out was disappointing.',
     1, NULL, 1);
 
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (9, 1, 'dining table',
     'A large flat hard surface the humans don''t want cats on. This is a rule that has been noted and considered.',
     2, NULL, 1);
 
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (10, 1, 'dining chairs',
     'Shorter flat surfaces with soft cushions that are apparently acceptable to sit on. The humans'' position on cats on chairs vs. cats on the table is difficult to fully understand.',
     2, NULL, 1);
 
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (11, 1, 'pantry cupboard',
     'A tall cabinet in the dining room. Contains treats. The sound of its opening is distinctive and requires immediate investigation regardless of current location or activity. Other food items may also be inside.',
     2, NULL, 1);
@@ -713,17 +744,17 @@ VALUES (11, 1, 'pantry cupboard',
 -- Auto feeder: the food machine. Distributes dry food on a schedule.
 -- Quality represents how recently it has dispensed (1.0 = just dispensed, decays).
 -- Current value: the 2am feeding has just run; quality is moderate.
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (12, 1, 'automatic food dispenser',
     'A machine that dispenses dry food approximately every four hours (2am, 6am, 10am, 2pm, 6pm, 10pm). It does this without being asked and without any warmth or ceremony. The food is perfectly acceptable but lacks the meaning of food distributed by a human. The 2am feeding has recently run.',
     4, 0.70, 1);  -- 0.70: recently dispensed, still has food available
 
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (13, 1, 'washer',
     'A large boxy appliance. Excellent for hiding behind. Sometimes vibrates, which is startling but also interesting.',
     4, NULL, 1);
 
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (14, 1, 'dryer',
     'Another large boxy appliance. Also good for hiding behind. Sometimes warm on top after a cycle, which is a premium sleeping spot if one can get up there.',
     4, NULL, 1);
@@ -732,62 +763,62 @@ VALUES (14, 1, 'dryer',
 -- 1.0 = freshly scooped, pristine. 0.0 = full, overflowing, unacceptable.
 -- Starting value: 0.60 — acceptable but not ideal. It is the middle of the night
 -- and it has not been scooped since yesterday evening.
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (15, 1, 'litter box',
     'The litter box. Cats have strong opinions about its condition. A full or dirty litter box is an affront and will be treated as such. Currently at acceptable-but-not-ideal cleanliness; has not been scooped since yesterday evening.',
     7, 0.60, 1);
 
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (16, 1, 'bird cage',
     'A metal cage containing the bird. The bars present an engineering challenge the cats have not yet solved. The humans have been explicit about the reaching-in policy. The bird is currently asleep inside and therefore boring, but the cage itself is interesting to sniff and sit near.',
     6, NULL, 1);
 
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (17, 1, 'computer (basement)',
     'A glowing rectangle the female human likes to look at while sitting in her chair in the basement. Currently off and dark. When on, it sometimes shows interesting things. The chair in front of it is a good sitting spot.',
     6, NULL, 1);
 
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (18, 1, 'craft supplies',
     'A collection of fabric, yarn, containers, and various crafting materials stored in the basement. Most of it is in bins and bags. Whether any string or ribbon has been left accessible depends on how carefully the female human put things away before bed. Worth investigating.',
     6, NULL, 1);
 
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (19, 1, 'storage boxes (basement)',
     'Many boxes of various sizes. Most are sealed and too heavy to move. Good for hiding behind. Not much else.',
     7, NULL, 1);
 
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (20, 1, 'short cat tree (study)',
     'A short cat tree identical to the one in the living room. Has a post wrapped in sisal rope that is excellent for claw maintenance. Located in the study, where claw-sharpening is explicitly sanctioned.',
     11, 0.85, 1);
 
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (21, 1, 'cardboard scratch pad',
     'A flat corrugated cardboard surface on the floor of the study. Good for scratching. Has that satisfying texture.',
     11, 0.75, 1);
 
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (22, 1, 'TV (study)',
     'A large dark rectangle in the study that the male human likes to look at a lot. Currently off.',
     11, NULL, 1);
 
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (23, 1, 'bed',
     'The large soft flat sleeping surface in the bedroom. The humans are currently on it. Cats are welcome on or under it. It is warm and good for sleeping. It is also a viable play location if one is persistent, though this tends to produce a reaction.',
     10, 0.95, 1);
 
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (24, 1, 'nightstand (mama)',
     'The female human''s nightstand. Has things on it. Some of these things are at a good height for interaction. A glass of water may be present.',
     10, NULL, 1);
 
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (25, 1, 'nightstand (guy)',
     'The male human''s nightstand. Also has things on it.',
     10, NULL, 1);
 
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (26, 1, 'water container (bathroom)',
     'A cup or container left in the bathroom that holds water. This water is somehow better than the water in the bowl. It can be played with: scooped, scattered, and generally enjoyed. The humans do not seem to understand why this is the preferred water source.',
     9, NULL, 1);
@@ -796,45 +827,45 @@ VALUES (26, 1, 'water container (bathroom)',
 
 -- Treats: inside the pantry cupboard, not directly visible.
 -- is_visible = 0 because they are inside a closed cabinet.
-INSERT INTO item (id, game_id, name, description, location_id, held_by_character_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (27, 1, 'treats',
     'The treats. Located inside the pantry cupboard. The best food item in the house by a significant margin. Humans will sometimes throw them across the room, which is excellent. The sound of the pantry opening is the primary signal of their potential availability.',
-    2, NULL, 1.0, 0);  -- hidden inside pantry (is_visible=0)
+    2, 1.0, 0);  -- hidden inside pantry (is_visible=0)
 
 -- Canned food: stored in the kitchen.
-INSERT INTO item (id, game_id, name, description, location_id, held_by_character_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (28, 1, 'canned cat food',
     'Soft food in cans, stored in the kitchen. Significantly better than the dry food from the machine. The male human puts it out approximately twice per day, including in the morning. Whether it is morning yet is always worth investigating.',
-    3, NULL, 0.90, 0);  -- stored in cabinet (is_visible=0)
+    3, 0.90, 0);  -- stored in cabinet (is_visible=0)
 
 -- Toys -----------------------------------------------------------------------
 
 -- Soft mouse: portable, can be carried upstairs and dropped places.
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (29, 1, 'soft mouse toy',
     'A small soft toy shaped approximately like a mouse. Light enough to carry in the mouth. Can be brought upstairs, dropped from elevated positions, or batted across smooth floors. A reliable toy.',
     1, 0.72, 1);
 
 -- Jingle ball: makes a satisfying noise.
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (30, 1, 'jingle ball',
     'A small ball with a bell inside. Makes a jingling sound when moved. The sound is interesting at 3am. The humans may disagree.',
     1, 0.80, 1);
 
 -- Chirping toy: electronic, sounds like something alive.
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (31, 1, 'chirping electronic toy',
     'A toy that emits chirping sounds when activated. Sounds plausibly like a small bird or insect. The battery may be getting low, which affects the sound quality in interesting ways.',
     1, 0.55, 1);
 
 -- Bouncy spring toy: tends to go downstairs; hard to retrieve.
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (32, 1, 'spring bounce toy',
     'A coiled spring toy that bounces unpredictably. Excellent fun until it goes down the stairs, at which point retrieving it is effortful. Currently on the main floor.',
     1, 0.78, 1);
 
 -- Crinkle toy: soft and portable.
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (33, 1, 'crinkle toy',
     'A soft toy made of crinkly material. Makes a satisfying sound when bitten or kneaded. Portable.',
     1, 0.68, 1);
@@ -842,19 +873,19 @@ VALUES (33, 1, 'crinkle toy',
 -- Accidental toys (human objects) ---------------------------------------------
 
 -- Mama's reading glasses: on her nightstand, probably.
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (34, 1, 'reading glasses',
     'A pair of human optical devices belonging to the female human. Left on her nightstand. They slide satisfyingly on smooth surfaces and have interesting components. The humans do not seem to understand that these are toys.',
     10, NULL, 1);
 
 -- Keys: probably in the dining room.
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (35, 1, 'keys',
     'A bunch of metal keys on a ring. Left in the dining room. Make a good noise when batted. Can be moved to inconvenient locations. The humans do not seem to understand that these are also toys.',
     2, NULL, 1);
 
 -- A hair tie: in the bathroom. Small, stretchy, satisfying.
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (36, 1, 'hair tie',
     'A small elastic hair tie left on the bathroom counter. Stretchy, flingable, and small enough to bat under the gap at the bottom of the door. A very good accidental toy.',
     9, NULL, 1);
@@ -863,7 +894,7 @@ VALUES (36, 1, 'hair tie',
 -- This is a moveable item; its location_id tracks its current position.
 -- quality encodes how displaced it currently is (1.0 = flat and centred,
 -- lower = bunched or skewed from prior traffic). Starting value: 0.85.
-INSERT INTO item (id, game_id, name, description, location_id, quality, is_visible)
+INSERT INTO item (id, game_id, name, description, loc_id, quality, is_visible)
 VALUES (37, 1, 'hallway runner',
     'A long thin rug running the length of the main floor hallway. The smooth floor beneath it means it can and does shift if a cat crosses it at speed. When it bunches or skews, it becomes a different kind of surface and also an interesting obstacle. The humans straighten it periodically.',
     13, 0.85, 1);
@@ -1022,3 +1053,269 @@ INSERT INTO npc_player_history (character_a_id, character_b_id, summary, interac
 VALUES (2, 4,
     'Guy likes Spook and plays with him occasionally. He is harder to engage late at night.',
     0);
+
+
+-- =============================================================================
+-- GAME INSTANCE
+-- One row per playthrough. Sets the starting clock to 3:00 AM (180 minutes
+-- past midnight) and marks the instance as ready for play.
+--
+-- Consolidated from seed_v5.sql (schema v5). The game_instance table was
+-- added in v5; this record was previously seeded separately.
+-- =============================================================================
+
+INSERT INTO game_instance (
+    game_id,
+    status,
+    start_time_minutes,
+    current_time_minutes,
+    premise_modifier
+) VALUES (
+    1,
+    'ready',    -- fully initialised; engine may start immediately
+    180,        -- 3:00 AM: canonical starting time for this module
+    180,        -- current time = start time on a fresh instance
+    NULL        -- no "What if..." premise modifier
+);
+
+
+-- =============================================================================
+-- PASSIVE DRIFT RATES
+-- Background drift rates on time-varying internal states. Applied by the engine
+-- each turn after the clock advances, before Pass 3 runs.
+-- Formula: new_value = clamp(value + rate * elapsed_minutes, 0.0, 1.0)
+--
+-- Consolidated from seed_v5.sql (schema v5).
+-- =============================================================================
+
+-- Toulouse — boredom: accumulates when nothing interesting happens.
+-- Rate +0.002/min ≈ +0.12/hour. Starting at 0.00; failure condition at 1.0.
+UPDATE internal_state
+SET passive_rate_per_minute = 0.002
+WHERE character_id = 1 AND state_name = 'boredom';
+
+-- Toulouse — hunger: slow background accumulation.
+-- Starting ~0.40; reaches ~0.70 after roughly 2.5 hours without eating.
+UPDATE internal_state
+SET passive_rate_per_minute = 0.002
+WHERE character_id = 1 AND state_name = 'hunger';
+
+-- Toulouse — hairball_pressure: very slow passive accumulation.
+-- Most pressure comes from grooming events via Pass 2 outcome deltas;
+-- this rate captures residual drift between grooming sessions.
+UPDATE internal_state
+SET passive_rate_per_minute = 0.0003
+WHERE character_id = 1 AND state_name = 'hairball_pressure';
+
+-- Guy — sleepiness (represents depth of sleep; high = deep, low = waking).
+-- Negative rate: sleep lightens naturally as morning approaches.
+-- At -0.006/min: starts at 0.88 (deeply asleep); reaches ~0.00 around 5:27 AM.
+-- Disturbances may accelerate decay via Pass 2 internal_state_deltas.
+UPDATE internal_state
+SET passive_rate_per_minute = -0.006
+WHERE character_id = 4 AND state_name = 'sleepiness';
+
+-- The mama — sleepiness: lighter sleeper than Guy.
+-- At -0.004/min: starts at 0.22; reaches ~0.00 (potentially waking) around 3:55 AM.
+UPDATE internal_state
+SET passive_rate_per_minute = -0.004
+WHERE character_id = 3 AND state_name = 'sleepiness';
+
+
+-- =============================================================================
+-- GENDER AND PRONOUNS
+-- Third-person pronoun sets for all characters. Passed to Pass 3 for consistent
+-- prose rendering. Case labels are English-language keys regardless of module
+-- language; form values are the actual pronouns.
+--
+-- Consolidated from seed_v6.sql (schema v6).
+-- =============================================================================
+
+-- Toulouse: male cat, he/him/his
+UPDATE character
+SET gender   = 'male',
+    pronouns = '[{"case":"nominative","form":"he"},
+                 {"case":"accusative","form":"him"},
+                 {"case":"genitive","form":"his"}]'
+WHERE id = 1;
+
+-- Spook: male cat, he/him/his
+UPDATE character
+SET gender   = 'male',
+    pronouns = '[{"case":"nominative","form":"he"},
+                 {"case":"accusative","form":"him"},
+                 {"case":"genitive","form":"his"}]'
+WHERE id = 2;
+
+-- The mama: female human, she/her/her
+UPDATE character
+SET gender   = 'female',
+    pronouns = '[{"case":"nominative","form":"she"},
+                 {"case":"accusative","form":"her"},
+                 {"case":"genitive","form":"her"}]'
+WHERE id = 3;
+
+-- Guy: male human, he/him/his
+UPDATE character
+SET gender   = 'male',
+    pronouns = '[{"case":"nominative","form":"he"},
+                 {"case":"accusative","form":"him"},
+                 {"case":"genitive","form":"his"}]'
+WHERE id = 4;
+
+-- Lillis: female cockatiel, she/her/her
+-- Named companion animals with a known sex are conventionally referred to
+-- with personal pronouns in English.
+UPDATE character
+SET gender   = 'female',
+    pronouns = '[{"case":"nominative","form":"she"},
+                 {"case":"accusative","form":"her"},
+                 {"case":"genitive","form":"her"}]'
+WHERE id = 5;
+
+
+-- =============================================================================
+-- NPC WANDER PARAMETERS
+-- Per-character autonomous movement configuration. The engine rolls against
+-- wander_probability each turn; if it fires, the NPC moves to a random
+-- adjacent location within their wander_range. The roll is skipped when
+-- the character has a non-null pending_intent, an active current_activity,
+-- or (for sleep-depth states) sleepiness >= WANDER_SLEEPINESS_THRESHOLD (0.60).
+--
+-- Consolidated from seed_v3.sql (initial values) and seed_v7.sql (corrections
+-- for Guy and Mama after the sleepiness suppression mechanic was confirmed).
+-- =============================================================================
+
+-- Spook: uses the whole house freely; energetic and curious.
+-- All 13 locations in range. Probability 0.08 ≈ one move per 12-13 turns,
+-- enough for restless feel without disrupting sustained interaction.
+UPDATE character
+SET wander_range       = '[1,2,3,4,5,6,7,8,9,10,11,12,13]',
+    wander_probability = 0.08
+WHERE id = 2;
+
+-- The mama: sleeping human; whole house except Tiled Overlook (8), which
+-- requires squeezing through the railing. Low probability because she is
+-- asleep; her sleepiness starts at 0.22 (below threshold), so the roll
+-- is live from turn 1 — she may get up for the bathroom or a snack.
+UPDATE character
+SET wander_range       = '[1,2,3,4,5,6,7,9,10,11,12,13]',
+    wander_probability = 0.10
+WHERE id = 3;
+
+-- Guy: sleeping human; same physical access as the mama. Starts deeply asleep
+-- (sleepiness 0.88, above threshold), so the wander roll is suppressed until
+-- his sleep lightens naturally (~5:27 AM). Probability 0.20 reflects
+-- restlessness as morning approaches — roughly one move per 5 turns once
+-- suppression lifts.
+UPDATE character
+SET wander_range       = '[1,2,3,4,5,6,7,9,10,11,12,13]',
+    wander_probability = 0.20
+WHERE id = 4;
+
+-- Lillis: caged bird; cannot move autonomously.
+-- wander_range records her fixed location; probability 0.0 ensures the engine
+-- never attempts to move her.
+UPDATE character
+SET wander_range       = '[6]',
+    wander_probability = 0.0
+WHERE id = 5;
+
+
+-- =============================================================================
+-- LOCATION CONNECTIONS
+-- Physical adjacency graph for all 13 locations. Each row is bidirectional;
+-- by convention location_a_id < location_b_id. The engine validates all
+-- movement against this table and uses it for BFS pathfinding.
+--
+-- Consolidated from seed_v3.sql (schema v3). The location_connection table
+-- was added in v3 after the first play session revealed the LLM could move
+-- characters to unreachable locations without an explicit adjacency model.
+-- =============================================================================
+
+-- Main floor loop: Living Room ↔ Dining Room ↔ Main Floor Hallway ↔ Living Room
+-- The main floor can be traversed in a loop; all three rooms connect to the hallway.
+
+-- Living Room ↔ Dining Room: half wall of cabinets; cats go over or under
+INSERT INTO location_connection (location_a_id, location_b_id, connection_type, is_passable)
+VALUES (1, 2, 'open', 1);
+
+-- Living Room ↔ Main Stairs: open stairwell in the corner of the living room
+INSERT INTO location_connection (location_a_id, location_b_id, connection_type, is_passable)
+VALUES (1, 5, 'open', 1);
+
+-- Living Room ↔ Main Floor Hallway: opening at the back of the living room
+INSERT INTO location_connection (location_a_id, location_b_id, connection_type, is_passable)
+VALUES (1, 13, 'open', 1);
+
+-- Dining Room ↔ Main Floor Hallway: opening at the far end of the dining room
+INSERT INTO location_connection (location_a_id, location_b_id, connection_type, is_passable)
+VALUES (2, 13, 'open', 1);
+
+-- Kitchen ↔ Main Floor Hallway: open plan, no door
+INSERT INTO location_connection (location_a_id, location_b_id, connection_type, is_passable)
+VALUES (3, 13, 'open', 1);
+
+-- Utility Room ↔ Main Floor Hallway: door
+INSERT INTO location_connection (location_a_id, location_b_id, connection_type, is_passable)
+VALUES (4, 13, 'door', 1);
+
+-- Main Stairs ↔ Upper Hallway: staircase connecting main floor to upper floor
+INSERT INTO location_connection (location_a_id, location_b_id, connection_type, is_passable)
+VALUES (5, 12, 'stairs', 1);
+
+-- Main Floor Hallway ↔ Basement Main Room: door off hallway leads to basement stairs
+INSERT INTO location_connection (location_a_id, location_b_id, connection_type, is_passable)
+VALUES (6, 13, 'stairs', 1);
+
+-- Basement Main Room ↔ Basement Storage Room: interior door
+INSERT INTO location_connection (location_a_id, location_b_id, connection_type, is_passable)
+VALUES (6, 7, 'door', 1);
+
+-- Upper Hallway ↔ Tiled Overlook: accessible by squeezing through the railing.
+-- 'squeeze' reflects the physical effort; Toulouse can do it (capability 0.75).
+INSERT INTO location_connection (location_a_id, location_b_id, connection_type, is_passable)
+VALUES (8, 12, 'squeeze', 1);
+
+-- Upper Hallway ↔ Bathroom: door off the hallway
+INSERT INTO location_connection (location_a_id, location_b_id, connection_type, is_passable)
+VALUES (9, 12, 'door', 1);
+
+-- Upper Hallway ↔ Bedroom: door off the hallway; closed at 3am but passable.
+-- A closed door is not an impassable barrier — Toulouse can scratch or push.
+-- is_passable=1: the LLM adjudicates the interaction cost; the engine does not block.
+INSERT INTO location_connection (location_a_id, location_b_id, connection_type, is_passable)
+VALUES (10, 12, 'door', 1);
+
+-- Upper Hallway ↔ Study: door off the hallway
+INSERT INTO location_connection (location_a_id, location_b_id, connection_type, is_passable)
+VALUES (11, 12, 'door', 1);
+
+
+-- =============================================================================
+-- TOULOUSE VISITED LOCATIONS
+-- Toulouse knows every room in the house — it is his territory and he has
+-- explored every corner of it. All 13 locations are pre-marked as visited
+-- so the player can quick-move to any room from the first turn.
+--
+-- Human NPCs and Lillis do not receive visited records; their movement is
+-- engine-driven (wander) or LLM-driven (reactive), not player quick-move.
+--
+-- Consolidated from seed_v4.sql (schema v4).
+-- =============================================================================
+
+INSERT OR IGNORE INTO character_visited_location (character_id, location_id)
+VALUES
+    (1, 1),   -- Toulouse: Living Room
+    (1, 2),   -- Toulouse: Dining Room
+    (1, 3),   -- Toulouse: Kitchen
+    (1, 4),   -- Toulouse: Utility Room
+    (1, 5),   -- Toulouse: Main Stairs
+    (1, 6),   -- Toulouse: Basement Main Room
+    (1, 7),   -- Toulouse: Basement Storage Room
+    (1, 8),   -- Toulouse: Tiled Overlook
+    (1, 9),   -- Toulouse: Bathroom
+    (1, 10),  -- Toulouse: Bedroom
+    (1, 11),  -- Toulouse: Study
+    (1, 12),  -- Toulouse: Upper Hallway
+    (1, 13);  -- Toulouse: Main Floor Hallway
