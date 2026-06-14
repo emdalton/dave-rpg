@@ -3,12 +3,27 @@ tests/test_internal_state_drift.py — Internal State Drift and Prose Surfacing 
 
 Developed with the assistance of Claude (model: claude-sonnet-4-6, Anthropic)
 
-Two test classes:
+Four test classes, in ascending LLM cost order:
+
+TestTickPassiveStatesMath (Tier 1 — no LLM)
+    Unit tests for db.tick_passive_states(). Verifies the drift formula:
+        new_value = clamp(value + passive_rate_per_minute * elapsed_minutes, 0.0, 1.0)
+    Covers: positive rates, negative rates, sequential tick accumulation,
+    upper and lower clamping, null-rate states (untouched), and zero-minute
+    noop. Uses the standard test fixture DB (tmp_db / seed.py).
+
+TestPass2InternalStateContext (Tier 1 — no LLM)
+    Structural verification that build_pass2_packet() includes internal_states
+    in the player profile and in NPC profiles (characters_present). Also
+    verifies that post-tick values are reflected in freshly built packets,
+    confirming that context.py reads live DB state at packet-build time.
+    Uses the standard test fixture DB (tmp_db / seed.py).
 
 TestPass3InternalStatePacket (Tier 1 — no LLM)
     Structural verification that build_pass3_packet() includes
-    player_internal_states in the context packet. These tests exercise
-    the context.py change and require no LLM calls.
+    player_internal_states in the context packet and that the display_mode
+    filter correctly excludes 'numeric' states. Uses a Hidden Hostel DB
+    (hostel_db), which seeds hunger on The Traveller for realistic values.
 
 TestInternalStateDriftScenario (Tier 2 — requires --llm)
     Sequential scenario tests covering:
@@ -53,9 +68,10 @@ from pathlib import Path
 
 import pytest
 
-from engine.context import build_pass3_packet
+from engine.context import build_pass2_packet, build_pass3_packet
 from engine.db import Database
 from engine.engine import GameEngine
+from tests.fixtures.responses import PASS1_MINIMAL
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -167,6 +183,280 @@ def get_hunger(db: Database, character_id: int) -> float | None:
     """Return the current hunger value for a character, or None if not set."""
     state = db.get_internal_state(character_id, "hunger")
     return state["value"] if state else None
+
+
+# =============================================================================
+# Tier 1: tick_passive_states() math
+# =============================================================================
+
+class TestTickPassiveStatesMath:
+    """
+    Tier 1 (no LLM): unit tests for db.tick_passive_states().
+
+    Verifies the drift formula applied each turn:
+        new_value = clamp(value + passive_rate_per_minute * elapsed_minutes, 0.0, 1.0)
+
+    Uses the standard test fixture world (tmp_db from conftest.py / seed.py):
+      - Hero  (char_id=1): boredom    = 0.10, passive_rate = +0.002/min
+      - Guard (char_id=2): sleepiness = 0.50, passive_rate = −0.003/min
+
+    Each method receives a function-scoped tmp_db so every test starts
+    from the clean seeded values with no cross-test contamination.
+    """
+
+    def test_010_positive_rate_accumulates(self, tmp_db: Database):
+        """
+        A positive passive_rate_per_minute raises the state value by
+        (rate × elapsed_minutes) after a single tick.
+
+        Hero boredom: 0.10 + 0.002 × 10 min = 0.12.
+        """
+        tmp_db.tick_passive_states(game_id=1, elapsed_minutes=10)
+        state = tmp_db.get_internal_state(1, "boredom")
+        assert state is not None, "Hero boredom state should exist after tick"
+        assert state["value"] == pytest.approx(0.12, abs=1e-6), (
+            f"After 10 min at rate +0.002/min, boredom should be 0.12; "
+            f"got {state['value']:.6f}"
+        )
+
+    def test_020_negative_rate_decays(self, tmp_db: Database):
+        """
+        A negative passive_rate_per_minute lowers the state value by
+        abs(rate × elapsed_minutes) after a single tick.
+
+        Guard sleepiness: 0.50 − 0.003 × 10 min = 0.47.
+        """
+        tmp_db.tick_passive_states(game_id=1, elapsed_minutes=10)
+        state = tmp_db.get_internal_state(2, "sleepiness")
+        assert state is not None, "Guard sleepiness state should exist after tick"
+        assert state["value"] == pytest.approx(0.47, abs=1e-6), (
+            f"After 10 min at rate −0.003/min, sleepiness should be 0.47; "
+            f"got {state['value']:.6f}"
+        )
+
+    def test_030_sequential_ticks_accumulate_linearly(self, tmp_db: Database):
+        """
+        Two 5-minute ticks produce the same final value as one 10-minute tick.
+        Drift is linear and additive across calls.
+
+        Hero boredom: 0.10 → 0.11 (first 5 min) → 0.12 (second 5 min).
+        The intermediate value is also asserted so any compounding error is
+        caught at the right tick boundary.
+        """
+        tmp_db.tick_passive_states(game_id=1, elapsed_minutes=5)
+        after_first = tmp_db.get_internal_state(1, "boredom")["value"]
+        assert after_first == pytest.approx(0.10 + 0.002 * 5, abs=1e-6), (
+            f"After first 5-min tick: expected 0.11, got {after_first:.6f}"
+        )
+
+        tmp_db.tick_passive_states(game_id=1, elapsed_minutes=5)
+        after_second = tmp_db.get_internal_state(1, "boredom")["value"]
+        assert after_second == pytest.approx(0.12, abs=1e-6), (
+            f"After second 5-min tick: expected 0.12, got {after_second:.6f}"
+        )
+
+    def test_040_value_clamped_at_maximum(self, tmp_db: Database):
+        """
+        A state value must never exceed 1.0, even when the unclamped result
+        would. tick_passive_states() clamps every updated row to [0.0, 1.0].
+
+        Set Hero boredom to 0.999, tick 1 min at +0.002/min → unclamped 1.001.
+        Expected: 1.0.
+        """
+        tmp_db._execute(
+            "UPDATE internal_state SET value = 0.999 "
+            "WHERE character_id = 1 AND state_name = 'boredom'"
+        )
+        tmp_db.tick_passive_states(game_id=1, elapsed_minutes=1)
+        state = tmp_db.get_internal_state(1, "boredom")
+        assert state["value"] == pytest.approx(1.0, abs=1e-9), (
+            f"Value should be clamped to 1.0; got {state['value']:.9f}"
+        )
+
+    def test_050_value_clamped_at_minimum(self, tmp_db: Database):
+        """
+        A state value must never go below 0.0, even when the unclamped result
+        would be negative. tick_passive_states() clamps every updated row to
+        [0.0, 1.0].
+
+        Set Guard sleepiness to 0.001, tick 1 min at −0.003/min → unclamped −0.002.
+        Expected: 0.0.
+        """
+        tmp_db._execute(
+            "UPDATE internal_state SET value = 0.001 "
+            "WHERE character_id = 2 AND state_name = 'sleepiness'"
+        )
+        tmp_db.tick_passive_states(game_id=1, elapsed_minutes=1)
+        state = tmp_db.get_internal_state(2, "sleepiness")
+        assert state["value"] == pytest.approx(0.0, abs=1e-9), (
+            f"Value should be clamped to 0.0; got {state['value']:.9f}"
+        )
+
+    def test_060_null_rate_state_not_ticked(self, tmp_db: Database):
+        """
+        States with passive_rate_per_minute IS NULL must not be modified by
+        tick_passive_states(). The tick query filters on IS NOT NULL.
+
+        Insert a null-rate state for Hero, tick for 60 minutes, assert unchanged.
+        """
+        initial_value = 0.35
+        tmp_db._execute(
+            """INSERT INTO internal_state
+               (character_id, state_name, value, passive_rate_per_minute)
+               VALUES (1, 'null_rate_test', ?, NULL)""",
+            (initial_value,),
+        )
+        tmp_db.tick_passive_states(game_id=1, elapsed_minutes=60)
+        state = tmp_db.get_internal_state(1, "null_rate_test")
+        assert state is not None, "Null-rate state should still exist after tick"
+        assert state["value"] == pytest.approx(initial_value, abs=1e-9), (
+            f"Null-rate state should be unchanged after tick; "
+            f"expected {initial_value}, got {state['value']:.9f}"
+        )
+        # Clean up to avoid polluting other tests in this class.
+        tmp_db._execute(
+            "DELETE FROM internal_state "
+            "WHERE character_id = 1 AND state_name = 'null_rate_test'"
+        )
+
+    def test_070_zero_elapsed_is_noop(self, tmp_db: Database):
+        """
+        Calling tick_passive_states() with elapsed_minutes=0 must leave all
+        state values unchanged, regardless of their rate.
+
+        A zero-minute tick can happen when Pass 2 returns elapsed_minutes=0
+        for an instantaneous action. The engine must handle this safely.
+        """
+        boredom_before    = tmp_db.get_internal_state(1, "boredom")["value"]
+        sleepiness_before = tmp_db.get_internal_state(2, "sleepiness")["value"]
+
+        tmp_db.tick_passive_states(game_id=1, elapsed_minutes=0)
+
+        boredom_after    = tmp_db.get_internal_state(1, "boredom")["value"]
+        sleepiness_after = tmp_db.get_internal_state(2, "sleepiness")["value"]
+
+        assert boredom_after == pytest.approx(boredom_before, abs=1e-9), (
+            "tick(0 min) must not change boredom"
+        )
+        assert sleepiness_after == pytest.approx(sleepiness_before, abs=1e-9), (
+            "tick(0 min) must not change sleepiness"
+        )
+
+
+# =============================================================================
+# Tier 1: Pass 2 context packet — internal state inclusion
+# =============================================================================
+
+class TestPass2InternalStateContext:
+    """
+    Tier 1 (no LLM): verify that build_pass2_packet() includes internal_states
+    in both the player profile and in NPC profiles (characters_present).
+
+    Pass 2 is the adjudication pass: it needs full physiological visibility so
+    it can reason about NPC hunger, sleepiness, distress, etc. — and so the
+    retry/validation layer can check state-influenced constraints. These tests
+    confirm that the context assembly layer (context.py) wires this correctly
+    without requiring any LLM call.
+
+    Also verifies that post-tick values appear in freshly built packets,
+    confirming that context.py reads live DB state at packet-build time rather
+    than using a cached pre-tick snapshot.
+
+    Uses the standard test fixture world (tmp_db from conftest.py / seed.py):
+      - Hero  (char_id=1): player at location 1; boredom = 0.10
+      - Guard (char_id=2): NPC at location 1;   sleepiness = 0.50
+    Both characters are at the same location, so Guard appears in
+    characters_present — the full-profile NPC list.
+    """
+
+    def test_010_player_profile_includes_internal_states(self, tmp_db: Database):
+        """
+        The player profile inside the Pass 2 packet must contain an
+        'internal_states' key, with each state represented as a dict that
+        includes at least a 'value' key.
+
+        This is the Pass 2 counterpart to the Pass 3 structural test
+        (TestPass3InternalStatePacket.test_010). Pass 2 adjudication must see
+        the full internal state picture to reason about physiology correctly.
+        """
+        packet = build_pass2_packet(tmp_db, game_id=1, action_record=PASS1_MINIMAL)
+        player = packet.get("player", {})
+        assert "internal_states" in player, (
+            "player profile in Pass 2 packet must include 'internal_states'. "
+            f"Keys present: {list(player.keys())}"
+        )
+        states = player["internal_states"]
+        assert "boredom" in states, (
+            "Hero's seeded boredom state should appear in player.internal_states. "
+            f"Keys present: {list(states.keys())}"
+        )
+        # The state entry must be a dict with at least a 'value' key.
+        assert "value" in states["boredom"], (
+            "Each entry in internal_states must include a 'value' key. "
+            f"boredom entry: {states['boredom']}"
+        )
+        assert states["boredom"]["value"] == pytest.approx(0.10, abs=1e-6), (
+            f"Hero boredom is seeded at 0.10; got {states['boredom']['value']:.6f}"
+        )
+
+    def test_020_npc_internal_states_in_characters_present(self, tmp_db: Database):
+        """
+        NPCs at the player's location appear in characters_present with full
+        profiles. Their profiles must include 'internal_states' so Pass 2 can
+        reason about NPC physiology (a hungry NPC eating opportunistically, a
+        sleepy character disengaging, etc.).
+
+        Guard (char_id=2) is seeded at location 1 with sleepiness=0.50.
+        He should appear in characters_present with that state visible.
+        """
+        packet = build_pass2_packet(tmp_db, game_id=1, action_record=PASS1_MINIMAL)
+        chars_present = packet.get("characters_present", [])
+        guard_profile = next(
+            (c for c in chars_present if c.get("id") == 2), None
+        )
+        assert guard_profile is not None, (
+            "Guard (char_id=2) should appear in characters_present — he is "
+            "seeded at location 1, the same location as the player character."
+        )
+        assert "internal_states" in guard_profile, (
+            "Guard's Pass 2 profile must include 'internal_states'. "
+            f"Keys present: {list(guard_profile.keys())}"
+        )
+        guard_states = guard_profile["internal_states"]
+        assert "sleepiness" in guard_states, (
+            "Guard's seeded sleepiness state should appear in his profile. "
+            f"Keys present: {list(guard_states.keys())}"
+        )
+        assert guard_states["sleepiness"]["value"] == pytest.approx(0.50, abs=1e-6), (
+            f"Guard sleepiness is seeded at 0.50; got {guard_states['sleepiness']['value']:.6f}"
+        )
+
+    def test_030_post_tick_values_reflected_in_packet(self, tmp_db: Database):
+        """
+        After tick_passive_states() advances the game clock's worth of drift,
+        a freshly assembled Pass 2 packet must contain the updated values —
+        not the pre-tick seed values stored at startup.
+
+        This is the integration bridge between the tick math layer and the
+        context assembly layer. It fails if context.py caches state at
+        import time or at DB-open time rather than reading on each call.
+
+        Hero boredom after 50 minutes: 0.10 + 0.002 × 50 = 0.20.
+        """
+        tmp_db.tick_passive_states(game_id=1, elapsed_minutes=50)
+        expected = pytest.approx(0.10 + 0.002 * 50, abs=1e-6)  # 0.20
+
+        packet = build_pass2_packet(tmp_db, game_id=1, action_record=PASS1_MINIMAL)
+        player_states = packet["player"]["internal_states"]
+        assert "boredom" in player_states, (
+            "boredom must still be present in player.internal_states after tick"
+        )
+        actual = player_states["boredom"]["value"]
+        assert actual == expected, (
+            f"After 50-min tick at rate +0.002/min, boredom should be 0.20; "
+            f"got {actual:.6f}. The packet must read live DB values, not a "
+            "pre-tick snapshot."
+        )
 
 
 # =============================================================================
