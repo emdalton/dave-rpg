@@ -27,6 +27,7 @@ Scenario outline
        and bow → hosts_of_the_hostel faction reputation rises above seed (0.40)
   055  Wanderer pending_intent cleared after greeting
   060  Go to kitchen: player at Kitchen (2)
+  063  Marta offers rolls proactively (pending_intent+activity discharge test)
   065  Pick up a roll from the tray → roll appears in Traveller inventory
   070  Make tea and bring with rolls to Gin-chan → Gin-chan attitude rises
   080  Go upstairs → arrive at Upper Corridor (3); first visit stops here
@@ -50,6 +51,7 @@ DB assertions (what each checkpoint checks)
   050  Traveller hosts_of_the_hostel reputation > 0.40 (seed value)
   055  Wanderer (id=3) pending_intent IS NULL
   060  player.current_location_id = 2
+  063  Marta.pending_intent IS NULL; Marta.current_activity IS NOT NULL
   065  Traveller inventory contains a roll item
   070  Gin-chan (id=6) surface attitude toward Traveller > seeded value
   080  player.current_location_id = 3 (Upper Corridor; first-visit stop)
@@ -415,6 +417,68 @@ class TestHiddenHostelEntranceScenario:
         assert player["current_location_id"] == 2, (
             f"Player should be in Kitchen (2); got {player['current_location_id']}\n"
             f"Prose: {prose[:200]}"
+        )
+
+    # ------------------------------------------------------------------
+    # Checkpoint 063: Marta proactively offers rolls (pending_intent + activity)
+    # ------------------------------------------------------------------
+
+    def test_063_marta_offers_rolls_proactively(
+        self, scenario_db: Database, scenario_engine: GameEngine
+    ):
+        """
+        The canonical pending_intent-alongside-current_activity test.
+
+        When the player arrived in the Kitchen (test_060), Marta had two
+        simultaneous mechanisms active:
+          - current_activity: 'preparing the evening meal' (suppresses wander)
+          - pending_intent:   'if a guest enters the kitchen while cooking is in
+                               progress, gesture to the tray of hot rolls and
+                               tell them to help themselves, then return to work'
+
+        The player takes a neutral action — not requesting food. Pass 2 should
+        adjudicate Marta's proactive offer and discharge her pending_intent.
+        After this turn, her current_activity must still be active (she returns
+        to cooking after offering), confirming both mechanisms operated correctly
+        in the same turn.
+
+        The resource_provision goal (priority 0.70) seeds the motivational
+        reason the pending_intent exists: Marta offers food because it is her
+        nature to provide, not because she was asked.
+
+        DB assertions:
+          - Before turn: Marta has pending_intent AND current_activity
+          - After turn:  pending_intent IS NULL (discharged); current_activity
+                         IS NOT NULL (meal still being prepared)
+        """
+        # Pre-condition: verify both mechanisms are active before the turn.
+        marta_before = scenario_db.get_character(2)
+        assert marta_before["pending_intent"] is not None, (
+            "Marta should have pending_intent before the player's first kitchen action; "
+            "it may have discharged prematurely in test_060"
+        )
+        assert marta_before["current_activity"] is not None, (
+            "Marta should have current_activity (preparing meal) active in the kitchen"
+        )
+
+        # Neutral player action — does not request food.
+        prose = take_turn(
+            scenario_engine,
+            "look around the kitchen and breathe in the smell of the cooking",
+        )
+        assert prose, "Kitchen observation turn should produce prose"
+
+        # Post-condition: pending_intent discharged; activity still running.
+        marta_after = scenario_db.get_character(2)
+        assert marta_after["pending_intent"] is None, (
+            "Marta's pending_intent should be discharged (rolls offered) after "
+            "the player's first kitchen action\n"
+            f"Prose: {prose[:300]}"
+        )
+        assert marta_after["current_activity"] is not None, (
+            "Marta's current_activity (preparing meal) should still be active "
+            "after offering rolls — she returns to work\n"
+            f"current_activity: {marta_after.get('current_activity')}"
         )
 
     # ------------------------------------------------------------------

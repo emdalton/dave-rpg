@@ -540,8 +540,12 @@ INSERT INTO character (
 INSERT INTO character_goal (character_id, goal_name, goal_type, priority, orientation, scope)
 VALUES
     -- Marta: belonging to the hostel (identity-level) + resource acquisition (operational)
+    -- + resource provision: she feeds and cares for guests as an intrinsic motivation,
+    -- not merely a professional duty. This drives proactive hospitality (offering food
+    -- before being asked) without requiring a hard-coded pending_intent for every instance.
     (2, 'belonging',            'surface', 0.80, 'approach', 'person_environment'),
     (2, 'resource_acquisition', 'surface', 0.65, 'approach', 'person_environment'),
+    (2, 'resource_provision',   'surface', 0.70, 'approach', 'person_environment'),
 
     -- The Wanderer: driven primarily by exploration; belongs to moving between worlds
     (3, 'exploration', 'surface', 0.88, 'approach', 'person_environment'),

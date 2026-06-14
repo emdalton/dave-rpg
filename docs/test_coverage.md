@@ -41,6 +41,18 @@ The **Gap / notes** column calls out missing coverage or known issues.
 | Location queries / connections | `test_db:TestLocationQueries` | — | — | — | — |
 | `get_all_npcs()` (NPC directory) | `test_context:TestBuildPass1Packet::test_known_characters_includes_all_npcs` | — | — | — | Tested indirectly via context; no isolated db.py unit test |
 
+
+---
+
+## Character Goals (`character_goal` table / Ford-Nichols MST)
+
+| Feature | Tier 1 | Tier 2 | Tier 3 | HH | Gap / notes |
+|---|---|---|---|---|---|
+| Marta `resource_provision` goal seeded | `test_hidden_hostel:TestCharacterGoals::test_marta_has_resource_provision_goal`, `test_marta_goal_set_is_complete` | — | — | ✓ | — |
+| Goal visibility flag (`include_hidden`) | `test_hidden_hostel:TestCharacterGoals::test_scholar_has_hidden_safety_goal` | — | — | ✓ | Mirrors hidden_motivation access control pattern |
+| Wanderer exploration goal seeded | `test_hidden_hostel:TestCharacterGoals::test_wanderer_has_exploration_goal` | — | — | ✓ | — |
+| Goal-driven proactive behavior (pending_intent + goal aligned) | `test_hidden_hostel:TestCharacterGoals` (DB shape) | `test_scenario_entrance:TestHiddenHostelEntranceScenario::test_063_marta_offers_rolls_proactively` | — | ✓ | Goal alone driving behavior (no pending_intent) not yet tested — next backlog item |
+
 ---
 
 ## Mechanics (`engine/mechanics.py`)

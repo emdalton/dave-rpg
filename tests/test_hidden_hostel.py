@@ -916,3 +916,102 @@ class TestLocationDetail:
             "The Kitchen should have no location_detail in the seed "
             "(it is a lazy-generation target)"
         )
+
+# =============================================================================
+# Character Goals
+# =============================================================================
+
+class TestCharacterGoals:
+    """
+    Verify that character_goal records are seeded correctly for Hidden Hostel
+    NPCs. These tests cover the Ford-Nichols Motivational Systems Theory (MST)
+    goal records that inform Pass 2 adjudication.
+
+    Each test checks goal presence and field values; they do not exercise LLM
+    behaviour. Goal-driven LLM behaviour is covered in the Tier 2 scenario test
+    (test_scenario_entrance.py::test_063_marta_offers_rolls_proactively).
+    """
+
+    def test_marta_has_resource_provision_goal(self, tmp_hostel_db: Database):
+        """
+        Marta's resource_provision goal (surface, approach, person_environment)
+        should be seeded. This goal provides the motivational ground truth that
+        makes her proactive hospitality — offering food before guests ask —
+        consistent with her character, not just a hard-coded pending_intent.
+        Priority must be at least 0.65 (behaviorally salient alongside belonging
+        at 0.80 and resource_acquisition at 0.65).
+        """
+        goals = tmp_hostel_db.get_character_goals(character_id=2, include_hidden=False)
+        goal_names = [g["goal_name"] for g in goals]
+        assert "resource_provision" in goal_names, (
+            f"Marta (id=2) should have a resource_provision goal; "
+            f"found goals: {goal_names}"
+        )
+        rp = next(g for g in goals if g["goal_name"] == "resource_provision")
+        assert rp["goal_type"] == "surface", (
+            "Marta's resource_provision goal should be surface (openly expressed)"
+        )
+        assert rp["orientation"] == "approach", (
+            "resource_provision should be an approach goal (moving toward, not away)"
+        )
+        assert rp["scope"] == "person_environment", (
+            "resource_provision is directed outward at others, not within-person"
+        )
+        assert rp["priority"] >= 0.65, (
+            f"resource_provision priority should be >= 0.65; got {rp['priority']}"
+        )
+
+    def test_marta_goal_set_is_complete(self, tmp_hostel_db: Database):
+        """
+        Marta should have all three seeded goals: belonging, resource_acquisition,
+        resource_provision. This guards against partial seed failures.
+        """
+        goals = tmp_hostel_db.get_character_goals(character_id=2, include_hidden=False)
+        goal_names = {g["goal_name"] for g in goals}
+        for expected in ("belonging", "resource_acquisition", "resource_provision"):
+            assert expected in goal_names, (
+                f"Marta goal set incomplete — missing {expected!r}; "
+                f"found: {goal_names}"
+            )
+
+    def test_wanderer_has_exploration_goal(self, tmp_hostel_db: Database):
+        """
+        The Wanderer's dominant goal (exploration, priority 0.88) should be
+        seeded. This guards the motivational basis for their cross-world movement
+        behaviour and confirms the goal table is populated correctly for NPCs
+        other than Marta.
+        """
+        goals = tmp_hostel_db.get_character_goals(character_id=3, include_hidden=False)
+        goal_names = [g["goal_name"] for g in goals]
+        assert "exploration" in goal_names, (
+            f"The Wanderer (id=3) should have an exploration goal; "
+            f"found: {goal_names}"
+        )
+        exp = next(g for g in goals if g["goal_name"] == "exploration")
+        assert exp["priority"] >= 0.85, (
+            f"Wanderer exploration priority should be dominant (>= 0.85); "
+            f"got {exp['priority']}"
+        )
+
+    def test_scholar_has_hidden_safety_goal(self, tmp_hostel_db: Database):
+        """
+        The Scholar's safety goal is hidden (goal_type='hidden'). When
+        include_hidden=False, it must not appear. When include_hidden=True
+        it must appear. This mirrors the access control pattern for
+        hidden_motivation and ensures the goal visibility flag works correctly.
+        """
+        surface_goals = tmp_hostel_db.get_character_goals(
+            character_id=4, include_hidden=False
+        )
+        surface_names = [g["goal_name"] for g in surface_goals]
+        assert "safety" not in surface_names, (
+            "Scholar's hidden safety goal must not appear when include_hidden=False"
+        )
+
+        all_goals = tmp_hostel_db.get_character_goals(
+            character_id=4, include_hidden=True
+        )
+        all_names = [g["goal_name"] for g in all_goals]
+        assert "safety" in all_names, (
+            "Scholar's hidden safety goal must appear when include_hidden=True"
+        )
