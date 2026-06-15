@@ -2,7 +2,7 @@
 
 *Developed with the assistance of Claude (model: claude-sonnet-4-6, Anthropic)*
 
-*Last updated: 2026-05-29. Authoritative source for schema field semantics is
+*Last updated: 2026-05-31. Authoritative source for schema field semantics is
 `schema/schema.sql`. This document captures conventions, ordering, and gotchas
 that are not obvious from the schema alone. Read this before writing a seed.*
 
@@ -95,6 +95,8 @@ exist in the database:
 11. `character_attitude`
 12. `location_detail`
 13. `character_visited_location`
+14. `item`
+15. `character_item`
 
 Each section has a `-- === SECTION NAME === --` comment block. Within a section,
 insert in ID order so the file is predictable to read and diff.
@@ -143,9 +145,16 @@ Must be one of: `'first_person'`, `'second_person'`, `'third_person_close'`,
 `'third_person_distant'`, `'atmospheric'`. Most modules use
 `'second_person'` or `'third_person_close'`.
 
+**`player_definition_mode`** — controls how the player character is established
+at the start of a session. Must be one of:
+- `'fixed'` (default) — player character is fully seeded; no startup self-definition step. Use for modules with a fixed protagonist (Meryton, I Am a Cat).
+- `'define'` — engine prompts the player to describe themselves at a designated starting location. The description is parsed into character fields and any declared items are instantiated. Seeded starting items are also revealed via the engine's confirmation pass.
+- `'choose'` — player selects from a list of pre-defined characters (future; not yet implemented in the engine).
+
 **`speech_filter`** — JSON object (or `'{}'` for no filter). The game-level
-filter applies to all characters. A character-level filter (pending schema v9)
-will apply per-character. The I Am a Cat filter is the canonical example:
+filter applies to all characters. For per-character filtering, use the
+`speech_filter` field on the `character` table (schema v9). The I Am a Cat
+filter is the canonical example of a game-level filter:
 
 ```json
 {
@@ -194,6 +203,12 @@ dominant feature of the space.
 - `'private'` — unobserved or nearly so; intimate conversations possible
 - `'semi_private'` — small number of known witnesses; moderate reputation effect
 - `'public'` — observed by many; actions have significant reputation consequences
+
+Note: `'exterior'` is **not** a valid value and will fail the CHECK constraint.
+Outdoor or threshold locations (doorsteps, courtyards, paths) should use
+`'public'` with `witness_count=0`. The spatial character of the space is already
+captured by `location_type='exterior'` — `social_setting` describes the
+reputational context, not the indoor/outdoor distinction.
 
 **`witness_count`** — approximate number of people in the space at game start.
 Updated dynamically as characters move. Match this to the number of characters
@@ -264,10 +279,17 @@ The most complex table. Column groups in the schema:
 **Identity fields** (`name`, `role`, `species`, `gender`, `pronouns`,
 `description`, `apparent_status`, `current_location_id`):
 
-- **`role`** — must be `'player'`, `'npc_active'`, or `'npc_background'`.
-  Exactly one character per module should have `role='player'`. `npc_active`
-  characters have full psychological records. `npc_background` characters have
-  minimal records (name, location, description only).
+- **`role`** — must be one of: `'player'`, `'npc_active'`, `'npc_background'`,
+  `'npc_object'`, `'player_option'`.
+  - `'player'` — the player character. Exactly one per module.
+  - `'npc_active'` — full psychological record; OCEAN, goals, skills, attitudes.
+  - `'npc_background'` — minimal record; name, location, description only.
+  - `'npc_object'` — a non-character agent that participates in scenes through
+    physical action only (doors, mechanisms, environmental entities). Combine with
+    `speech_filter='silent: ...'`. The engine and Pass 2 handle these like NPCs,
+    but Pass 3 renders them through physical description, not dialogue.
+  - `'player_option'` — a selectable protagonist for modules using
+    `player_definition_mode='choose'` (future; not yet implemented).
 
 - **`species`** — free-form string; defaults to `'human'`. Used by Pass 3 for
   rendering and by Pass 1 for capability inference. Examples: `'human'`,
@@ -354,9 +376,24 @@ has been exposed during play (updated by adjudication, not seeded as `1`).
 
 - `voice_register` — free-form string describing speaking style:
   `'matter_of_fact'`, `'casual_warm'`, `'terse_gruff'`, `'precise_academic'`,
-  `'precise_quiet'`, `'formal'`. Use `'cat'` as an interim signal to Pass 3 to
-  render an NPC's speech as meow variants (pending character-level speech_filter
-  in schema v9).
+  `'precise_quiet'`, `'formal'`, `'cat'`, `'silent'`.
+
+- **`speech_filter`** (schema v9) — per-character natural-language instruction
+  passed to Pass 3 to modify how this character's communication is rendered.
+  NULL means no filter (default). Takes precedence over the game-level
+  `speech_filter` when both are set. Examples:
+  - `'silent: this entity cannot speak or make sounds; describe only physical actions'`
+    — use for `npc_object` characters like doors or mechanisms
+  - `'unintelligible: render all communication as non-verbal — purrs, chirps, wing
+    adjustments; no interpretable language until a condition is met'`
+    — use for characters whose speech is currently incomprehensible to the player
+  - `'cheshire: speak in elliptical, gnomic fragments; never answer directly'`
+    — use for characters with an evasive or oracular voice once understood
+
+  When using `speech_filter`, set `voice_register` to a matching short label
+  (`'silent'`, `'cat'`, etc.) as a secondary signal; the `speech_filter` prose
+  is authoritative for Pass 3, but `voice_register` may be used by Pass 2 context
+  assembly for capability inference.
 - `voice_warmth` — `0.0` (cold/hostile) to `1.0` (warm/affectionate)
 - `voice_verbosity` — `0.0` (monosyllabic) to `1.0` (expansive/voluble)
 
@@ -621,6 +658,82 @@ test coverage and for modules where NPC familiarity with the space is relevant.
 
 ---
 
+### `item`
+
+```sql
+INSERT INTO item (game_id, name, description, current_location_id, properties, is_confirmed)
+VALUES ( ... );
+```
+
+Items are physical objects that persist across turns. They exist either at a
+location (`current_location_id` set, no `character_item` row) or in a character's
+possession (`character_item` row present, `current_location_id` NULL). The engine
+enforces the either/or at the application layer.
+
+**`name`** — short, unambiguous canonical name within the module.
+Examples: `'sencha canister'`, `'blue shawl'`, `'leather-bound journal'`.
+This is the name used in outcome JSON when referencing the item.
+
+**`description`** — full prose description passed to Pass 2 and Pass 3 when the
+item is in scope. Should describe appearance, condition, and salient properties.
+May be NULL for player-claimed items not yet adjudicated. Seeded items should
+always have a description.
+
+**`current_location_id`** — NULL when the item is held by a character (see
+`character_item`). Set when the item is at a location and not currently carried.
+
+**`properties`** — JSON object for module-specific attributes that don't warrant
+a schema column. Defaults to `'{}'`. Examples:
+```json
+{"weight": "light", "container": true, "capacity": "small"}
+{"material": "silk", "condition": "well-mended"}
+{"readable": true, "language": "unknown"}
+```
+
+**`is_confirmed`** — `1` (default; real item) or `0` (player-claimed placeholder
+not yet adjudicated by Pass 2). Seeded items are always `1`; the engine creates
+unconfirmed items via `item_instantiations` in Pass 2 outcome JSON.
+
+**Seeded vs. lazy-instantiated items:** seed only items that are definitively
+present at game start. Items the player mentions mid-play ("I have a book in my
+pack") are created by the engine on demand; do not pre-seed speculative items.
+
+---
+
+### `character_item`
+
+```sql
+INSERT INTO character_item (character_id, item_id, slot, acquired_at_minutes)
+VALUES ( ... );
+```
+
+Join table recording which character holds which item and how.
+
+**`slot`** — how the character is carrying or wearing the item. Must be one of:
+`'right_hand'`, `'left_hand'`, `'both_hands'`, `'mouth'`, `'worn'`, `'pocket'`,
+`'in_pack'`, `'carried'`. Use `'in_pack'` for items in a bag or container; use
+`'carried'` when the carrying modality is unspecified.
+
+**`acquired_at_minutes`** — game clock minutes when the character acquired the
+item, or NULL for items seeded at game start. Seeded items always use NULL.
+
+**UNIQUE constraint:** `item_id` is unique in `character_item` — an item can only
+be held by one character at a time.
+
+**Ordering:** insert the `item` row first; use `last_insert_rowid()` to reference
+its id in the `character_item` insert immediately following. This keeps seeded
+item+inventory pairs together and readable:
+
+```sql
+INSERT INTO item (game_id, name, description, properties)
+VALUES (1, 'sencha canister', '...', '{"weight": "light"}');
+
+INSERT INTO character_item (character_id, item_id, slot)
+VALUES (1, last_insert_rowid(), 'in_pack');
+```
+
+---
+
 ## reset_instance.sql conventions
 
 The reset script restores all mutable state to seeded starting values without
@@ -646,6 +759,7 @@ Wrap the reset in a transaction so it either fully completes or fully rolls back
 | `character_attitude` | `DELETE` all + `INSERT` | Simpler and more reliable than UPDATE; avoids leaving orphaned rows from play-created attitudes |
 | `character_faction_reputation` | `DELETE` all + `INSERT` | Same reason as attitudes |
 | `character_visited_location` | `DELETE` all + `INSERT` | Re-populate from seed |
+| `item` / `character_item` | `DELETE` all for `game_id`, then re-INSERT seed items | Delete `character_item` rows first (FK dependency), then `item` rows, then re-seed |
 | `action_log` | `DELETE WHERE game_id = N` | Comment out to preserve play history |
 | `location_detail` | `DELETE` generated details + restore seeded details | Delete rows for locations that had no seed detail; re-insert seed details for those that did |
 
@@ -653,7 +767,10 @@ Wrap the reset in a transaction so it either fully completes or fully rolls back
 
 Leave untouched: `game`, `location`, `location_connection`, character OCEAN traits,
 character goals, character skills, character pronouns, character descriptions,
-`wander_range`, `wander_probability`, `faction`, `npc_player_history` (if any).
+`wander_range`, `wander_probability`, `speech_filter`, `faction`,
+`npc_player_history` (if any). `speech_filter` is stable character configuration,
+not mutable play state — it does not need to be reset even if the engine modifies
+it during play (which it does not currently do).
 
 ### DELETE + INSERT pattern for attitudes and reputations
 
