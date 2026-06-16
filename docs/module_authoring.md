@@ -149,6 +149,7 @@ Must be one of: `'first_person'`, `'second_person'`, `'third_person_close'`,
 at the start of a session. Must be one of:
 - `'fixed'` (default) — player character is fully seeded; no startup self-definition step. Use for modules with a fixed protagonist (Meryton, I Am a Cat).
 - `'define'` — engine prompts the player to describe themselves at a designated starting location. The description is parsed into character fields and any declared items are instantiated. Seeded starting items are also revealed via the engine's confirmation pass.
+- `'green_room'` — a module-framed pre-game character creation stage (future; next priority feature). The module author provides a narrative frame in `module_flags` (`character_creation_prompt`, `character_creation_hint`); the player defines their character within that frame using the Fate Core collection stage (High Concept, Trouble, Aspects, skills) before the opening scene begins. Use when the module has a fixed identity frame but leaves character expression open (e.g. "you are Alice — who have you become?", "you are a Regency gentlewoman"). Requires `character_aspect` table (next schema version). See `docs/future_features.md` §30 and issue #59.
 - `'choose'` — player selects from a list of pre-defined characters (future; not yet implemented in the engine).
 
 **`speech_filter`** — JSON object (or `'{}'` for no filter). The game-level

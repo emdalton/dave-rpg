@@ -1,7 +1,65 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-06-14, session 29 (closed).*
+*Last updated: 2026-06-16, session 30 (closed).*
+
+---
+
+## Session 30 notes (2026-06-16)
+
+**Completed this session:**
+
+- Committed session 29 docs backlog (`docs/implementation_status.md`,
+  `docs/module_authoring.md` — item tables and `player_definition_mode`).
+- GitHub issue audit: reviewed `docs/future_features.md` against full issue
+  list; filed issues for all untracked features except IP-sensitive or
+  commercially sensitive module candidates (Barsoom, Amber, Holmes, Hambly,
+  Elizabeth as Agent of the Crown, Suspended, nightmare mechanic).
+- New issues filed this session: modules Dracula, Usher, Three Musketeers;
+  multiplayer mode; Feature 19a/b/c (Salamandra, fine-tuning, author pipeline);
+  Features 1, 6, 11, 12, 13, 17, 23, 24, 25; STT/TTS; collaborative writing
+  mode; Fate Core character creation (#59); in-location item search (#42).
+- `docs/future_features.md`: added §28 (STT/TTS), §29 (collaborative writing
+  mode expanded), §30 (Green Room Mode); updated §20 (Wonderland) to reference
+  Green Room mode and capture Alice character creation prompt draft.
+- `docs/module_authoring.md`: added `'green_room'` to `player_definition_mode`
+  documentation.
+- BRIA AI FIBO noted as image generation candidate for illustrated mode (#40);
+  design notes added to issues #40 and #41.
+
+**Design decisions recorded:**
+
+- Green Room Mode (`player_definition_mode='green_room'`): pre-game
+  module-framed character creation stage using Fate Core structure. Module
+  author provides `character_creation_prompt` and `character_creation_hint`
+  in `module_flags`. Player defines character out-of-character; opening scene
+  reflects the result. Solves the data-quality problem of in-world character
+  extraction. Named "Green Room" — player prepares backstage before stepping
+  onto the stage.
+- Green Room delivery: collect definition out-of-character (reliable), deliver
+  in-character (the opening scene reflects who the player described). White
+  Rabbit greets Alice rather than interviewing her.
+- `character_aspect` table needed for Fate Core Aspects (High Concept, Trouble,
+  Aspects) — required by both Green Room Mode and Fate Point Economy (#11).
+- Hidden Hostel is the test bed for Green Room Mode before Wonderland.
+
+**Next priority: Green Room Mode (issue #59)**
+
+Schema additions required (next schema version):
+- `player_definition_mode` CHECK: add `'green_room'`
+- New table: `character_aspect(id, character_id, aspect_text, aspect_type)`
+  where `aspect_type IN ('high_concept', 'trouble', 'aspect')`
+- `module_flags` fields (JSON, no schema change): `character_creation_prompt`,
+  `character_creation_hint`
+
+Implementation steps:
+1. Schema migration (new version)
+2. Green Room engine loop in `engine.py` (pre-`_render_opening_scene()`)
+3. Fate Core collection stage: prompt sequence, LLM interpretation call,
+   DB writes (character fields + `character_aspect` records)
+4. Hidden Hostel: add `character_creation_prompt` to `module_flags`, set
+   `player_definition_mode='green_room'`
+5. Tests: Tier 1 (schema, aspect table), Tier 2 (HH Green Room end-to-end)
 
 ---
 

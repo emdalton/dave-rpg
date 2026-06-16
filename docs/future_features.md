@@ -5,6 +5,40 @@
 
 ---
 
+## 30. Green Room Mode — module-framed character creation
+
+*Captured 2026-06-16. Next priority feature. See also issue #59 (Fate Core character creation stage).*
+
+A pre-game character definition stage where the module author provides a narrative frame and the player defines their character's expression within it. Named after the theatre green room: the player prepares backstage before stepping onto the stage of the game world.
+
+**The problem it solves:**
+
+Three existing modes cover fixed protagonists (`'fixed'`), blank-slate self-definition (`'define'`), and pre-seeded choice (`'choose'`). A fourth mode is needed for the common case where the module has a fixed identity frame — you are Alice, you are a Regency gentlewoman, you are an arriving traveler — but the player defines who that person has become. The frame constrains without closing the character.
+
+**How it works:**
+
+1. Before `_render_opening_scene()`, the engine presents the module's `character_creation_prompt` from `module_flags` — a narrative framing written by the module author.
+2. The engine runs the Fate Core collection stage (issue #59): High Concept, Trouble, additional Aspects, skills, stunts. The `character_creation_hint` field in `module_flags` (e.g. `"Regency member of the gentry"`, `"steampunk inventor"`) guides LLM interpretation of the player's responses.
+3. A single interpretation call infers OCEAN floats, `character_goal` entries, and skill seeds from the full set of Aspects and descriptions, and writes results to the character record.
+4. The opening scene begins. The player's first action — describing the room they're sitting in, examining their surroundings, stepping through a door — is in-world and reflects who the character is.
+
+**Delivery note:** Collecting definition out-of-character (Green Room stage) and delivering in-character (the opening scene reflects who the player described) avoids the reliability problem of trying to extract structured character data from a social scene mid-play. The White Rabbit can greet the Alice the player described rather than interviewing her.
+
+**Schema additions required (next schema version):**
+- `player_definition_mode` CHECK updated to include `'green_room'`
+- `character_aspect` table: `(id, character_id, aspect_text, aspect_type)` where `aspect_type` IN `('high_concept', 'trouble', 'aspect')`
+- `module_flags` fields (JSON, no schema change): `character_creation_prompt TEXT`, `character_creation_hint TEXT`
+
+**Examples by module:**
+
+- *Hidden Hostel (test bed):* `"You have been on the road for some time. The evening is coming on cold. What kind of person are you? What has brought you to this place?"` — minimal frame, tests the mechanics cleanly.
+- *Return to Wonderland:* `"You are Alice. As a child, you believed you could travel to other worlds... Now you are a young woman. What have you been doing in the meantime? Who have you become?"` — fixed identity, open expression.
+- *Meryton (what-if variant):* `"You are a young woman of the Regency gentry, arriving at the Meryton assembly for the first time this season."` — genre/class constraint, open character.
+
+**Test plan:** Implement and test in Hidden Hostel before Wonderland. HH's Traveller character is already undefined; the current door mechanism is a thin stand-in for this stage.
+
+---
+
 ## 29. Collaborative writing / transcript mode (expanded)
 
 *Captured 2026-06-16. Expands on the brief sketch in §2.*
@@ -355,9 +389,13 @@ The same Wonderland, the same characters, the same Queen — but genuinely diffe
 
 The Queen is tractable, not a final boss. "Off with their heads!" is almost never carried out, suggesting the court is humoring her. E's hypothesis: the Queen is terrified of being forgotten or ignored. Making her feel secure and seen may be sufficient. The diplomatic path requires high-agreeableness skills and careful attitude management, not confrontation. The Queen's `hidden_motivation` is the design decision that determines whether the diplomatic and trickster paths feel satisfying or cheap — design it first.
 
-**Player self-definition: who did Alice become?**
+**Player self-definition: who did Alice become? (Green Room mode)**
 
-At game start, Alice's capabilities depend on who the player thinks she grew up to be. The White Rabbit serves double duty as the inciting character and the character-creation interface — his question ("But Alice, what have you *become* these years? What do you know now?") is both in-character and a skill-seeding prompt. Examples:
+Alice uses `player_definition_mode='green_room'` (§30). The module's `character_creation_prompt` provides the narrative frame; the player defines who Alice has become through the Fate Core collection stage before the opening scene begins. The White Rabbit's opening dialogue reflects the Alice the player described rather than interviewing her mid-scene — cleaner for data collection and more immersive on entry.
+
+The character creation prompt (draft): *"You are Alice. As a child, you believed you could travel to other worlds, where you had many adventures. Your family claimed that you were imagining these episodes or even playing at living in the stories created by your neighbor, a writer. Now you are a young woman. What have you been doing in the meantime? Who have you become?"*
+
+Alice's capabilities depend on who the player thinks she grew up to be. Examples:
 
 - *Chess grandmaster:* sees the situation as chess — pieces, positions, the right sacrifice at the right moment. Most natural for strategic/systems play.
 - *Philosopher:* argumentation, paradox-handling (extremely Wonderland-appropriate — Wonderland logic is a kind of philosophy), patience. Most natural for the diplomatic and trickster paths.
