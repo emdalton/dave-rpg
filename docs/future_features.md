@@ -1,7 +1,55 @@
 # DAVE RPG Engine — Future Feature Ideas
 
 *Captured May–June 2026. None of these are scoped or designed; this is a reference list.*
-*Last updated: 2026-06-10.*
+*Last updated: 2026-06-16.*
+
+---
+
+## 29. Collaborative writing / transcript mode (expanded)
+
+*Captured 2026-06-16. Expands on the brief sketch in §2.*
+
+The basic transcript feature (#14) writes Pass 3 prose output to a running file. The broader design positions DAVE as an assisted creative writing tool: the player and the LLM collaborate on a story, and the transcript is the primary artifact rather than a side effect.
+
+**Distinction from game mode:** In game mode the transcript is a log of play. In writing mode, prose quality and narrative coherence are the primary goals rather than fair adjudication of player actions. Pass 3 could be tuned per module for literary register — closer to an author's voice than a game narrator's.
+
+**Features beyond the basic flag:**
+
+- *Structured output:* chapter and scene boundaries (§12, §13) produce a transcript divided into named sections rather than a flat turn log. Scene-close signals from Pass 3 are the natural dividers.
+- *Accept / light-revise step:* before prose commits to the transcript, the player can accept it as-is, make minor edits, or request a regeneration. This is a thin interactive step, not a full revision interface — the goal is to let the player shape their story without breaking immersion.
+- *Export:* transcript exports to `.md` (default) or formatted `.docx`. The docx export would include chapter headings, scene breaks, and a standard attribution note.
+- *Input / output separation:* the transcript distinguishes player-typed input from LLM-generated prose so the player's own words are legible in the artifact.
+- *Writing mode flag:* `"writing_mode": true` in `module_flags` adjusts Pass 3 prompt guidance toward literary quality and signals to the engine that the accept/revise step is active.
+
+**Relationship to other features:** Scene-close segmenting (§12) and chapter structure (§13) are prerequisites for structured output. STT/TTS (§28) pairs naturally — dictating input and hearing prose read aloud is a more natural writing-partner experience than typing. The Fate Core character creation stage (§59 in issues) would also produce richer material for collaborative fiction.
+
+**Note:** §2 in this document is the original brief sketch; this section is the expanded design. The basic `--transcript` flag implementation is tracked in issue #14.
+
+---
+
+## 28. STT / TTS — speech input and narrated output
+
+*Captured 2026-06-16.*
+
+Speech-to-text (STT) for player input and text-to-speech (TTS) for Pass 3 prose narration. Both are thin wrappers around existing passes — no engine architecture changes required.
+
+**Why this matters:**
+
+- In 3D mode (issue #41), keyboard text entry feels incongruous with a visual environment. STT makes interaction feel like a game rather than a terminal session.
+- Collaborative writing mode (§29) benefits from dictated input and narrated prose — a more natural writing-partner dynamic.
+- Accessibility: players who find typing difficult can engage fully with spoken input and output.
+- The Fate Core character creation stage (issue #59) would feel more natural as a spoken conversation than a typed form.
+
+**Architecture:**
+
+- *STT layer:* converts spoken player input to text before it reaches Pass 1. Pass 1 sees a text string regardless of input source — no prompt changes needed. Local option: Whisper (runs offline). Web option: browser Web Speech API.
+- *TTS layer:* converts Pass 3 prose string to speech after it is generated. The engine returns text regardless — the TTS layer is applied by the frontend. Local option: pyttsx3 or similar. Web option: browser SpeechSynthesis API.
+
+**Per-character voice (extended TTS):** A richer variant would assign different TTS voices or voice profiles to different characters, so NPC dialogue is narrated in a distinct voice from the prose narration. Requires a `tts_voice` hint on the `character` record or in the Pass 3 output. Deferred from the base feature.
+
+**Module opt-in:** `"stt_enabled": true` and `"tts_enabled": true` in `module_flags`. Neither affects engine logic; both are frontend configuration.
+
+**Relationship to other features:** Natural companion to 3D mode (§41), collaborative writing mode (§29), web host (§1), and Fate Core character creation (issue #59). In multiplayer, per-player STT/TTS settings would be per-session rather than per-module.
 
 ---
 
