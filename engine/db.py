@@ -286,6 +286,112 @@ class Database:
         )
 
     # -------------------------------------------------------------------------
+    # Character aspects (v11+, Fate Core Green Room)
+    # -------------------------------------------------------------------------
+
+    def get_character_aspects(self, character_id: int) -> list[dict]:
+        """
+        Return all Aspect records for a character in canonical Fate Core display
+        order: high_concept first, then trouble, then additional aspects
+        (sorted by sort_order within each type, with id as tiebreaker).
+
+        Aspects are collected during the Green Room character creation stage and
+        persist for the lifetime of the character. Pass 2 receives them as part
+        of the character context packet so it can adjudicate Fate Point Economy
+        invocations and compels (issue #11).
+
+        Args:
+            character_id: The character whose aspects to fetch.
+
+        Returns:
+            List of aspect dicts: id, character_id, aspect_text, aspect_type,
+            sort_order, created_at. Empty list if no aspects have been set.
+        """
+        return self._rows(
+            """SELECT * FROM character_aspect
+               WHERE character_id = ?
+               ORDER BY
+                   CASE aspect_type
+                       WHEN 'high_concept' THEN 0
+                       WHEN 'trouble'      THEN 1
+                       WHEN 'aspect'       THEN 2
+                   END,
+                   sort_order,
+                   id""",
+            (character_id,),
+        )
+
+    def create_character_aspect(
+        self,
+        character_id: int,
+        aspect_text: str,
+        aspect_type: str,
+        sort_order: int = 0,
+    ) -> int:
+        """
+        Insert a new Aspect record for a character and return its id.
+
+        Called by the Green Room engine loop after the LLM interprets the
+        player's character definition and extracts structured Aspect data.
+        The engine assigns sort_order when writing multiple 'aspect' entries
+        so they are returned in the order the player stated them.
+
+        Args:
+            character_id: The character this Aspect belongs to.
+            aspect_text:  The Aspect phrase — short, evocative, invokelable.
+                          Examples: 'Disgraced surgeon seeking redemption'
+                          (high_concept); 'Can't say no to a friend in need'
+                          (trouble); 'Educated at the best schools money could
+                          buy' (aspect).
+            aspect_type:  Fate Core structural role: 'high_concept', 'trouble',
+                          or 'aspect'. Must match the schema CHECK constraint.
+            sort_order:   Display ordering within aspect_type (lower = first).
+                          Defaults to 0; pass incrementing integers for multiple
+                          'aspect'-type entries.
+
+        Returns:
+            The new character_aspect row's id.
+        """
+        cursor = self._execute(
+            """INSERT INTO character_aspect
+                   (character_id, aspect_text, aspect_type, sort_order)
+               VALUES (?, ?, ?, ?)""",
+            (character_id, aspect_text, aspect_type, sort_order),
+        )
+        new_id = cursor.lastrowid
+        logger.info(
+            "character_aspect created: id=%d char=%d type=%s text=%r",
+            new_id, character_id, aspect_type, aspect_text[:60],
+        )
+        return new_id
+
+    def clear_character_aspects(self, character_id: int) -> int:
+        """
+        Delete all Aspect records for a character and return the row count.
+
+        Used to reset the Green Room stage — typically in test scenarios that
+        re-apply the Green Room loop against the same database, or if the player
+        wants to restart character creation before the opening scene begins.
+        Not called during normal in-game play.
+
+        Args:
+            character_id: The character whose aspects to clear.
+
+        Returns:
+            Number of rows deleted (0 if the character had no aspects).
+        """
+        cursor = self._execute(
+            "DELETE FROM character_aspect WHERE character_id = ?",
+            (character_id,),
+        )
+        count = cursor.rowcount
+        if count:
+            logger.info(
+                "character_aspects cleared: char=%d count=%d", character_id, count
+            )
+        return count
+
+    # -------------------------------------------------------------------------
     # Location queries
     # -------------------------------------------------------------------------
 
