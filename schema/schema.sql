@@ -87,15 +87,22 @@ CREATE TABLE game (
     cultural_norms TEXT NOT NULL DEFAULT '{}',
 
     -- How the player character is established at the start of a session.
-    -- 'fixed'  = player character is fully seeded; no startup self-definition.
-    --            Default for all modules. Meryton and I Am a Cat use this.
-    -- 'define' = engine presents the self-definition entrance at a designated
-    --            starting location. Player describes themselves; declared items
-    --            are instantiated. Seeded starting items are revealed via the
-    --            engine's confirmation pass.
-    -- 'choose' = player selects from pre-defined player_option characters (§11).
+    -- 'fixed'      = player character is fully seeded; no startup definition step.
+    --                Default for all modules. Meryton and I Am a Cat use this.
+    -- 'define'     = engine presents the self-definition entrance at a designated
+    --                starting location. Player describes themselves; declared items
+    --                are instantiated. Seeded starting items are revealed via the
+    --                engine's confirmation pass.
+    -- 'green_room' = pre-game Fate Core character creation stage (added v11).
+    --                Module author provides character_creation_prompt and
+    --                character_creation_hint in module_flags JSON. Player defines
+    --                High Concept, Trouble, Aspects, and skills before the opening
+    --                scene begins. Use when the module has a fixed identity frame
+    --                but leaves character expression open (e.g. "you are Alice —
+    --                who have you become?"). Requires character_aspect table.
+    -- 'choose'     = player selects from pre-defined player_option characters (§11).
     player_definition_mode TEXT NOT NULL DEFAULT 'fixed'
-        CHECK(player_definition_mode IN ('fixed', 'define', 'choose')),
+        CHECK(player_definition_mode IN ('fixed', 'define', 'green_room', 'choose')),
 
     created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
 );
@@ -488,6 +495,55 @@ CREATE TABLE character_goal (
 
     created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
 );
+
+
+-- =============================================================================
+-- CHARACTER_ASPECT  (added v11)
+-- Fate Core Aspects per character. Generated during the Green Room character
+-- creation stage (player_definition_mode='green_room') and persisted here so
+-- the Fate Point Economy (issue #11) can reference them at adjudication time.
+--
+-- An Aspect is a short evocative phrase that defines something true about the
+-- character. Aspects are mechanically active: they can be invoked (player
+-- spends a Fate Point to gain a bonus when an Aspect is relevant) or compelled
+-- (player accepts a Fate Point when an Aspect complicates the situation).
+-- Pass 2 receives a character's Aspects so it can adjudicate both.
+--
+-- aspect_type maps to the three Fate Core structural roles:
+--   'high_concept' — one phrase that sums up who the character is; the most
+--                    commonly invoked Aspect. Every character has exactly one.
+--   'trouble'      — a personal complication or vulnerability; the most natural
+--                    target for compels. Every character has exactly one.
+--   'aspect'       — additional defining phrase (skills, relationships,
+--                    background, signature items). Up to three in standard
+--                    Fate Core; no hard limit enforced here.
+-- =============================================================================
+
+CREATE TABLE character_aspect (
+    id              INTEGER PRIMARY KEY,
+
+    -- The character who holds this Aspect.
+    character_id    INTEGER NOT NULL REFERENCES character(id),
+
+    -- The Aspect text — a short, evocative natural-language phrase.
+    -- Examples: "Disgraced surgeon seeking redemption" (high_concept),
+    --           "Can't say no to a friend in need" (trouble),
+    --           "Educated at the best schools money could buy" (aspect)
+    aspect_text     TEXT    NOT NULL,
+
+    -- Fate Core structural role.
+    aspect_type     TEXT    NOT NULL
+        CHECK(aspect_type IN ('high_concept', 'trouble', 'aspect')),
+
+    -- Display order within aspect_type for context packet assembly and UI.
+    -- Lower numbers appear first. Not enforced for uniqueness.
+    sort_order      INTEGER NOT NULL DEFAULT 0,
+
+    created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Fast lookup of all Aspects for a given character.
+CREATE INDEX idx_character_aspect ON character_aspect(character_id);
 
 
 -- =============================================================================
@@ -1109,3 +1165,6 @@ VALUES (9, 'Fresh install at v9: player_definition_mode on game; speech_filter o
 
 INSERT INTO schema_version (version, description)
 VALUES (10, 'Fresh install at v10: unified item location (loc_id/char_id/item_id + CHECK constraint); drop character_item; add location_description and slot on item; enables item_transfers outcome field');
+
+INSERT INTO schema_version (version, description)
+VALUES (11, 'Fresh install at v11: player_definition_mode adds green_room; add character_aspect table for Fate Core character creation and Fate Point Economy');
