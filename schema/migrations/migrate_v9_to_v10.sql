@@ -136,6 +136,8 @@ CREATE TABLE item_new (
 -- =============================================================================
 
 -- Location-resident items: copy across with loc_id set.
+-- quality and is_visible were not present in the v9 item table; use their
+-- defaults (NULL and 1 respectively) for all migrated rows.
 INSERT INTO item_new (
     id, game_id, name, description,
     loc_id, char_id, item_id,
@@ -147,12 +149,13 @@ SELECT
     i.id, i.game_id, i.name, i.description,
     i.current_location_id, NULL, NULL,
     NULL, NULL,
-    i.quality, i.is_visible, i.properties, i.is_confirmed,
+    NULL, 1, i.properties, i.is_confirmed,
     i.created_at, i.updated_at
 FROM item i
 WHERE i.current_location_id IS NOT NULL;
 
 -- Character-held items: set char_id and slot from character_item.
+-- quality and is_visible were not present in v9; use defaults.
 INSERT INTO item_new (
     id, game_id, name, description,
     loc_id, char_id, item_id,
@@ -164,7 +167,7 @@ SELECT
     i.id, i.game_id, i.name, i.description,
     NULL, ci.character_id, NULL,
     NULL, ci.slot,
-    i.quality, i.is_visible, i.properties, i.is_confirmed,
+    NULL, 1, i.properties, i.is_confirmed,
     i.created_at, i.updated_at
 FROM item i
 JOIN character_item ci ON ci.item_id = i.id;

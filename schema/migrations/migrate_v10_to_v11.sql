@@ -100,10 +100,26 @@ CREATE TABLE game_new (
 
 
 -- =============================================================================
--- Step 2: Copy all existing game records (structure is identical except CHECK)
+-- Step 2: Copy all existing game records
+--
+-- Explicit column list required: ALTER TABLE ADD COLUMN appends to the end of
+-- the physical column order, so a DB that received player_definition_mode via
+-- migration has it after created_at, while game_new declares it before
+-- created_at. SELECT * maps by position, not name, and would insert the
+-- created_at timestamp into the player_definition_mode CHECK column — causing a
+-- constraint failure. Named columns are always safe across schema versions.
 -- =============================================================================
 
-INSERT INTO game_new SELECT * FROM game;
+INSERT INTO game_new (
+    id, name, genre, tone, era, technology_level, magic_system,
+    narrative_register, speech_filter, internal_state_display,
+    cultural_norms, player_definition_mode, created_at
+)
+SELECT
+    id, name, genre, tone, era, technology_level, magic_system,
+    narrative_register, speech_filter, internal_state_display,
+    cultural_norms, player_definition_mode, created_at
+FROM game;
 
 
 -- =============================================================================

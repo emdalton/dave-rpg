@@ -54,8 +54,10 @@ PRAGMA foreign_keys = ON;
 -- 1. game.player_definition_mode
 -- =============================================================================
 
+-- Note: IF NOT EXISTS on ADD COLUMN requires SQLite >= 3.37.0; omitted for
+-- compatibility. This migration assumes the DB is at exactly v8.
 ALTER TABLE game
-ADD COLUMN IF NOT EXISTS player_definition_mode TEXT NOT NULL DEFAULT 'fixed'
+ADD COLUMN player_definition_mode TEXT NOT NULL DEFAULT 'fixed'
     CHECK(player_definition_mode IN ('fixed', 'define', 'choose'));
 
 -- Commentary: all existing modules default to 'fixed' — no behaviour change.
@@ -68,7 +70,7 @@ ADD COLUMN IF NOT EXISTS player_definition_mode TEXT NOT NULL DEFAULT 'fixed'
 -- =============================================================================
 
 ALTER TABLE character
-ADD COLUMN IF NOT EXISTS speech_filter TEXT DEFAULT NULL;
+ADD COLUMN speech_filter TEXT DEFAULT NULL;
 
 -- Commentary: NULL = no filter for this character (default everywhere).
 -- Game-level game.speech_filter (already exists) applies globally to a module.
