@@ -932,6 +932,12 @@ class GameEngine:
                                          explaining Fate Core aspects to players
                                          who may not be familiar with the system.
 
+        If High Concept or Trouble are missing after the first extraction pass,
+        a short targeted follow-up question is asked for each missing field.
+        The follow-up answer is appended to the original input and a second
+        extraction pass is run. Only the still-missing fields are updated;
+        everything already extracted is preserved.
+
         On LLM failure or empty player input the stage is skipped gracefully;
         the opening scene will render with whatever character data already exists
         in the database (which may be the seeded skeleton only).
@@ -1017,6 +1023,77 @@ class GameEngine:
         description  = (extracted.get("description")  or "").strip()
         skills_raw   = extracted.get("skills") or []
         skills       = [s.strip() for s in skills_raw if isinstance(s, str) and s.strip()]
+
+        # ------------------------------------------------------------------
+        # Follow-up prompts for missing required Fate Core fields.
+        #
+        # High Concept and Trouble are required; additional aspects (0-3) are
+        # always optional. If either required field is missing after the first
+        # extraction pass, ask a short targeted follow-up question for each,
+        # then re-run extraction against the combined original input + answers.
+        # Only the still-missing fields are updated from the second pass;
+        # everything already extracted is preserved as-is.
+        # ------------------------------------------------------------------
+        followup_parts: list[str] = []
+
+        if not high_concept:
+            print("What are a few words that describe your character?")
+            hc_answer = input("> ").strip()
+            if hc_answer:
+                followup_parts.append(
+                    "Q: How would you describe your character in a short phrase?\n"
+                    f"A: {hc_answer}"
+                )
+
+        if not trouble:
+            print("What is one thing your character struggles against or tries to avoid?")
+            tr_answer = input("> ").strip()
+            if tr_answer:
+                followup_parts.append(
+                    "Q: What is one thing your character struggles against or avoids?\n"
+                    f"A: {tr_answer}"
+                )
+
+        if followup_parts:
+            combined_input = (
+                player_input
+                + "\n\nAdditional details provided by the player:\n"
+                + "\n".join(followup_parts)
+            )
+            try:
+                prompt2 = GREEN_ROOM_EXTRACTION_PROMPT.format(
+                    module_context=module_context,
+                    player_input=combined_input,
+                )
+                extracted2 = self.llm.call_json(prompt2)
+            except (LLMError, LLMJSONError) as exc:
+                logger.warning("Green Room follow-up extraction failed: %s", exc)
+                extracted2 = {}
+
+            # Fill in only what was missing; preserve all first-pass results.
+            if not high_concept:
+                high_concept = (extracted2.get("high_concept") or "").strip()
+            if not trouble:
+                trouble = (extracted2.get("trouble") or "").strip()
+            # Merge additional aspects (deduplicate, cap at 3).
+            new_aspects = [
+                a.strip() for a in (extracted2.get("aspects") or [])
+                if isinstance(a, str) and a.strip()
+            ]
+            seen = set(aspects)
+            for a in new_aspects:
+                if a not in seen and len(aspects) < 3:
+                    aspects.append(a)
+                    seen.add(a)
+            # Use follow-up description if first pass produced nothing.
+            if not description:
+                description = (extracted2.get("description") or "").strip()
+            # Merge skills (preserve order, deduplicate).
+            new_skills = [
+                s.strip() for s in (extracted2.get("skills") or [])
+                if isinstance(s, str) and s.strip()
+            ]
+            skills = list(dict.fromkeys(skills + new_skills))
 
         logger.info(
             "Green Room extracted: char=%d high_concept=%r trouble=%r "
