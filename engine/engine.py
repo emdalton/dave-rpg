@@ -466,6 +466,46 @@ Context:
 """
 
 
+GREEN_ROOM_EXTRACTION_PROMPT = """\
+You are the character creation interpreter for the DAVE RPG Engine.
+The player has described their character in free text. Your job is to extract
+structured Fate Core character data from that description.
+
+Rules:
+- Return a single JSON object. No prose, no explanation, no markdown fences.
+- High Concept: a single evocative phrase that sums up who the character is.
+  Should be invokelable as a Fate Point advantage. Infer from the most
+  prominent self-description if the player did not state one explicitly.
+- Trouble: a single phrase describing the character's personal complication
+  or vulnerability — the most natural target for compels. Infer if not stated.
+- Aspects: additional defining phrases (relationships, notable competencies,
+  signature possessions, background details). Standard Fate Core allows up to 3.
+  Capture only those the player expressed; do not invent extras.
+- Description: a third-person prose description of the character for the
+  engine's internal record. Synthesise from the player's input; 2-3 sentences.
+  Written as character data, not as player-facing prose.
+- Skills: any specific skills or competencies the player mentioned. Open
+  natural-language taxonomy — capture the terms the player used.
+- confirmation_text: a warm 2-3 sentence summary of what you understood,
+  written directly to the player (second person). Shown as confirmation before
+  the game begins.
+
+Required output fields:
+  high_concept      (string)
+  trouble           (string)
+  aspects           (list of 0-3 strings)
+  description       (string)
+  skills            (list of strings, may be empty)
+  confirmation_text (string)
+
+Module context:
+{module_context}
+
+Player's character description:
+{player_input}
+"""
+
+
 # =============================================================================
 # GameEngine
 # =============================================================================
@@ -648,6 +688,22 @@ class GameEngine:
         """
         game_title = self._game.get('name', 'DAVE RPG')
         print(f"\n=== {game_title} ===\n")
+
+        # ------------------------------------------------------------------
+        # Green Room: pre-game character creation stage (v11+).
+        # Runs when player_definition_mode == 'green_room' AND the player
+        # has no existing character_aspect records. The aspects check makes
+        # this stage idempotent — resuming a session after character creation
+        # was completed in a prior run does not repeat it.
+        # ------------------------------------------------------------------
+        if self._game.get("player_definition_mode") == "green_room":
+            existing_aspects = self.db.get_character_aspects(self._player["id"])
+            if not existing_aspects:
+                self._run_green_room()
+                # Refresh player after the creation stage may have updated
+                # the description field.
+                self._player = self.db.get_player_character(self.game_id)
+
         try:
             opening = self._render_opening_scene()
             wrapped_opening = textwrap.fill(opening, width=80)
@@ -854,6 +910,175 @@ class GameEngine:
         prose = self.llm.call(prompt)
         logger.debug("Opening scene prose: %.120s", prose)
         return prose
+
+    # -------------------------------------------------------------------------
+    # Green Room character creation stage (v11+)
+    # -------------------------------------------------------------------------
+
+    def _run_green_room(self) -> None:
+        """
+        Run the out-of-character character creation stage for green_room modules.
+
+        Called from run() when player_definition_mode == 'green_room' and the
+        player has no existing character_aspect records. Presents the module
+        author's creation prompt, collects the player's free-text description,
+        calls the LLM to extract structured Fate Core data, and writes the
+        results to the database before the opening scene begins.
+
+        The module author configures this stage by setting two keys in the
+        game record's module_flags JSON:
+            character_creation_prompt  — the framing shown to the player.
+            character_creation_hint    — optional shorter cue (one paragraph)
+                                         explaining Fate Core aspects to players
+                                         who may not be familiar with the system.
+
+        On LLM failure or empty player input the stage is skipped gracefully;
+        the opening scene will render with whatever character data already exists
+        in the database (which may be the seeded skeleton only).
+
+        DB writes:
+            - character_aspect records (high_concept, trouble, up to 3 aspects)
+            - character.description (from LLM synthesis)
+            - character_skill rows for any skills mentioned (INSERT OR IGNORE —
+              does not overwrite skills already seeded)
+        """
+        flags = self._game.get("module_flags") or {}
+        creation_prompt = (flags.get("character_creation_prompt") or "").strip()
+        creation_hint   = (flags.get("character_creation_hint")   or "").strip()
+
+        # Print out-of-character header and module prompt.
+        print("--- Character Creation ---\n")
+        if creation_prompt:
+            print(textwrap.fill(creation_prompt, width=80))
+            print()
+        if creation_hint:
+            print(textwrap.fill(f"({creation_hint})", width=80))
+            print()
+
+        print(
+            "Describe your character below.\n"
+            "Press Enter on a blank line when done.\n"
+        )
+
+        # Collect multi-line input: accumulate lines until a blank line is
+        # entered or the player interrupts. A trailing blank line is the
+        # conventional multi-line sentinel in terminal UIs.
+        lines: list[str] = []
+        while True:
+            try:
+                line = input("  ")
+            except (EOFError, KeyboardInterrupt):
+                break
+            if not line.strip():
+                if lines:
+                    break   # at least one non-empty line received — done
+                # else: leading blank line; keep waiting
+            else:
+                lines.append(line)
+
+        if not lines:
+            logger.warning("Green Room: no character description provided; skipping.")
+            print("\n[No character description received — skipping character creation.]\n")
+            return
+
+        player_input = "\n".join(lines)
+        self._transcript_write(
+            f"\n--- Green Room ---\n> [character description]\n{player_input}"
+        )
+
+        # Call LLM to extract structured Fate Core data from the free text.
+        module_context = json.dumps({
+            "game_name": self._game.get("name"),
+            "genre":     self._game.get("genre"),
+            "tone":      self._game.get("tone"),
+            "era":       self._game.get("era"),
+            "creation_prompt": creation_prompt,
+        }, indent=2)
+
+        print("\n[Interpreting your character...]\n")
+
+        try:
+            prompt = GREEN_ROOM_EXTRACTION_PROMPT.format(
+                module_context=module_context,
+                player_input=player_input,
+            )
+            logger.debug("Green Room extraction prompt:\n%s", prompt)
+            extracted = self.llm.call_json(prompt)
+        except (LLMError, LLMJSONError) as exc:
+            logger.error("Green Room extraction failed: %s", exc)
+            print("[Character extraction failed. Proceeding without character aspects.]\n")
+            return
+
+        # Parse and validate extracted fields.
+        high_concept = (extracted.get("high_concept") or "").strip()
+        trouble      = (extracted.get("trouble")      or "").strip()
+        aspects_raw  = extracted.get("aspects") or []
+        aspects      = [a.strip() for a in aspects_raw if isinstance(a, str) and a.strip()][:3]
+        description  = (extracted.get("description")  or "").strip()
+        skills_raw   = extracted.get("skills") or []
+        skills       = [s.strip() for s in skills_raw if isinstance(s, str) and s.strip()]
+
+        logger.info(
+            "Green Room extracted: char=%d high_concept=%r trouble=%r "
+            "aspects=%d skills=%d",
+            self._player["id"], high_concept, trouble, len(aspects), len(skills),
+        )
+
+        # Write aspects to character_aspect table.
+        # clear_character_aspects() first so this is safe to retry.
+        player_id = self._player["id"]
+        self.db.clear_character_aspects(player_id)
+
+        if high_concept:
+            self.db.create_character_aspect(player_id, high_concept, "high_concept")
+        if trouble:
+            self.db.create_character_aspect(player_id, trouble, "trouble")
+        for i, aspect_text in enumerate(aspects):
+            self.db.create_character_aspect(player_id, aspect_text, "aspect", sort_order=i)
+
+        # Update character description field from LLM synthesis.
+        if description:
+            self.db.update_player_character(
+                character_id=player_id,
+                description=description,
+            )
+
+        # Write skills as character_skill rows (INSERT OR IGNORE preserves
+        # any skill levels seeded by the module author).
+        for skill_name in skills:
+            self.db._execute(  # noqa: SLF001 — direct access justified here
+                """INSERT OR IGNORE INTO character_skill
+                       (character_id, skill_name, skill_level)
+                   VALUES (?, ?, 0.5)""",
+                (player_id, skill_name),
+            )
+
+        # Display confirmation.
+        confirmation = (extracted.get("confirmation_text") or "").strip()
+        if confirmation:
+            print(textwrap.fill(confirmation, width=80))
+            print()
+
+        # Print a structured summary of what was recorded.
+        if high_concept:
+            print(f"  High Concept: {high_concept}")
+        if trouble:
+            print(f"  Trouble:      {trouble}")
+        for aspect_text in aspects:
+            print(f"  Aspect:       {aspect_text}")
+        if skills:
+            print(f"  Skills noted: {', '.join(skills)}")
+
+        print("\n--- Beginning the game ---\n")
+
+        # Write structured summary to transcript.
+        self._transcript_write(
+            f"High Concept: {high_concept}\n"
+            f"Trouble: {trouble}\n"
+            + "".join(f"Aspect: {a}\n" for a in aspects)
+            + (f"Skills: {', '.join(skills)}\n" if skills else "")
+            + "---"
+        )
 
     # -------------------------------------------------------------------------
     # Turn processing
