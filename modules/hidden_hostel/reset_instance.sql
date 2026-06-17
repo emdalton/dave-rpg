@@ -14,7 +14,8 @@
 --                current_activity and all activity fields
 --   - player character only: description, gender, pronouns (set during play
 --                via player_character_update; must be null at session start
---                so the mirror invitation triggers correctly)
+--                so Green Room character creation runs again on the next session)
+--   - character_aspect: player aspects cleared (re-populated by Green Room on next start)
 --   - internal_state: value (rates are stable; not reset)
 --   - character_attitude: all attitude values
 --   - character_faction_reputation: all reputation values and notes
@@ -54,10 +55,14 @@ WHERE id = 1 AND game_id = 1;
 -- CHARACTERS: reset mutable fields to starting values
 -- =============================================================================
 
+-- Clear player Fate Core aspects so Green Room re-runs on the next session.
+-- NPCs have no aspects; only the player character (id=1) is affected.
+DELETE FROM character_aspect WHERE character_id = 1;
+
 -- The Traveller (id=1)
 -- description, gender, and pronouns are player-defined during play via
--- player_character_update; they must be cleared on reset so the opening
--- scene mirror invitation triggers correctly on the next session.
+-- player_character_update; they must be cleared on reset so Green Room
+-- character creation runs again on the next session.
 UPDATE character
 SET current_location_id          = 6,      -- Outside the Hostel Door
     emotional_state              = 'curious',

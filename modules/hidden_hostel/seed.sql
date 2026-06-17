@@ -14,7 +14,7 @@
 -- hostel is neutral ground; its rules are simple and absolute. The Innkeeper
 -- (Marta) has always been here. No one is entirely sure how long.
 --
--- Schema version: 9
+-- Schema version: 12
 -- Characters: 7 (1 player, 5 NPC, 1 npc_object — The Blue Door)
 -- Locations: 6 (Outside the Hostel Door, Common Room, Kitchen, Upper Corridor, Room A, Room B)
 -- Factions: 1 (hosts_of_the_hostel)
@@ -72,7 +72,7 @@ PRAGMA foreign_keys = ON;
 INSERT INTO game (
     id, name, genre, tone, era, technology_level, magic_system,
     narrative_register, speech_filter, internal_state_display, cultural_norms,
-    player_definition_mode
+    player_definition_mode, module_flags
 ) VALUES (
     1,
     'The Hidden Hostel',
@@ -90,7 +90,24 @@ INSERT INTO game (
         "gin_chan": "Gin-chan is a resident of the hostel, not a pet. Treating them as such is considered rude. Gin-chan communicates in their own way and is understood by those who pay attention.",
         "payment": "No currency is accepted or required. Guests offer what they can — a story, a skill, a piece of knowledge from their world. The manner of contribution is between each guest and the hostel."
     }',
-    'define'   -- player describes themselves at the Outside location before entering
+    -- 'green_room': structured Fate Core character creation runs out-of-character
+    -- before the opening scene. _run_green_room() reads character_creation_prompt
+    -- and character_creation_hint from module_flags, collects free-text input,
+    -- and extracts High Concept, Trouble, Aspects, description, and skills via LLM.
+    -- Note: The Blue Door''s mirror pending_intent was designed for ''define'' mode
+    -- but remains compatible: it checks whether player.description is non-null before
+    -- opening. After Green Room sets description, the door simply stands ready
+    -- without issuing the self-description invitation.
+    'green_room',
+    -- module_flags: Green Room prompts for the Hidden Hostel.
+    -- character_creation_prompt: out-of-character framing shown to the player before
+    --   the game begins. Establishes the liminal-arrival premise and invites reflection
+    --   on who the Traveller is and where they have come from.
+    -- character_creation_hint: shorter cue for players unfamiliar with Fate Core aspects.
+    '{
+        "character_creation_prompt": "You are The Traveller — a stranger who has just arrived at the door of the Hidden Hostel, a place that exists between worlds. You do not remember the road that brought you here. Through the glass panels of the Blue Door, warm light and the smell of woodsmoke promise shelter within.\n\nBefore the door opens, take a moment: who are you? You have come from somewhere — a world with its own history, customs, and complications. You carry that history with you, even if the mist behind you has swallowed the road.\n\nDescribe yourself. You might think about: what you did before you arrived here, what you are known for (or what you are trying not to be known for), what you carry with you — not just in your pack, but in your manner and your past.",
+        "character_creation_hint": "Think in Fate Core terms if it helps: a High Concept (who you are in a phrase — e.g., ''Scholar Fleeing a Revolution''), a Trouble (your biggest personal complication — e.g., ''Debts I Cannot Repay''), and up to three additional Aspects (relationships, signature skills, defining possessions, or moments from your past that still shape you). Write freely — the engine will find the structure in what you give it."
+    }'
 );
 
 
@@ -103,9 +120,10 @@ INSERT INTO game (
 INSERT INTO location (id, game_id, name, location_type, description_skeleton,
                       social_setting, witness_count, situation_flags)
 VALUES (
-    -- Location 6: Outside the Hostel Door. The player starts here when
-    -- player_definition_mode='define'. Self-definition happens at this location
-    -- before the player enters. The Blue Door (character 7) is also here.
+    -- Location 6: Outside the Hostel Door. The player starts here at game open.
+    -- In green_room mode, character creation runs out-of-character first; when
+    -- the opening scene renders, the player is already at this location.
+    -- The Blue Door (character 7) is also here.
     6, 1, 'Outside the Hostel Door', 'exterior',
     'Stone steps rise to an arched doorway. The door is painted a deep, welcoming blue; glass panels flank a central diamond of mirror, dark and still in the evening light. Behind you, unformed mist obscures any memory of how you came to be standing here. Through the glass, warm light and the faint smell of woodsmoke promise shelter within.',
     'public', 0,
