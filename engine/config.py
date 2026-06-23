@@ -24,8 +24,9 @@ import os
 # from engine/llm/ and uses it for all three passes.
 #
 # Supported values:
-#   "claude"  — Anthropic Claude via the claude-sdk (Phase 1 / prototyping)
-#   "ollama"  — Local model via Ollama HTTP API (Phase 2 / production)
+#   "claude"    — Anthropic Claude via the anthropic SDK (Phase 1 / prototyping)
+#   "ollama"    — Local model via Ollama HTTP API (Phase 2 / local production)
+#   "scaleway"  — Scaleway Generative APIs (OpenAI-compatible; cloud production)
 #
 # Override with env var: DAVE_LLM_BACKEND
 LLM_BACKEND: str = os.environ.get("DAVE_LLM_BACKEND", "claude")
@@ -68,6 +69,45 @@ OLLAMA_MODEL: str = os.environ.get("DAVE_OLLAMA_MODEL", "mistral")
 # on modest hardware; set this higher if you see timeout errors.
 # Override with env var: DAVE_OLLAMA_TIMEOUT
 OLLAMA_TIMEOUT: int = int(os.environ.get("DAVE_OLLAMA_TIMEOUT", "120"))
+
+
+# =============================================================================
+# SCALEWAY SETTINGS (used when LLM_BACKEND == "scaleway")
+# =============================================================================
+
+# Scaleway IAM API key. Obtain from the Scaleway console under
+# IAM → API Keys. Never hardcode this; always use the environment variable.
+# The canonical Scaleway env var name is SCW_SECRET_KEY; DAVE_SCALEWAY_API_KEY
+# takes precedence if both are set, allowing per-project overrides.
+# Override with env var: DAVE_SCALEWAY_API_KEY (falls back to SCW_SECRET_KEY)
+SCALEWAY_API_KEY: str = (
+    os.environ.get("DAVE_SCALEWAY_API_KEY")
+    or os.environ.get("SCW_SECRET_KEY", "")
+)
+
+# Base URL for Scaleway's OpenAI-compatible Generative APIs endpoint.
+# This should not normally need changing unless Scaleway updates their API path.
+# Override with env var: DAVE_SCALEWAY_BASE_URL
+SCALEWAY_BASE_URL: str = os.environ.get(
+    "DAVE_SCALEWAY_BASE_URL", "https://api.scaleway.ai/v1"
+)
+
+# Model name as listed in the Scaleway console. Default is Mistral Small 3.2,
+# their smallest and cheapest chat model (€0.15/M input, €0.35/M output as of
+# 2026-06). Override to switch to a larger model without changing code, e.g.:
+#   DAVE_SCALEWAY_MODEL=qwen3.5-397b-a17b-instruct-fp8
+# Override with env var: DAVE_SCALEWAY_MODEL
+SCALEWAY_MODEL: str = os.environ.get(
+    "DAVE_SCALEWAY_MODEL", "mistral-small-3.2-24b-instruct-2506"
+)
+
+# Maximum tokens the model may generate per call.
+# Override with env var: DAVE_SCALEWAY_MAX_TOKENS
+SCALEWAY_MAX_TOKENS: int = int(os.environ.get("DAVE_SCALEWAY_MAX_TOKENS", "2048"))
+
+# Request timeout in seconds for Scaleway API calls.
+# Override with env var: DAVE_SCALEWAY_TIMEOUT
+SCALEWAY_TIMEOUT: int = int(os.environ.get("DAVE_SCALEWAY_TIMEOUT", "60"))
 
 
 # =============================================================================
@@ -146,9 +186,9 @@ def validate() -> None:
     Called at engine startup before any database or LLM connections are made.
     Raises ValueError with a descriptive message on the first problem found.
     """
-    if LLM_BACKEND not in ("claude", "ollama"):
+    if LLM_BACKEND not in ("claude", "ollama", "scaleway"):
         raise ValueError(
-            f"LLM_BACKEND must be 'claude' or 'ollama', got: {LLM_BACKEND!r}. "
+            f"LLM_BACKEND must be 'claude', 'ollama', or 'scaleway', got: {LLM_BACKEND!r}. "
             f"Set the DAVE_LLM_BACKEND environment variable."
         )
 
@@ -162,6 +202,12 @@ def validate() -> None:
         raise ValueError(
             "DAVE_OLLAMA_BASE_URL is not set. Set it to your Ollama server URL "
             "(default: http://localhost:11434)."
+        )
+
+    if LLM_BACKEND == "scaleway" and not SCALEWAY_API_KEY:
+        raise ValueError(
+            "Scaleway API key is not set. Export your key as SCW_SECRET_KEY "
+            "(or DAVE_SCALEWAY_API_KEY) before starting the engine."
         )
 
     if LLM_MAX_RETRIES < 1:

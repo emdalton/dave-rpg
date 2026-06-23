@@ -29,7 +29,8 @@ def get_llm_client() -> LLMClient:
     backend is in use.
 
     Returns:
-        A concrete LLMClient implementation (ClaudeLLMClient or OllamaLLMClient).
+        A concrete LLMClient implementation (ClaudeLLMClient, OllamaLLMClient,
+        or ScalewayLLMClient).
 
     Raises:
         ValueError: If LLM_BACKEND is set to an unrecognised value. This should
@@ -44,9 +45,13 @@ def get_llm_client() -> LLMClient:
         from engine.llm.ollama import OllamaLLMClient
         return OllamaLLMClient()
 
+    if config.LLM_BACKEND == "scaleway":
+        from engine.llm.scaleway import ScalewayLLMClient
+        return ScalewayLLMClient()
+
     raise ValueError(
         f"Unknown LLM_BACKEND: {config.LLM_BACKEND!r}. "
-        f"Valid values are 'claude' and 'ollama'."
+        f"Valid values are 'claude', 'ollama', and 'scaleway'."
     )
 
 
