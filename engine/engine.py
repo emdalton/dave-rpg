@@ -1001,150 +1001,205 @@ class GameEngine:
             "creation_prompt": creation_prompt,
         }, indent=2)
 
-        print("\n[Interpreting your character...]\n")
-
-        try:
-            prompt = GREEN_ROOM_EXTRACTION_PROMPT.format(
-                module_context=module_context,
-                player_input=player_input,
-            )
-            logger.debug("Green Room extraction prompt:\n%s", prompt)
-            extracted = self.llm.call_json(prompt)
-        except (LLMError, LLMJSONError) as exc:
-            logger.error("Green Room extraction failed: %s", exc)
-            print("[Character extraction failed. Proceeding without character aspects.]\n")
-            return
-
-        # Parse and validate extracted fields.
-        high_concept = (extracted.get("high_concept") or "").strip()
-        trouble      = (extracted.get("trouble")      or "").strip()
-        aspects_raw  = extracted.get("aspects") or []
-        aspects      = [a.strip() for a in aspects_raw if isinstance(a, str) and a.strip()][:3]
-        description  = (extracted.get("description")  or "").strip()
-        skills_raw   = extracted.get("skills") or []
-        skills       = [s.strip() for s in skills_raw if isinstance(s, str) and s.strip()]
-
         # ------------------------------------------------------------------
-        # Follow-up prompts for missing required Fate Core fields.
+        # Extraction and confirmation loop.
         #
-        # High Concept and Trouble are required; additional aspects (0-3) are
-        # always optional. If either required field is missing after the first
-        # extraction pass, ask a short targeted follow-up question for each,
-        # then re-run extraction against the combined original input + answers.
-        # Only the still-missing fields are updated from the second pass;
-        # everything already extracted is preserved as-is.
+        # Runs up to MAX_REFINEMENTS + 1 times. After each extraction the
+        # player sees the LLM's interpretation and is asked whether it looks
+        # right. If not, they provide a correction which is appended to the
+        # running input and the extraction re-runs from scratch. On the final
+        # attempt (or when the player accepts), the loop exits.
+        #
+        # DB writes happen inside the loop; clear_character_aspects() at the
+        # top of each iteration keeps the table consistent with the latest
+        # extraction result regardless of how many passes were needed.
         # ------------------------------------------------------------------
-        followup_parts: list[str] = []
+        MAX_REFINEMENTS = 2     # player may correct up to twice (3 passes total)
 
-        if not high_concept:
-            print("What are a few words that describe your character?")
-            hc_answer = input("> ").strip()
-            if hc_answer:
-                followup_parts.append(
-                    "Q: How would you describe your character in a short phrase?\n"
-                    f"A: {hc_answer}"
-                )
+        # These are declared here so the transcript write after the loop has
+        # access to the final values even if the loop exits early.
+        high_concept: str = ""
+        trouble:      str = ""
+        aspects:      list[str] = []
+        skills:       list[str] = []
 
-        if not trouble:
-            print("What is one thing your character struggles against or tries to avoid?")
-            tr_answer = input("> ").strip()
-            if tr_answer:
-                followup_parts.append(
-                    "Q: What is one thing your character struggles against or avoids?\n"
-                    f"A: {tr_answer}"
-                )
+        for attempt in range(MAX_REFINEMENTS + 1):
 
-        if followup_parts:
-            combined_input = (
-                player_input
-                + "\n\nAdditional details provided by the player:\n"
-                + "\n".join(followup_parts)
-            )
+            print("\n[Interpreting your character...]\n")
+
             try:
-                prompt2 = GREEN_ROOM_EXTRACTION_PROMPT.format(
+                prompt = GREEN_ROOM_EXTRACTION_PROMPT.format(
                     module_context=module_context,
-                    player_input=combined_input,
+                    player_input=player_input,
                 )
-                extracted2 = self.llm.call_json(prompt2)
+                logger.debug("Green Room extraction prompt (attempt %d):\n%s",
+                             attempt + 1, prompt)
+                extracted = self.llm.call_json(prompt)
             except (LLMError, LLMJSONError) as exc:
-                logger.warning("Green Room follow-up extraction failed: %s", exc)
-                extracted2 = {}
+                logger.error("Green Room extraction failed: %s", exc)
+                print("[Character extraction failed. Proceeding without character aspects.]\n")
+                return
 
-            # Fill in only what was missing; preserve all first-pass results.
+            # Parse and validate extracted fields.
+            high_concept = (extracted.get("high_concept") or "").strip()
+            trouble      = (extracted.get("trouble")      or "").strip()
+            aspects_raw  = extracted.get("aspects") or []
+            aspects      = [a.strip() for a in aspects_raw
+                            if isinstance(a, str) and a.strip()][:3]
+            description  = (extracted.get("description")  or "").strip()
+            skills_raw   = extracted.get("skills") or []
+            skills       = [s.strip() for s in skills_raw
+                            if isinstance(s, str) and s.strip()]
+            confirmation = (extracted.get("confirmation_text") or "").strip()
+
+            # ------------------------------------------------------------------
+            # Follow-up prompts for missing required Fate Core fields.
+            # High Concept and Trouble are required; additional aspects (0-3)
+            # are always optional. If either is missing after the main
+            # extraction pass, ask a short targeted follow-up question and
+            # re-run against the combined input. Only the missing fields are
+            # updated from the second pass; everything else is preserved.
+            # ------------------------------------------------------------------
+            followup_parts: list[str] = []
+
             if not high_concept:
-                high_concept = (extracted2.get("high_concept") or "").strip()
+                print("What are a few words that describe your character?")
+                hc_answer = input("> ").strip()
+                if hc_answer:
+                    followup_parts.append(
+                        "Q: How would you describe your character in a short phrase?\n"
+                        f"A: {hc_answer}"
+                    )
+
             if not trouble:
-                trouble = (extracted2.get("trouble") or "").strip()
-            # Merge additional aspects (deduplicate, cap at 3).
-            new_aspects = [
-                a.strip() for a in (extracted2.get("aspects") or [])
-                if isinstance(a, str) and a.strip()
-            ]
-            seen = set(aspects)
-            for a in new_aspects:
-                if a not in seen and len(aspects) < 3:
-                    aspects.append(a)
-                    seen.add(a)
-            # Use follow-up description if first pass produced nothing.
-            if not description:
-                description = (extracted2.get("description") or "").strip()
-            # Merge skills (preserve order, deduplicate).
-            new_skills = [
-                s.strip() for s in (extracted2.get("skills") or [])
-                if isinstance(s, str) and s.strip()
-            ]
-            skills = list(dict.fromkeys(skills + new_skills))
+                print("What is one thing your character struggles against or tries to avoid?")
+                tr_answer = input("> ").strip()
+                if tr_answer:
+                    followup_parts.append(
+                        "Q: What is one thing your character struggles against or avoids?\n"
+                        f"A: {tr_answer}"
+                    )
 
-        logger.info(
-            "Green Room extracted: char=%d high_concept=%r trouble=%r "
-            "aspects=%d skills=%d",
-            self._player["id"], high_concept, trouble, len(aspects), len(skills),
-        )
+            if followup_parts:
+                combined_input = (
+                    player_input
+                    + "\n\nAdditional details provided by the player:\n"
+                    + "\n".join(followup_parts)
+                )
+                try:
+                    prompt2 = GREEN_ROOM_EXTRACTION_PROMPT.format(
+                        module_context=module_context,
+                        player_input=combined_input,
+                    )
+                    extracted2 = self.llm.call_json(prompt2)
+                except (LLMError, LLMJSONError) as exc:
+                    logger.warning("Green Room follow-up extraction failed: %s", exc)
+                    extracted2 = {}
 
-        # Write aspects to character_aspect table.
-        # clear_character_aspects() first so this is safe to retry.
-        player_id = self._player["id"]
-        self.db.clear_character_aspects(player_id)
+                # Fill in only what was missing; preserve all first-pass results.
+                if not high_concept:
+                    high_concept = (extracted2.get("high_concept") or "").strip()
+                if not trouble:
+                    trouble = (extracted2.get("trouble") or "").strip()
+                # Merge additional aspects (deduplicate, cap at 3).
+                new_aspects = [
+                    a.strip() for a in (extracted2.get("aspects") or [])
+                    if isinstance(a, str) and a.strip()
+                ]
+                seen = set(aspects)
+                for a in new_aspects:
+                    if a not in seen and len(aspects) < 3:
+                        aspects.append(a)
+                        seen.add(a)
+                # Use follow-up description if first pass produced nothing.
+                if not description:
+                    description = (extracted2.get("description") or "").strip()
+                # Merge skills (preserve order, deduplicate).
+                new_skills = [
+                    s.strip() for s in (extracted2.get("skills") or [])
+                    if isinstance(s, str) and s.strip()
+                ]
+                skills = list(dict.fromkeys(skills + new_skills))
+                # Use follow-up confirmation text if the first pass had none.
+                if not confirmation and extracted2.get("confirmation_text"):
+                    confirmation = extracted2["confirmation_text"].strip()
 
-        if high_concept:
-            self.db.create_character_aspect(player_id, high_concept, "high_concept")
-        if trouble:
-            self.db.create_character_aspect(player_id, trouble, "trouble")
-        for i, aspect_text in enumerate(aspects):
-            self.db.create_character_aspect(player_id, aspect_text, "aspect", sort_order=i)
-
-        # Update character description field from LLM synthesis.
-        if description:
-            self.db.update_player_character(
-                character_id=player_id,
-                description=description,
+            logger.info(
+                "Green Room extracted (attempt %d): char=%d high_concept=%r "
+                "trouble=%r aspects=%d skills=%d",
+                attempt + 1, self._player["id"],
+                high_concept, trouble, len(aspects), len(skills),
             )
 
-        # Write skills as character_skill rows (INSERT OR IGNORE preserves
-        # any skill levels seeded by the module author).
-        for skill_name in skills:
-            self.db._execute(  # noqa: SLF001 — direct access justified here
-                """INSERT OR IGNORE INTO character_skill
-                       (character_id, skill_name, skill_level)
-                   VALUES (?, ?, 0.5)""",
-                (player_id, skill_name),
-            )
+            # Write to DB. clear_character_aspects() first so each iteration
+            # is a clean slate — the confirmed result is always what's stored.
+            player_id = self._player["id"]
+            self.db.clear_character_aspects(player_id)
 
-        # Display confirmation.
-        confirmation = (extracted.get("confirmation_text") or "").strip()
-        if confirmation:
-            print(textwrap.fill(confirmation, width=80))
+            if high_concept:
+                self.db.create_character_aspect(player_id, high_concept, "high_concept")
+            if trouble:
+                self.db.create_character_aspect(player_id, trouble, "trouble")
+            for i, aspect_text in enumerate(aspects):
+                self.db.create_character_aspect(player_id, aspect_text, "aspect",
+                                                sort_order=i)
+
+            if description:
+                self.db.update_player_character(
+                    character_id=player_id,
+                    description=description,
+                )
+
+            # Write skills as character_skill rows (INSERT OR IGNORE preserves
+            # any skill levels seeded by the module author).
+            for skill_name in skills:
+                self.db._execute(  # noqa: SLF001 — direct access justified here
+                    """INSERT OR IGNORE INTO character_skill
+                           (character_id, skill_name, skill_level)
+                       VALUES (?, ?, 0.5)""",
+                    (player_id, skill_name),
+                )
+
+            # Display LLM confirmation text and structured summary.
+            if confirmation:
+                print(textwrap.fill(confirmation, width=80))
+                print()
+
+            if high_concept:
+                print(f"  High Concept: {high_concept}")
+            if trouble:
+                print(f"  Trouble:      {trouble}")
+            for aspect_text in aspects:
+                print(f"  Aspect:       {aspect_text}")
+            if skills:
+                print(f"  Skills noted: {', '.join(skills)}")
             print()
 
-        # Print a structured summary of what was recorded.
-        if high_concept:
-            print(f"  High Concept: {high_concept}")
-        if trouble:
-            print(f"  Trouble:      {trouble}")
-        for aspect_text in aspects:
-            print(f"  Aspect:       {aspect_text}")
-        if skills:
-            print(f"  Skills noted: {', '.join(skills)}")
+            # ------------------------------------------------------------------
+            # Confirmation gate.
+            # Ask whether the interpretation looks right. "n" collects a
+            # correction that is appended to player_input before the next pass.
+            # On the final attempt we skip the question and proceed regardless.
+            # ------------------------------------------------------------------
+            if attempt < MAX_REFINEMENTS:
+                try:
+                    answer = input("Does this look right? (y/n) ").strip().lower()
+                except (EOFError, KeyboardInterrupt):
+                    break   # treat interruption as acceptance
+                if answer.startswith("n"):
+                    try:
+                        correction = input("What would you like to change? ").strip()
+                    except (EOFError, KeyboardInterrupt):
+                        break
+                    if correction:
+                        player_input = (
+                            player_input
+                            + "\n\nPlayer correction: "
+                            + correction
+                        )
+                        self._transcript_write(f"> [correction]\n{correction}")
+                    continue   # re-run extraction with updated input
+            break   # accepted (or final attempt exhausted)
 
         print("\n--- Beginning the game ---\n")
 
@@ -1156,6 +1211,238 @@ class GameEngine:
             + (f"Skills: {', '.join(skills)}\n" if skills else "")
             + "---"
         )
+
+    # =========================================================================
+    # Public web API
+    #
+    # These methods expose the engine's turn loop and Green Room flow as a
+    # request/response interface suitable for a web frontend. They do not
+    # use input() or print() — all I/O is handled by the caller.
+    #
+    # The existing run() method and all private methods are unchanged; CLI
+    # use continues to work exactly as before.
+    # =========================================================================
+
+    def needs_green_room(self) -> bool:
+        """
+        Return True if this session requires the Green Room character creation
+        stage and it has not yet been completed.
+
+        The stage is required when:
+          - The game's player_definition_mode is 'green_room', AND
+          - The player character has no existing character_aspect records.
+
+        The second condition makes this idempotent: resuming a session after
+        character creation was completed in a prior run returns False.
+        """
+        if self._game.get("player_definition_mode") != "green_room":
+            return False
+        existing = self.db.get_character_aspects(self._player["id"])
+        return not existing
+
+    def get_green_room_config(self) -> dict:
+        """
+        Return the module's character creation configuration for display in
+        the web UI registration / session-start form.
+
+        Returns a dict with keys:
+            game_name       (str)  — display name of the module
+            creation_prompt (str)  — module author's framing shown to the player
+            creation_hint   (str)  — optional Fate Core explanation (may be empty)
+        """
+        flags = self._game.get("module_flags") or {}
+        return {
+            "game_name":       self._game.get("name", ""),
+            "creation_prompt": (flags.get("character_creation_prompt") or "").strip(),
+            "creation_hint":   (flags.get("character_creation_hint")   or "").strip(),
+        }
+
+    def extract_green_room_character(self, player_input: str) -> dict:
+        """
+        Extract structured Fate Core character data from the player's
+        free-text description and write it to the database.
+
+        This is the engine half of the Green Room stage. The caller is
+        responsible for collecting the player's input and displaying the
+        returned data for confirmation. If the player wants to correct
+        something, the caller collects the correction and calls this method
+        again with updated text; the clear-and-rewrite pattern ensures the
+        DB always reflects the latest accepted extraction.
+
+        DB writes (cleared and rewritten on each call):
+            - character_aspect rows (high_concept, trouble, up to 3 aspects)
+            - character.description
+            - character_skill rows (INSERT OR IGNORE)
+
+        Args:
+            player_input: The player's free-text character description,
+                          possibly with appended corrections from prior rounds.
+
+        Returns:
+            A dict with keys:
+                high_concept      (str)        — extracted High Concept
+                trouble           (str)        — extracted Trouble
+                aspects           (list[str])  — up to 3 additional Aspects
+                skills            (list[str])  — mentioned skills
+                confirmation_text (str)        — LLM-written player-facing summary
+                missing_fields    (list[str])  — names of required fields that
+                                                 could not be extracted; caller
+                                                 should prompt the player to
+                                                 supply them before confirming
+
+        Raises:
+            LLMError:     On non-retryable LLM failure.
+            LLMJSONError: If the LLM returns malformed JSON after all retries.
+        """
+        module_context = json.dumps({
+            "game_name": self._game.get("name"),
+            "genre":     self._game.get("genre"),
+            "tone":      self._game.get("tone"),
+            "era":       self._game.get("era"),
+            "creation_prompt": self.get_green_room_config()["creation_prompt"],
+        }, indent=2)
+
+        prompt = GREEN_ROOM_EXTRACTION_PROMPT.format(
+            module_context=module_context,
+            player_input=player_input,
+        )
+        logger.debug("Green Room web extraction prompt:\n%s", prompt)
+
+        extracted = self.llm.call_json(prompt)
+
+        high_concept = (extracted.get("high_concept") or "").strip()
+        trouble      = (extracted.get("trouble")      or "").strip()
+        aspects_raw  = extracted.get("aspects") or []
+        aspects      = [a.strip() for a in aspects_raw
+                        if isinstance(a, str) and a.strip()][:3]
+        description  = (extracted.get("description")  or "").strip()
+        skills_raw   = extracted.get("skills") or []
+        skills       = [s.strip() for s in skills_raw
+                        if isinstance(s, str) and s.strip()]
+        confirmation = (extracted.get("confirmation_text") or "").strip()
+
+        # Identify required fields that are still missing so the web layer
+        # can ask the player to supply them before accepting the result.
+        missing: list[str] = []
+        if not high_concept:
+            missing.append("high_concept")
+        if not trouble:
+            missing.append("trouble")
+
+        # Write to DB (clear first so repeated calls are idempotent).
+        player_id = self._player["id"]
+        self.db.clear_character_aspects(player_id)
+
+        if high_concept:
+            self.db.create_character_aspect(player_id, high_concept, "high_concept")
+        if trouble:
+            self.db.create_character_aspect(player_id, trouble, "trouble")
+        for i, aspect_text in enumerate(aspects):
+            self.db.create_character_aspect(player_id, aspect_text, "aspect",
+                                            sort_order=i)
+
+        if description:
+            self.db.update_player_character(
+                character_id=player_id,
+                description=description,
+            )
+
+        for skill_name in skills:
+            self.db._execute(  # noqa: SLF001 — direct access justified here
+                """INSERT OR IGNORE INTO character_skill
+                       (character_id, skill_name, skill_level)
+                   VALUES (?, ?, 0.5)""",
+                (player_id, skill_name),
+            )
+
+        logger.info(
+            "Green Room web extraction: char=%d high_concept=%r trouble=%r "
+            "aspects=%d skills=%d missing=%r",
+            player_id, high_concept, trouble, len(aspects), len(skills), missing,
+        )
+
+        return {
+            "high_concept":      high_concept,
+            "trouble":           trouble,
+            "aspects":           aspects,
+            "skills":            skills,
+            "confirmation_text": confirmation,
+            "missing_fields":    missing,
+        }
+
+    def confirm_green_room(self) -> None:
+        """
+        Finalise the Green Room stage.
+
+        Call this once the player has confirmed their character data. It
+        refreshes the cached player record so that get_opening_scene() and
+        subsequent step() calls see the description and aspects just written
+        by extract_green_room_character().
+        """
+        self._player = self.db.get_player_character(self.game_id)
+        logger.info(
+            "Green Room confirmed: char=%d description_set=%s",
+            self._player["id"],
+            bool(self._player.get("description")),
+        )
+
+    def get_opening_scene(self) -> str:
+        """
+        Render and return the opening scene prose.
+
+        Call this once per session, after Green Room (if required) has been
+        completed. No state is changed. Returns a fallback string if the LLM
+        call fails rather than raising.
+
+        Returns:
+            Opening prose string for display to the player.
+        """
+        try:
+            return self._render_opening_scene()
+        except (LLMError, LLMJSONError) as exc:
+            logger.warning(
+                "Opening scene render failed (%s); using fallback.", exc
+            )
+            return f"You are {self._player['name']}."
+
+    def step(self, player_input: str) -> str | None:
+        """
+        Process one full turn for the web interface and return the prose output.
+
+        Runs the same per-turn sequence as the CLI run() loop:
+            1. Refreshes the player record
+            2. Checks involuntary events
+            3. Clears expired NPC activities
+            4. Moves wandering NPCs
+            5. Runs the three-pass pipeline (Pass 1 → Pass 2 → DB write → Pass 3)
+
+        Args:
+            player_input: The player's raw text input for this turn.
+                          Strip whitespace before passing.
+
+        Returns:
+            The rendered prose string to display to the player, or None if
+            the player typed an exit command ('quit', 'exit', 'q').
+
+        Raises:
+            LLMError:     On non-retryable LLM failure (caller should display
+                          an error message and allow the player to retry).
+            LLMJSONError: If the LLM returns malformed JSON after all retries.
+        """
+        # Refresh the player record so location and state are always current.
+        self._player = self.db.get_player_character(self.game_id)
+
+        # Per-turn pre-pass checks (same order as CLI run()).
+        involuntary_fired = self._check_involuntary_events()
+        self._check_activity_expiry()
+        self._check_npc_wandering()
+
+        # Exit commands signal the caller to end the session.
+        if player_input.strip().lower() in ("quit", "exit", "q"):
+            logger.info("Player exited via command: %r", player_input.strip())
+            return None
+
+        return self._process_turn(player_input.strip(), involuntary_fired)
 
     # -------------------------------------------------------------------------
     # Turn processing
