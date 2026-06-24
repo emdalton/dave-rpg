@@ -1,6 +1,6 @@
 -- =============================================================================
 -- DAVE RPG Engine — Core Database Schema
--- Current version: 9
+-- Current version: 12
 --
 -- Digitally Adjudicated Virtual Environment
 -- Developed with the assistance of Claude (model: claude-sonnet-4-6, Anthropic)
@@ -103,6 +103,20 @@ CREATE TABLE game (
     -- 'choose'     = player selects from pre-defined player_option characters (§11).
     player_definition_mode TEXT NOT NULL DEFAULT 'fixed'
         CHECK(player_definition_mode IN ('fixed', 'define', 'green_room', 'choose')),
+
+    -- General-purpose per-module engine configuration as JSON. Does not warrant
+    -- dedicated columns; stores feature flags and mode-specific prompts.
+    --
+    -- Green Room Mode keys (player_definition_mode = 'green_room'):
+    --   character_creation_prompt  — out-of-character framing shown to the player
+    --     before the opening scene. Establishes identity frame and invites the
+    --     player to describe who their character has become.
+    --   character_creation_hint    — shorter optional cue (one paragraph) reminding
+    --     the player what Fate Core aspects are, shown below the prompt.
+    --
+    -- Future keys (not yet implemented):
+    --   illustrated_mode_style_prompt, tts_voice, debug_flags, etc.
+    module_flags TEXT NOT NULL DEFAULT '{}',
 
     created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
 );
@@ -1168,3 +1182,6 @@ VALUES (10, 'Fresh install at v10: unified item location (loc_id/char_id/item_id
 
 INSERT INTO schema_version (version, description)
 VALUES (11, 'Fresh install at v11: player_definition_mode adds green_room; add character_aspect table for Fate Core character creation and Fate Point Economy');
+
+INSERT INTO schema_version (version, description)
+VALUES (12, 'Fresh install at v12: add module_flags JSON column to game table for Green Room prompts and future feature config');

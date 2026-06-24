@@ -143,6 +143,7 @@ class Database:
                 row["internal_state_display"] or "{}"
             )
             row["cultural_norms"] = json.loads(row["cultural_norms"] or "{}")
+            row["module_flags"] = json.loads(row.get("module_flags") or "{}")
         return row
 
     # -------------------------------------------------------------------------

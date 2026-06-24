@@ -3,11 +3,30 @@
 # Install with:
 #   pip3 install -r requirements.txt
 #
-# Phase 1 (Claude backend):
+# -------------------------------------------------------------------------
+# LLM backends
+# -------------------------------------------------------------------------
+
+# Phase 1 (Claude / Anthropic backend):
 anthropic>=0.25.0
 
-# Phase 2 (Ollama backend):
-# requests>=2.31.0
-#
-# The requests package is only needed when DAVE_LLM_BACKEND=ollama.
-# Uncomment when switching to the Ollama backend.
+# Scaleway backend (and Ollama fallback) — uses the openai package with a
+# custom base_url pointed at https://api.scaleway.ai/v1.
+openai>=1.30.0
+
+# Phase 2 target backend: Salamandra 7B via Ollama.
+# The Ollama backend uses requests directly.
+requests>=2.31.0
+
+# -------------------------------------------------------------------------
+# Web frontend
+# -------------------------------------------------------------------------
+
+# Flask web framework and password hashing utility.
+flask>=3.0.0
+werkzeug>=3.0.0
+
+# Production WSGI server. Run with:
+#   gunicorn "web.app:create_app()" --bind 0.0.0.0:8000 --workers 1 --threads 4
+# (single worker required — ACTIVE_SESSIONS is in-process memory)
+gunicorn>=22.0.0

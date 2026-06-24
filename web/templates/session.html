@@ -184,7 +184,20 @@ async function sendTurn() {
             appendTurnDOM(text, "[Error: " + data.error + "]");
         } else if (data.exhausted) {
             appendTurn(text, data.message);
-            appendTurn(null, "You can reach Elizabeth via LinkedIn: " + data.contact_url);
+            // Append a clickable LinkedIn link rather than plain text.
+            const linkTurn = document.createElement("div");
+            linkTurn.className = "turn";
+            const linkP = document.createElement("div");
+            linkP.className = "turn__prose";
+            const a = document.createElement("a");
+            a.href = data.contact_url;
+            a.textContent = "Contact via LinkedIn";
+            a.target = "_blank";
+            a.rel = "noopener";
+            linkP.appendChild(a);
+            linkTurn.appendChild(linkP);
+            output.appendChild(linkTurn);
+            output.scrollTop = output.scrollHeight;
             if (data.turns) updateTurns(data.turns);
             inputEl.disabled = true;
             sendBtn.disabled = true;
