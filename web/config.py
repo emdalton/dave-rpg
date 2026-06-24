@@ -113,18 +113,22 @@ TURNSTILE_VERIFY_URL: str = "https://challenges.cloudflare.com/turnstile/v0/site
 #                  immediately after it is created to put it in a clean start
 #                  state. This ensures the user always begins fresh regardless
 #                  of the state the source DB was left in.
+#   description  — one-line blurb shown to the player on the lobby page.
 AVAILABLE_MODULES: dict = {
     "The Hidden Hostel": {
         "db":           "modules/hidden_hostel/hidden_hostel.db",
         "reset_script": "modules/hidden_hostel/reset_instance.sql",
-    },
-    "Meryton Assembly": {
-        "db":           "modules/Meryton/meryton.db",
-        "reset_script": "modules/Meryton/reset_instance.sql",
+        "description":  "A mini scenario providing access to all features.",
     },
     "I Am a Cat": {
         "db":           "modules/i_am_a_cat/i_am_a_cat.db",
         "reset_script": "modules/i_am_a_cat/reset_instance.sql",
+        "description":  "An absurdist adventure of a bored cat at 3am.",
+    },
+    "The Meryton Assembly": {
+        "db":           "modules/Meryton/meryton.db",
+        "reset_script": "modules/Meryton/reset_instance.sql",
+        "description":  "Elizabeth Bennet attends the Assembly to dance and socialize.",
     },
 }
 

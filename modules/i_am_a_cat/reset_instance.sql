@@ -47,9 +47,9 @@ SET current_location_id = 1,
     emotional_state     = 'restless'
 WHERE id = 1;
 
--- Spook (id=2): Living Room; playful
+-- Spook (id=2): Study (loc 11); playful — probably batting something at 3am
 UPDATE character
-SET current_location_id = 1,
+SET current_location_id = 11,
     emotional_state     = 'playful'
 WHERE id = 2;
 
@@ -112,7 +112,21 @@ DELETE FROM action_log WHERE game_id = 1;
 
 DELETE FROM character_visited_location WHERE character_id = 1;
 
--- Insert the starting location as already visited so pathfinding works
--- from turn 1 without needing a dedicated "discover starting room" step.
+-- Toulouse knows every room in the house — it is his territory.
+-- Re-seed all 13 locations as visited so the player can quick-move
+-- to any room from turn 1, matching the design intent in seed.sql.
 INSERT OR IGNORE INTO character_visited_location (character_id, location_id)
-VALUES (1, 1);  -- Toulouse starts in Living Room
+VALUES
+    (1, 1),   -- Living Room
+    (1, 2),   -- Dining Room
+    (1, 3),   -- Kitchen
+    (1, 4),   -- Utility Room
+    (1, 5),   -- Main Stairs
+    (1, 6),   -- Basement Main Room
+    (1, 7),   -- Basement Storage Room
+    (1, 8),   -- Tiled Overlook
+    (1, 9),   -- Bathroom
+    (1, 10),  -- Bedroom
+    (1, 11),  -- Study
+    (1, 12),  -- Upper Hallway
+    (1, 13);  -- Main Floor Hallway

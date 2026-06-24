@@ -33,9 +33,12 @@
 
 <form method="POST" action="{{ url_for('game.lobby') }}">
     <div class="module-list">
-        {% for name, path in modules.items() %}
+        {% for name, module in modules.items() %}
         <button type="submit" name="module" value="{{ name }}" class="module-card">
             <div class="module-card__name">{{ name }}</div>
+            {% if module.description %}
+            <div class="module-card__desc">{{ module.description }}</div>
+            {% endif %}
         </button>
         {% endfor %}
     </div>

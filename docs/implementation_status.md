@@ -1,7 +1,44 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-06-23, session 31 (closed).*
+*Last updated: 2026-06-23, session 32 (closed).*
+
+---
+
+## Session 32 notes (2026-06-23)
+
+**Completed this session:**
+
+- **I Am a Cat — rebuilt template DB and fixed reset_instance.sql:**
+  - `modules/i_am_a_cat/i_am_a_cat.db` rebuilt from `schema/schema.sql` +
+    `modules/i_am_a_cat/seed.sql`. Root cause: the consolidated seed.sql (which
+    correctly uses `loc_id` / v10 column names) had never been applied to build
+    a fresh DB. The template had 0 items; schema was at v12 but data was from
+    older incremental migrations that predated items being seeded.
+  - After rebuild: 37 items, 13 locations, 5 characters, 8 internal states,
+    13 visited locations, 13 location connections, schema v12, instance
+    `status=ready`, clock at 3:00 AM.
+  - `modules/i_am_a_cat/reset_instance.sql` fixed: was deleting all visited
+    locations and only restoring location 1. Now restores all 13 locations so
+    Toulouse can quick-move anywhere from turn 1, matching the seed.sql design
+    intent ("Toulouse knows every room in the house — it is his territory").
+  - Module is now web-playable.
+
+- **Lobby and config updates (committed this session):**
+  - `web/config.py`: `AVAILABLE_MODULES` extended with `description` field per
+    module; renamed "Meryton Assembly" → "The Meryton Assembly" (key rename
+    affects user DB filename slug).
+  - `web/templates/lobby.html`: module card template updated to display
+    `module.description` below the module name.
+
+**Pending / known issues:**
+
+- `_record_last_tokens()` in `web/game.py` is a no-op. Budget display €0.0000.
+- Green Room Mode engine loop still pending (issue #59).
+- Tier 1 tests: `GameEngine` web API methods (MockLLMClient).
+- Tier 2 test: same-room speech guard (address `characters_nearby` NPC,
+  assert no attitude delta).
+- Deployment to Scaleway (gunicorn + config) not yet done.
 
 ---
 
@@ -91,8 +128,6 @@
 - Green Room Mode engine implementation still pending (issue #59). Schema
   prerequisite (`module_flags` v12) is now committed. Next: `character_aspect`
   table (schema v13?), Green Room engine loop, Hidden Hostel seed update.
-- I Am a Cat `seed.sql` still uses v1 column names — needs update before
-  that module is playable via the web frontend.
 - Tier 1 tests for `GameEngine` web API methods (using MockLLMClient).
 - Tier 2 test for same-room speech guard: address a `characters_nearby` NPC
   and assert no attitude delta is applied.
