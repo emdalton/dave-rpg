@@ -103,6 +103,7 @@ def lobby():
     module_cfg   = config.AVAILABLE_MODULES[module_name]
     template_path  = module_cfg["db"]
     reset_script   = module_cfg["reset_script"]
+    game_id        = module_cfg["game_id"]
     module_slug    = _slugify(module_name)
     user_db_path   = _user_game_db_path(user_id, module_slug)
 
@@ -117,11 +118,10 @@ def lobby():
     try:
         from engine.db import Database
         from engine.engine import GameEngine
-        import engine.config as engine_config
 
         # Point the engine at the user's personal game DB.
         db = Database(str(user_db_path))
-        engine = GameEngine(db, game_id=1)
+        engine = GameEngine(db, game_id=game_id)
 
         ACTIVE_SESSIONS[user_id] = {
             "engine": engine,
