@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Lobby{% endblock %}
+
+{% block content %}
+<h2>Choose a module</h2>
+
+{% if has_active_session %}
+<div class="card card--compact" style="margin-bottom: 1.25rem; border-color: var(--gold);">
+    <p>You have an active session.
+        <a href="{{ url_for('game.game_session') }}">Continue it</a>
+        or start a new one below (this will end the current session).
+    </p>
+</div>
+{% endif %}
+
+<div class="card card--compact" style="margin-bottom: 1.25rem;">
+    <p class="budget-bar__label">
+        Alpha turns: {{ turns.turns_remaining }} of {{ turns.max_turns }} remaining
+    </p>
+    <div class="budget-bar__track">
+        {% set pct = (turns.turns_used / turns.max_turns * 100)|round(1) %}
+        <div class="budget-bar__fill
+            {% if pct >= 90 %}budget-bar__fill--critical
+            {% elif pct >= 70 %}budget-bar__fill--warning{% endif %}"
+            style="width: {{ [pct, 100]|min }}%">
+        </div>
+    </div>
+    <p style="font-size: 0.8rem; color: var(--ink-light); margin-top: 0.4rem; font-style: italic;">
+        Each turn is one player action processed by the engine.
+        Contact via LinkedIn when your turns are used up if you'd like more.
+    </p>
+</div>
+
+<form method="POST" action="{{ url_for('game.lobby') }}">
+    <div class="module-list">
+        {% for name, path in modules.items() %}
+        <button type="submit" name="module" value="{{ name }}" class="module-card">
+            <div class="module-card__name">{{ name }}</div>
+        </button>
+        {% endfor %}
+    </div>
+</form>
+{% endblock %}

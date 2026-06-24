@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Confirm Character{% endblock %}
+{% block wrapper_class %}page-wrapper--narrow{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>Is this your character?</h2>
+    <p style="font-size: 0.9rem; color: var(--ink-light); margin-bottom: 1.25rem;">
+        Here is what the engine understood from your description.
+        If something is wrong, add a correction below.
+    </p>
+
+    <div style="margin-bottom: 1.25rem;">
+        {% if extracted.high_concept %}
+        <p><strong>High concept:</strong> {{ extracted.high_concept }}</p>
+        {% endif %}
+        {% if extracted.trouble %}
+        <p><strong>Trouble:</strong> {{ extracted.trouble }}</p>
+        {% endif %}
+        {% if extracted.aspects %}
+        <p><strong>Aspects:</strong> {{ extracted.aspects | join(", ") }}</p>
+        {% endif %}
+        {% if extracted.skills %}
+        <p><strong>Skills:</strong> {{ extracted.skills | join(", ") }}</p>
+        {% endif %}
+        {% if extracted.confirmation_text %}
+        <hr>
+        <p style="font-style: italic;">{{ extracted.confirmation_text }}</p>
+        {% endif %}
+        {% if extracted.missing_fields %}
+        <p style="color: var(--error); font-size: 0.85rem;">
+            Missing: {{ extracted.missing_fields | join(", ") }}
+        </p>
+        {% endif %}
+    </div>
+
+    <form method="POST" action="{{ url_for('game.green_room_confirm') }}">
+        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem;">
+            <button type="submit" name="confirmed" value="yes" class="btn btn--primary">
+                Yes, that's right
+            </button>
+            <button type="submit" name="confirmed" value="no" class="btn"
+                onclick="document.getElementById('correction-row').style.display='block'; return false;">
+                No, I want to correct something
+            </button>
+        </div>
+        <div id="correction-row" style="display: none;">
+            <div class="form-group">
+                <label for="correction">Correction</label>
+                <textarea
+                    id="correction"
+                    name="correction"
+                    rows="3"
+                    placeholder="Describe what should be different."
+                ></textarea>
+            </div>
+            <button type="submit" name="confirmed" value="no" class="btn btn--primary">
+                Re-extract with correction
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

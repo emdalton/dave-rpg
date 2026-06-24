@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Register{% endblock %}
+{% block wrapper_class %}page-wrapper--narrow{% endblock %}
+
+{# Load Turnstile widget script #}
+{% block head_extra %}
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>Create an account</h2>
+    <p style="color: var(--ink-light); font-size: 0.9rem; margin-bottom: 1.25rem;">
+        No email required. Choose a username and password.
+    </p>
+
+    <form method="POST" action="{{ url_for('auth.register') }}">
+
+        <div class="form-group">
+            <label for="username">Username</label>
+            <input
+                type="text"
+                id="username"
+                name="username"
+                value="{{ username or '' }}"
+                autocomplete="username"
+                maxlength="32"
+                required
+            >
+            <p class="form-hint">3–32 characters; letters, numbers, and underscores only.</p>
+        </div>
+
+        <div class="form-group">
+            <label for="password">Password</label>
+            <input
+                type="password"
+                id="password"
+                name="password"
+                autocomplete="new-password"
+                minlength="8"
+                required
+            >
+            <p class="form-hint">At least 8 characters.</p>
+        </div>
+
+        {# Cloudflare Turnstile widget — renders a CAPTCHA challenge inline #}
+        <div class="form-group">
+            <div class="cf-turnstile" data-sitekey="{{ turnstile_site_key }}"></div>
+        </div>
+
+        <div class="btn-row">
+            <button type="submit" class="btn btn--primary">Register</button>
+            <a href="{{ url_for('auth.login') }}" class="btn">Already have an account?</a>
+        </div>
+
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Character Creation{% endblock %}
+{% block wrapper_class %}page-wrapper--narrow{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>{{ gr_config.game_name }}</h2>
+    {% if gr_config.creation_prompt %}
+        <p style="color: var(--ink-light); font-style: italic; margin-bottom: 1rem;">
+            {{ gr_config.creation_prompt }}
+        </p>
+    {% endif %}
+    {% if gr_config.creation_hint %}
+        <p style="font-size: 0.85rem; color: var(--ink-light); margin-bottom: 1.25rem;">
+            {{ gr_config.creation_hint }}
+        </p>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('game.green_room') }}">
+        <div class="form-group">
+            <label for="description">Describe your character</label>
+            <textarea
+                id="description"
+                name="description"
+                rows="5"
+                placeholder="Write freely — the engine will extract what it needs."
+                required
+            ></textarea>
+        </div>
+        <div class="btn-row">
+            <button type="submit" class="btn btn--primary">Continue</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

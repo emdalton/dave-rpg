@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}DAVE{% endblock %} — DAVE RPG</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    {% block head_extra %}{% endblock %}
+</head>
+<body>
+
+<div class="page-wrapper {% block wrapper_class %}{% endblock %}">
+
+    {# ------------------------------------------------------------------ #}
+    {# Site header                                                         #}
+    {# ------------------------------------------------------------------ #}
+    <header class="site-header">
+        <a href="{{ url_for('auth.index') }}" class="site-header__title">DAVE</a>
+        <nav class="site-header__nav">
+            {% if session.get('username') %}
+                <span>{{ session.username }}</span>
+                <a href="{{ url_for('auth.logout') }}">Log out</a>
+            {% else %}
+                <a href="{{ url_for('auth.login') }}">Log in</a>
+                <a href="{{ url_for('auth.register') }}">Register</a>
+            {% endif %}
+        </nav>
+    </header>
+
+    {# ------------------------------------------------------------------ #}
+    {# Flash messages                                                      #}
+    {# ------------------------------------------------------------------ #}
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <ul class="flash-messages">
+                {% for msg in messages %}
+                    <li class="flash flash--error">{{ msg }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    {% endwith %}
+
+    {# ------------------------------------------------------------------ #}
+    {# Page content                                                        #}
+    {# ------------------------------------------------------------------ #}
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    {# ------------------------------------------------------------------ #}
+    {# Footer                                                              #}
+    {# ------------------------------------------------------------------ #}
+    <footer class="site-footer">
+        DAVE &mdash; Digitally Adjudicated Virtual Environment &mdash; open-source research project
+        &mdash; <a href="https://github.com/emdalton/dave-rpg" target="_blank" rel="noopener">View Source on GitHub</a>
+    </footer>
+
+</div>
+
+{% block body_scripts %}{% endblock %}
+
+</body>
+</html>

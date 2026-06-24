@@ -135,8 +135,18 @@ Rules:
   on their species and the nearby character's current state — apply your
   knowledge of the game world and the player character's sensory capabilities.
   Do not treat nearby characters as present; they are in an adjacent room.
+- SPEECH ACTS REQUIRE PRESENCE: if the player's action is a speak, interact,
+  or any directed address toward a specific character, and that character
+  appears in characters_nearby rather than characters_present, the speech act
+  cannot complete. The targeted character is out of earshot and cannot hear,
+  see, or respond. Adjudicate the outcome as the player calling out without
+  receiving a response — no attitude deltas, no emotional_state changes, and
+  no narrative response from that character. Describe only what the player
+  can observe: their own words going unanswered. Do not route the speech to a
+  different character as a substitute. Yelling across rooms to reach a nearby
+  character is a future feature; for now, absence means no interaction.
 - NPC ACTIONS ARE AUTHORITATIVE: only describe NPCs acting, speaking, or
-  reacting in the narrative_beat if they appear in characters_at_location.
+  reacting in the narrative_beat if they appear in characters_present.
   Do not attribute actions or reactions to NPCs who are not listed there.
   If an NPC is in characters_nearby (adjacent room), they may be audible or
   detectable by smell, but do not describe them as present, visible, or

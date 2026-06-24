@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+{% block title %}{{ module }}{% endblock %}
+{% block wrapper_class %}page-wrapper--wide{% endblock %}
+
+{% block content %}
+<div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+    <h2 style="margin: 0;">{{ module }}</h2>
+    <div style="display: flex; gap: 0.75rem; align-items: center;">
+        <span id="turns-label" style="font-size: 0.8rem; color: var(--ink-light);"
+              title="Alpha testing: {{ turns.max_turns }} turns per account">
+            {{ turns.turns_remaining }} turn{{ 's' if turns.turns_remaining != 1 else '' }} left
+        </span>
+        <form method="POST" action="{{ url_for('game.session_exit') }}" style="margin: 0;">
+            <button type="submit" class="btn btn--sm btn--danger">Exit</button>
+        </form>
+    </div>
+</div>
+
+<div class="game-terminal">
+    <div class="game-terminal__output" id="output">
+        {# Turn history is restored from localStorage by the script below.    #}
+        {# On a fresh session (opening present), localStorage is cleared first #}
+        {# and the opening scene is written both to the DOM and to storage.   #}
+    </div>
+    {# Thinking indicator — visible only while a fetch is in flight #}
+    <div class="thinking" id="thinking">
+        <span class="thinking__dots">Thinking</span>
+    </div>
+    <div class="game-terminal__input-row">
+        <input
+            class="game-terminal__input"
+            type="text"
+            id="player-input"
+            placeholder="What do you do?"
+            autocomplete="off"
+            autofocus
+        >
+        <button class="game-terminal__submit" id="send-btn" type="button">Send</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+<script>
+/*
+ * session.html inline script — game terminal interaction
+ *
+ * Turn history is stored in localStorage so it survives page refreshes and
+ * navigation away and back. The storage key is scoped to username + module
+ * so multiple accounts or modules don't collide.
+ *
+ * On a fresh session (server sets `opening`), localStorage is cleared and
+ * the opening scene is written as the first entry.
+ * On a return visit (no `opening`), prior turns are restored from storage.
+ *
+ * Each stored entry: { player: string|null, prose: string }
+ */
+
+const output    = document.getElementById("output");
+const thinking  = document.getElementById("thinking");
+const inputEl   = document.getElementById("player-input");
+const sendBtn   = document.getElementById("send-btn");
+const turnsEl   = document.getElementById("turns-label");
+
+// localStorage key scoped to this user + module.
+const STORAGE_KEY = "dave_history_{{ session.username|default('') }}_{{ module|replace(' ', '_') }}";
+
+// -------------------------------------------------------------------------
+// Turn history helpers
+// -------------------------------------------------------------------------
+
+/** Load the stored history array, or [] if nothing is stored. */
+function loadHistory() {
+    try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    } catch (_) {
+        return [];
+    }
+}
+
+/** Persist the history array to localStorage. */
+function saveHistory(history) {
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+    } catch (_) {
+        // Storage quota exceeded or unavailable — silently ignore.
+    }
+}
+
+// -------------------------------------------------------------------------
+// DOM helpers
+// -------------------------------------------------------------------------
+
+/**
+ * Append a turn block to the output panel and scroll to bottom.
+ * Does NOT write to localStorage — callers do that separately so we can
+ * use this function both for new turns and for restoring history.
+ */
+function appendTurnDOM(playerText, proseText) {
+    const turn = document.createElement("div");
+    turn.className = "turn";
+    if (playerText) {
+        const p = document.createElement("div");
+        p.className = "turn__player";
+        p.textContent = "> " + playerText;
+        turn.appendChild(p);
+    }
+    if (proseText) {
+        const p = document.createElement("div");
+        p.className = "turn__prose";
+        p.textContent = proseText;
+        turn.appendChild(p);
+    }
+    output.appendChild(turn);
+    output.scrollTop = output.scrollHeight;
+}
+
+/** Append a turn to the DOM and persist it to localStorage. */
+function appendTurn(playerText, proseText, persist) {
+    appendTurnDOM(playerText, proseText);
+    if (persist !== false) {
+        const history = loadHistory();
+        history.push({ player: playerText || null, prose: proseText || "" });
+        saveHistory(history);
+    }
+}
+
+/** Update the turns-remaining display in the header bar. */
+function updateTurns(turns) {
+    if (!turns || !turnsEl) return;
+    const n = turns.turns_remaining;
+    turnsEl.textContent = n + " turn" + (n !== 1 ? "s" : "") + " left";
+    if (n <= 5) {
+        turnsEl.style.color = "var(--error)";
+    } else if (n <= 15) {
+        turnsEl.style.color = "#b8860b";
+    }
+}
+
+// -------------------------------------------------------------------------
+// Page initialisation — restore history or seed with opening scene
+// -------------------------------------------------------------------------
+
+{% if opening %}
+{# Fresh session: clear any stale history for this module and write the opening. #}
+localStorage.removeItem(STORAGE_KEY);
+appendTurn(null, {{ opening | tojson }});
+{% else %}
+{# Return visit: restore turn history from localStorage. #}
+const history = loadHistory();
+if (history.length > 0) {
+    history.forEach(function(entry) {
+        appendTurnDOM(entry.player, entry.prose);
+    });
+    output.scrollTop = output.scrollHeight;
+}
+{% endif %}
+
+// -------------------------------------------------------------------------
+// Turn submission
+// -------------------------------------------------------------------------
+
+async function sendTurn() {
+    const text = inputEl.value.trim();
+    if (!text) return;
+
+    inputEl.value = "";
+    inputEl.disabled = true;
+    sendBtn.disabled = true;
+    thinking.style.display = "block";
+
+    try {
+        const resp = await fetch("{{ url_for('game.session_turn') }}", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({ input: text }),
+        });
+
+        const data = await resp.json();
+        thinking.style.display = "none";
+
+        if (data.error) {
+            // Errors are not persisted — transient display only.
+            appendTurnDOM(text, "[Error: " + data.error + "]");
+        } else if (data.exhausted) {
+            appendTurn(text, data.message);
+            appendTurn(null, "You can reach Elizabeth via LinkedIn: " + data.contact_url);
+            if (data.turns) updateTurns(data.turns);
+            inputEl.disabled = true;
+            sendBtn.disabled = true;
+            return;
+        } else if (data.ended) {
+            appendTurn(text, "You have left the session. Farewell.");
+            if (data.turns) updateTurns(data.turns);
+            localStorage.removeItem(STORAGE_KEY);   // clear history on clean exit
+            inputEl.disabled = true;
+            sendBtn.disabled = true;
+            setTimeout(() => { window.location = "{{ url_for('game.lobby') }}"; }, 2000);
+            return;
+        } else {
+            appendTurn(text, data.prose);
+            if (data.turns) updateTurns(data.turns);
+        }
+    } catch (err) {
+        thinking.style.display = "none";
+        // Network errors are not persisted.
+        appendTurnDOM(text, "[Network error — please try again.]");
+    }
+
+    inputEl.disabled = false;
+    sendBtn.disabled = false;
+    inputEl.focus();
+}
+
+sendBtn.addEventListener("click", sendTurn);
+
+inputEl.addEventListener("keydown", function(e) {
+    if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendTurn();
+    }
+});
+</script>
+{% endblock %}

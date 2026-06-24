@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Welcome{% endblock %}
+{% block wrapper_class %}page-wrapper--narrow{% endblock %}
+
+{% block content %}
+<div class="card" style="text-align: center; padding: 2rem 1.75rem;">
+    <h1>DAVE</h1>
+    <p style="font-style: italic; color: var(--ink-light); margin: 0.5rem 0 1.5rem;">
+        Digitally Adjudicated Virtual Environment
+    </p>
+    <p>
+        A text-based narrative RPG where social dynamics and diplomacy are
+        mechanically first-class. Powered by a locally-reasoning engine and a
+        language model that adjudicates outcomes but holds no permanent state.
+    </p>
+    <p style="color: var(--ink-light); font-size: 0.9rem;">
+        This is an early-access research preview. Testing slots are limited.
+    </p>
+    <div class="btn-row" style="justify-content: center;">
+        <a href="{{ url_for('auth.register') }}" class="btn btn--primary">Register</a>
+        <a href="{{ url_for('auth.login') }}" class="btn">Log in</a>
+    </div>
+</div>
+{% endblock %}

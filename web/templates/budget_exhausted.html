@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Budget Exhausted{% endblock %}
+{% block wrapper_class %}page-wrapper--narrow{% endblock %}
+
+{% block content %}
+<div class="card contact-panel">
+    <h2>Your testing allocation is used up</h2>
+    <p>{{ message }}</p>
+    {% if budget %}
+    <p style="font-size: 0.85rem; color: var(--ink-light);">
+        Total used: €{{ "%.4f"|format(budget.cost_eur) }} of €{{ "%.2f"|format(budget.budget_euros) }}
+    </p>
+    {% endif %}
+    <a href="{{ contact_url }}" class="btn btn--primary" target="_blank" rel="noopener">
+        Contact via LinkedIn
+    </a>
+</div>
+{% endblock %}

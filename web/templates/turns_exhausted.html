@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Alpha Turns Used{% endblock %}
+{% block wrapper_class %}page-wrapper--narrow{% endblock %}
+
+{% block content %}
+<div class="card contact-panel">
+    <h2>You've used your alpha turns</h2>
+    <p>{{ message }}</p>
+    {% if turns %}
+    <p style="font-size: 0.85rem; color: var(--ink-light);">
+        {{ turns.turns_used }} of {{ turns.max_turns }} turns used.
+    </p>
+    {% endif %}
+    <a href="{{ contact_url }}" class="btn btn--primary" target="_blank" rel="noopener">
+        Contact via LinkedIn
+    </a>
+</div>
+{% endblock %}
