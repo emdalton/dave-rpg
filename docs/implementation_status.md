@@ -1,7 +1,103 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-06-16, session 30 (closed).*
+*Last updated: 2026-06-23, session 31 (closed).*
+
+---
+
+## Session 31 notes (2026-06-23)
+
+**Completed this session:**
+
+- **Scaleway serverless inference backend (`engine/llm/scaleway.py`):**
+  - New `ScalewayLLMClient` using the `openai` package with custom `base_url`
+    pointed at `https://api.scaleway.ai/v1`.
+  - Default model: `mistral-small-3.2-24b-instruct-2506`
+    (€0.15/M input, €0.35/M output).
+  - `engine/config.py`: `SCALEWAY_*` constants added; `validate()` updated to
+    accept `"scaleway"` as a valid backend.
+  - `engine/llm/__init__.py`: `"scaleway"` branch added to `get_llm_client()`.
+  - Playtest confirmed working against Hidden Hostel (Gin-chan winged cat
+    description validated as correct, not hallucination).
+
+- **GameEngine web API (`engine/engine.py`):**
+  - Six public methods added for the Flask frontend: `needs_green_room()`,
+    `get_green_room_config()`, `extract_green_room_character()`,
+    `confirm_green_room()`, `get_opening_scene()`, `step()`.
+  - All existing CLI methods (`run()`, `_process_turn()`, etc.) untouched.
+
+- **Pass 2 same-room speech guard (`engine/engine.py`):**
+  - Added `SPEECH ACTS REQUIRE PRESENCE` rule to the Pass 2 prompt.
+  - Directed speech targeting a `characters_nearby` NPC now resolves as
+    unanswered — no attitude deltas, no NPC response, prose describes the
+    player's words going unanswered.
+  - Also corrected stale `characters_at_location` reference to
+    `characters_present` in the NPC ACTIONS ARE AUTHORITATIVE rule.
+  - GitHub issue #64 filed for the yelling-to-adjacent-room future feature.
+
+- **Schema v12 (`module_flags` column):**
+  - `schema/schema.sql` and `schema/migrations/migrate_v11_to_v12.sql`:
+    `module_flags TEXT NOT NULL DEFAULT '{}'` added to `game` table.
+  - `engine/db.py`: `module_flags` parsed as JSON when loading game row.
+  - Completes the schema prerequisite for Green Room Mode (issue #59).
+  - `gh issue comment 59` filed noting v12 is committed.
+
+- **Flask web frontend (`web/`):**
+  - `web/config.py`: budget constants, slot limit (10), turn limit (50 alpha),
+    Turnstile keys (test defaults), module registry with reset script paths,
+    LinkedIn contact URL, message strings.
+  - `web/user_db.py`: SQLite user schema (registration, login, turns_used,
+    budget tracking), thread-safe per-thread connections.
+  - `web/app.py`: Flask application factory, `ACTIVE_SESSIONS` dict,
+    blueprint registration.
+  - `web/auth.py`: landing page, register (with Cloudflare Turnstile), login,
+    logout, `login_required` decorator.
+  - `web/game.py`: lobby, Green Room, session turn loop, exit; per-user game
+    DB provisioning with `reset_instance.sql` applied on every session start
+    (ensures clean state regardless of template DB condition).
+  - Templates: base.html (parchment theme), index, register, login, lobby,
+    session, green_room, green_room_confirm, slots_full, budget_exhausted,
+    turns_exhausted.
+  - `web/static/style.css`: parchment/sepia CSS with custom properties,
+    animated thinking indicator (ellipsis while engine is working).
+  - `session.html` JS: localStorage turn history (survives refresh and
+    navigation away/back), cleared on new session start and clean exit.
+  - `requirements.txt`: added flask, werkzeug, openai, requests, gunicorn.
+
+- **Tests (`tests/test_web_user_db.py`):**
+  - 52 Tier 1 tests for `web/user_db.py`: schema init, registration
+    validation, authentication, slot management, turn tracking (alpha limit),
+    budget tracking (`_compute_cost` arithmetic), `get_user_by_id`.
+  - All 52 passing.
+
+**Design decisions recorded:**
+
+- Turn limit (not token budget) is the primary alpha cost gate: 50 turns per
+  account at this stage. Token columns retained for future reference.
+- Per-user game DBs are always copied fresh from the module template and
+  `reset_instance.sql` is run immediately — no resume across browser sessions
+  for now.
+- `ACTIVE_SESSIONS` dict (in-process) is sufficient for 10-user alpha;
+  requires single gunicorn worker.
+- localStorage for session transcript: correct tool for client-side history
+  persistence in a stateless web game.
+
+**Pending / known issues:**
+
+- `_record_last_tokens()` in `web/game.py` is a no-op (TODO): Scaleway
+  client logs token usage at INFO but does not yet expose a
+  `get_last_call_tokens()` method. Budget display shows €0.0000. Add
+  `get_last_call_tokens()` to `ScalewayLLMClient` next session.
+- Green Room Mode engine implementation still pending (issue #59). Schema
+  prerequisite (`module_flags` v12) is now committed. Next: `character_aspect`
+  table (schema v13?), Green Room engine loop, Hidden Hostel seed update.
+- I Am a Cat `seed.sql` still uses v1 column names — needs update before
+  that module is playable via the web frontend.
+- Tier 1 tests for `GameEngine` web API methods (using MockLLMClient).
+- Tier 2 test for same-room speech guard: address a `characters_nearby` NPC
+  and assert no attitude delta is applied.
+- Deployment to Scaleway (gunicorn + config) not yet done.
+- Session resume across browser restarts not implemented (always starts fresh).
 
 ---
 
