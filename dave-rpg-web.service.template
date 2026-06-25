@@ -1,0 +1,34 @@
+[Unit]
+Description=DAVE RPG Web Frontend
+After=network.target
+
+[Service]
+Type=notify
+# Change 'ubuntu' to your actual username
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/dave-rpg
+Environment="PATH=/home/ubuntu/dave-rpg/.venv/bin"
+EnvironmentFile=/home/ubuntu/dave-rpg/dave-rpg.env
+
+# IMPORTANT: Single worker + single thread required
+# - In-memory session storage (ACTIVE_SESSIONS) is not shared across processes
+# - SQLite connections are not thread-safe by default
+ExecStart=/home/ubuntu/dave-rpg/.venv/bin/gunicorn "web.app:create_app()" \
+    --bind 127.0.0.1:8001 \
+    --workers 1 \
+    --threads 1 \
+    --timeout 120 \
+    --access-logfile /home/ubuntu/dave-rpg/logs/access.log \
+    --error-logfile /home/ubuntu/dave-rpg/logs/error.log \
+    --log-level info
+
+Restart=on-failure
+RestartSec=10
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
