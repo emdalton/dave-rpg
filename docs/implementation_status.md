@@ -11,18 +11,23 @@
 
 - **Deployment to Grizabella (Scaleway VPS) — closes issue #62:**
   - DAVE web frontend deployed to Grizabella (51.15.211.86, Ubuntu 24.04).
+  - Three deployment pitfalls resolved during setup:
+    1. Ubuntu 24.04 does not include `python3-venv` by default — `apt install python3-venv` required.
+    2. Gunicorn must run single-worker, single-thread (`--workers 1 --threads 1`) because `ACTIVE_SESSIONS` is in-process memory and SQLite does not handle concurrent writes.
+    3. `DAVE_LLM_BACKEND=scaleway` must be set explicitly — Scaleway's API is OpenAI-compatible, not Ollama-compatible; it is not the default.
+  - Three deployment files committed to the repo: environment template (all three backend options), systemd service template, and a full deployment guide with troubleshooting notes.
   - Service: `/etc/systemd/system/dave-rpg-web.service`; working directory
-    `/home/ubuntu/dave-rpg`; venv at `.venv/`. Environment vars loaded from
-    `dave-rpg.env` (EnvironmentFile). Gunicorn: 1 worker, 1 thread, port
-    `127.0.0.1:8001`, 120 s timeout. Logs: `logs/access.log` + `logs/error.log`
-    within the repo directory.
+    `/home/ubuntu/dave-rpg`; venv at `.venv/`; env vars from `dave-rpg.env`
+    (EnvironmentFile). Gunicorn: 1 worker, 1 thread, port `127.0.0.1:8001`,
+    120 s timeout. Logs: `logs/access.log` + `logs/error.log` in the repo dir.
   - HTTPS at `https://dave.grizabellamemory.net` via Caddy reverse proxy
     (`caddy.service`). Caddyfile: `dave.grizabellamemory.net` → `localhost:8001`
     with gzip, security headers, and Caddy access log at
     `/var/log/caddy/dave-access.log` (readable only with sudo).
-  - Backend: Scaleway (`DAVE_LLM_BACKEND=scaleway`, Mistral Small 3.2 24B).
-  - All three modules (I Am a Cat, Hidden Hostel, The Meryton Assembly) playable
-    via the web interface.
+  - Backend: Scaleway (`DAVE_LLM_BACKEND=scaleway`,
+    `mistral/mistral-small-3.2-24b-instruct-2506:fp8`).
+  - All three modules (I Am a Cat, Hidden Hostel, The Meryton Assembly) playable.
+  - Turn limit: 50/user; user cap: 10.
 
 - **Local development instance:**
   - DAVE running locally on `http://localhost:5001` via gunicorn.
@@ -31,13 +36,33 @@
 
 **Known issues identified this session:**
 
+- **Retrieving Grizabella logs:** Flask/DAVE logs go to the systemd journal,
+  not the gunicorn error log file (gunicorn doesn't capture stderr by default).
+  Command: `ssh ubuntu@51.15.211.86 'journalctl -u dave-rpg-web.service --since "YYYY-MM-DD" --no-pager'`
 - `openai._base_client` DEBUG logs not suppressed: the noisy-logger list in
   `web/app.py` covers `httpx`, `httpcore`, `anthropic`, `werkzeug` but not
   `openai`. Add `"openai"` to quiet HTTP-level noise from the Scaleway client.
-- Inference quality on Meryton (Mistral Small 3.2): Pass 3 repetition failure
-  (no-repeat rule poorly followed); Pass 1 misrouting "where is X" as a
-  navigation intent; raw engine refusal messages leaking to player prose.
-  Under investigation.
+- **Inference quality issues on Meryton (Mistral Small 3.2 fp8) — diagnosed
+  via journalctl:**
+  1. **Blocked-move message leak** (`web/game.py`): when the engine blocks a
+     quick-move to an unvisited location, the raw string ("You haven't been to
+     Supper Room yet") reaches the player directly instead of going through
+     Pass 3. The web handler must catch blocked moves and render them as prose.
+  2. **Pass 2 character confusion**: when the player spoke to Mr. Robinson
+     (attempting to hint about Charlotte), Pass 2 instead fired Mr. Bingley's
+     pending_intent, committed both Elizabeth and Bingley to a dance, and
+     cleared Bingley's intent — entirely ignoring the actual action target.
+     A second dance commitment followed on the very next turn. Likely
+     exacerbated by fp8 quantization. Mitigations: (a) add a Pass 2 prompt
+     rule that outcomes must be consistent with the Pass 1 `target` character;
+     (b) test the non-quantized model (`mistral-small-3.2-24b-instruct-2506`
+     without `:fp8`).
+  3. **Mr. Robinson's approach and retreat** was correct engine behavior —
+     his 3-minute "approaching Elizabeth to ask for a dance" activity expired
+     as designed. Not a bug.
+  4. **Pass 3 repetition failure**: no-repeat rule poorly followed by Mistral
+     Small — same imagery (ballroom hum, card room, curiosity prickling)
+     repeated across nearly every turn. Prompt hardening needed.
 - Issues #63 and #64 are identical (yelling mechanic) — close one as duplicate.
 
 **Pending / known issues (carried forward):**
