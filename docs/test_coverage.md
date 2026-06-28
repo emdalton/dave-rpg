@@ -83,6 +83,10 @@ The **Gap / notes** column calls out missing coverage or known issues.
 | Pass 2 packet — hidden motivation absent from NPC profile | — | — | — | `test_hidden_hostel:TestHiddenMotivationAccessControl::test_hidden_motivation_absent_from_pass2_npc_profile` | — |
 | Pass 3 packet — required keys / outcome / adjacent_locations | `test_context:TestBuildPass3Packet` | — | — | — | — |
 | Pass 3 packet — internal states (display filter) | `test_internal_state_drift:TestPass3InternalStatePacket` | — | — | — | Uses `hostel_db`; hunger display filter tested |
+| Pass 3 packet — `current_activity` in `characters_present` | `test_context:TestBuildPass3Packet::test_characters_present_has_current_activity_key`, `::test_characters_present_current_activity_reflects_db` | — | — | — | Null when unset; verbatim when set |
+| Pass 3 packet — `recent_prose` anti-repetition context | `test_context:TestBuildPass3Packet::test_pass3_packet_includes_recent_prose_key`, `::test_pass3_packet_recent_prose_populated_from_db` | — | — | — | Empty at session start; populated from `action_log.prose` |
+| Action log prose persistence (`update_action_log_prose`, `get_recent_prose`) | `test_db:TestActionLogProse` (5 tests) | — | — | — | Sorts by `id` not `created_at`; null rows excluded |
+| Blocked-move prose (Pass 3 synthetic outcome, no raw string leak) | `test_hidden_hostel:TestMoveBlockedProse` (4 tests) | — | — | HH | 2 LLM calls only; player location unchanged |
 
 ---
 

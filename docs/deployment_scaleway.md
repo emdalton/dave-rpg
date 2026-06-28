@@ -6,7 +6,7 @@ This guide covers deploying DAVE RPG on a Scaleway VPS using the Scaleway Genera
 
 - **Hosting**: Scaleway VPS (Ubuntu 24.04 LTS)
 - **LLM Backend**: Scaleway Generative APIs (OpenAI-compatible endpoint)
-- **Model**: `mistral/mistral-small-3.2-24b-instruct-2506:fp8`
+- **Model**: `mistral/mistral-small-3.2-24b-instruct-2506` (full-precision; `:fp8` suffix selects quantized variant — avoid for Pass 2 quality)
 - **Web Server**: Gunicorn (single-threaded) behind Caddy reverse proxy
 - **Database**: SQLite (per-user instances)
 - **Process Management**: systemd
@@ -77,7 +77,7 @@ DAVE_LLM_BACKEND=scaleway
 
 
 
-DAVE_SCALEWAY_MODEL=mistral/mistral-small-3.2-24b-instruct-2506:fp8
+DAVE_SCALEWAY_MODEL=mistral/mistral-small-3.2-24b-instruct-2506
 
 
 
@@ -294,6 +294,25 @@ git pull
 source .venv/bin/activate
 pip install -r requirements.txt
 sudo systemctl restart dave-rpg-web
+
+**Schema migrations:** if a new migration script appears in `schema/migrations/`,
+run it against every game DB in `user_dbs/` before restarting the service.
+`dave_users.db` is authentication-only and never needs game schema migrations.
+
+```bash
+# Example: migrate all game DBs to the latest schema
+for db in user_dbs/*.db; do
+  echo "Migrating $db..."
+  sqlite3 "$db" < schema/migrations/migrate_vN_to_vM.sql
+done
+```
+
+Check `docs/implementation_status.md` for the current schema version and
+whether a migration is required for a given update.
+
+**Log locations:** engine logs go to `logs/error.log` (not journald) because
+gunicorn uses `--capture-output`. Use `tail -f logs/error.log` to follow live
+output. `journalctl -u dave-rpg-web.service` shows only start/stop events.
 
 
 

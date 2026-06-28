@@ -1,7 +1,7 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-06-28, session 35 (open).*
+*Last updated: 2026-06-28, session 35 (closed).*
 
 ---
 
