@@ -260,8 +260,11 @@ def test_engine(tmp_db, mock_llm):
     Return a fully initialised GameEngine wired to the test database and the
     mock LLM client.
 
-    engine.llm.get_llm_client() is patched during __init__ so no API
-    credentials are needed. After construction, engine.llm is also replaced
+    engine.engine.get_llm_client is patched during __init__ so no API
+    credentials are needed. The patch target must be "engine.engine.get_llm_client"
+    (the name as imported into engine.engine) not "engine.llm.get_llm_client"
+    (the definition site) — patching the source module has no effect on an
+    already-imported name. After construction, engine.llm is also replaced
     directly as a belt-and-suspenders measure.
 
     Tests that call engine methods (e.g. _apply_outcome, _check_npc_wandering)
@@ -269,7 +272,7 @@ def test_engine(tmp_db, mock_llm):
     """
     from engine.engine import GameEngine
 
-    with patch("engine.llm.get_llm_client", return_value=mock_llm):
+    with patch("engine.engine.get_llm_client", return_value=mock_llm):
         engine = GameEngine(db=tmp_db, game_id=1)
 
     engine.llm = mock_llm

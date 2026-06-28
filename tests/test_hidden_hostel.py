@@ -4,7 +4,7 @@ tests/test_hidden_hostel.py — Hidden Hostel Module Integration Tests (Tier 1)
 Developed with the assistance of Claude (model: claude-sonnet-4-6, Anthropic)
 
 Tier 1 (no LLM) tests that validate engine mechanics against the Hidden Hostel
-test world module. The Hidden Hostel is a five-location liminal fantasy inn
+test world module. The Hidden Hostel is a six-location liminal fantasy inn
 designed to exercise every implemented engine feature in a single module.
 
 Why a separate module for tests?
@@ -45,7 +45,7 @@ Feature coverage map (see seed.sql header for full list):
   §M  Pre-seeded location_detail retrieval (Common Room)
 
 Test world character IDs (from seed.sql):
-    1  The Traveller  — player, Common Room (1)
+    1  The Traveller  — player, Outside the Hostel Door (6)
     2  Marta          — npc_active, Kitchen (2); active meal prep activity
     3  The Wanderer   — npc_active, Common Room (1); wander_prob=0.75, range=[1,2,3]
     4  The Scholar    — npc_active, Room A (4); pending_intent set; hidden_motivation
@@ -53,15 +53,17 @@ Test world character IDs (from seed.sql):
     6  Gin-chan       — npc_active, Common Room (1); sleepiness=0.72
 
 Location IDs:
-    1  Common Room   (public)
-    2  Kitchen       (semi_private)
-    3  Upper Corridor (semi_private)
-    4  Room A        (private)
-    5  Room B        (private, locked/impassable from 3)
+    1  Common Room              (public)
+    2  Kitchen                  (semi_private)
+    3  Upper Corridor           (semi_private)
+    4  Room A                   (private)
+    5  Room B                   (private, locked/impassable from 3)
+    6  Outside the Hostel Door  (exterior) — player start
 
 Connection IDs (location_a_id < location_b_id):
     1↔2  door,   passable
     1↔3  stairs, passable
+    1↔6  door,   passable   (the blue hostel door)
     3↔4  door,   passable
     3↔5  door,   impassable (locked)
 
@@ -198,7 +200,7 @@ def hostel_engine(tmp_hostel_db):
 
     mock_llm = MockLLMClient([mock_pass1, mock_pass2, mock_pass3])
 
-    with patch("engine.llm.get_llm_client", return_value=mock_llm):
+    with patch("engine.engine.get_llm_client", return_value=mock_llm):
         engine = GameEngine(db=tmp_hostel_db, game_id=1)
     engine.llm = mock_llm
     return engine
@@ -239,12 +241,17 @@ class TestStaircaseConnection:
         """
         BFS pathfinding from Common Room (1) to Upper Corridor (3) must succeed.
 
-        _resolve_multistep_move() is the BFS layer. The Traveller starts at the
-        Common Room; the Upper Corridor is one staircase step away. The test
-        marks the destination as visited first (bypassing the quick-move guard)
-        then calls the pathfinder directly.
+        The Traveller seeds at Outside the Hostel Door (6), so we relocate them
+        to the Common Room first. From there, the Upper Corridor is one staircase
+        step away. The test also marks the destination as visited so the
+        quick-move guard does not block before BFS runs.
         """
         player_id = hostel_engine._player["id"]  # Traveller, id=1
+
+        # Relocate the player to Common Room (the staircase's starting point).
+        hostel_engine.db.update_character_location(player_id, 1)
+        hostel_engine._player = hostel_engine.db.get_player_character(game_id=1)
+
         # Mark Upper Corridor as visited so the quick-move guard doesn't block.
         hostel_engine.db.mark_location_visited(player_id, 3)
 
@@ -259,10 +266,20 @@ class TestStaircaseConnection:
         """
         Adjacent moves bypass the visited-location guard even without a visit record.
 
-        The Traveller has not visited the Upper Corridor yet at session start.
-        Because it is directly adjacent (one step), _resolve_multistep_move
-        should succeed regardless.
+        The staircase connects Common Room (1) to Upper Corridor (3). From the
+        Common Room, Upper Corridor is directly adjacent, so _resolve_multistep_move
+        should succeed even without a prior visit to location 3.
+
+        The Traveller seeds at Outside the Hostel Door (6), so we relocate them
+        to the Common Room first; the test is specifically about the staircase
+        adjacency bypass, not about the entrance door.
         """
+        player_id = hostel_engine._player["id"]
+
+        # Relocate the player to Common Room (the staircase's starting point).
+        hostel_engine.db.update_character_location(player_id, 1)
+        hostel_engine._player = hostel_engine.db.get_player_character(game_id=1)
+
         result = hostel_engine._resolve_multistep_move(target_location_id=3)
         assert result["reachable"] is True, (
             "Adjacent staircase move should succeed even without a prior visit"
@@ -1014,4 +1031,146 @@ class TestCharacterGoals:
         all_names = [g["goal_name"] for g in all_goals]
         assert "safety" in all_names, (
             "Scholar's hidden safety goal must appear when include_hidden=True"
+        )
+
+
+# =============================================================================
+# §N — Move-blocked prose rendering
+#
+# Regression tests for the fix introduced after the 2026-06-28 Meryton
+# playtest: when the player tries to quick-move to an unvisited non-adjacent
+# location, the engine previously returned the raw internal constraint string
+# ("You haven't been to X yet.") directly as player-facing prose. The fix
+# routes the blocked move through _render_move_blocked(), which runs Pass 3
+# on a synthetic failure outcome.
+#
+# Hidden Hostel topology used:
+#   Common Room (1) — adjacent to Upper Corridor (3) via stairs
+#   Room A (4)      — reachable only via Upper Corridor; not adjacent to (1)
+#
+# At session start the Traveller has not visited Room A, so a quick-move to
+# Room A (id=4) from the Common Room triggers the visited-location guard.
+# =============================================================================
+
+class TestMoveBlockedProse:
+    """
+    §N  Move-blocked prose: engine renders constraint through Pass 3 rather
+        than leaking the raw internal message to the player.
+
+    All four tests share the same scenario: the Traveller (at Common Room, id=1)
+    tries to move directly to Room A (id=4), which is non-adjacent and unvisited.
+
+    Each test wires up its own MockLLMClient so that only the specific calls
+    under test are counted and the mock is not shared across tests.
+    """
+
+    # Minimal valid Pass 1 response: move action targeting Room A (id=4).
+    _PASS1_MOVE_ROOM_A = json.dumps({
+        "action_type": "move",
+        "verb":        "go",
+        "target":      "Room A",
+        "target_id":   4,
+        "location_id": 1,
+        "detail":      None,
+        "raw_input":   "go to room a",
+    })
+
+    # The raw engine string that must NOT reach the player after the fix.
+    _RAW_BLOCK_MESSAGE = "You haven't been to Room A yet."
+
+    # A plausible Pass 3 response for the blocked-move synthetic outcome.
+    _BLOCKED_PROSE = (
+        "You hesitate at the foot of the stairs. The upper floors are still "
+        "unfamiliar territory — you will need to find your way there step by step."
+    )
+
+    def test_raw_string_does_not_reach_player(self, hostel_engine):
+        """
+        The raw engine constraint message must not appear in the prose returned
+        to the player when a quick-move is blocked.
+
+        This is the core regression test. Before the fix, step() returned the
+        no_path_reason string directly; after the fix, Pass 3 produces prose.
+        """
+        from tests.conftest import MockLLMClient
+        hostel_engine.llm = MockLLMClient([
+            self._PASS1_MOVE_ROOM_A,
+            self._BLOCKED_PROSE,
+        ])
+
+        result = hostel_engine.step("go to room a")
+
+        assert self._RAW_BLOCK_MESSAGE not in result, (
+            f"Raw engine constraint string leaked to player.\n"
+            f"Got: {result!r}\n"
+            f"Must not contain: {self._RAW_BLOCK_MESSAGE!r}"
+        )
+
+    def test_pass3_prose_is_returned(self, hostel_engine):
+        """
+        The prose returned for a blocked move must be the output of the Pass 3
+        mock, not any other string.
+
+        Confirms that _render_move_blocked() calls self.llm.call() and returns
+        its result rather than constructing prose from engine-internal strings.
+        """
+        from tests.conftest import MockLLMClient
+        hostel_engine.llm = MockLLMClient([
+            self._PASS1_MOVE_ROOM_A,
+            self._BLOCKED_PROSE,
+        ])
+
+        result = hostel_engine.step("go to room a")
+
+        assert result == self._BLOCKED_PROSE, (
+            f"Expected Pass 3 prose from move-blocked handler.\n"
+            f"Got:      {result!r}\n"
+            f"Expected: {self._BLOCKED_PROSE!r}"
+        )
+
+    def test_pass2_is_skipped(self, hostel_engine):
+        """
+        A blocked move must trigger exactly two LLM calls: Pass 1 (intent
+        parsing) and the move-blocked Pass 3 (prose rendering).
+
+        Pass 2 (outcome adjudication) must not run — there is nothing to
+        adjudicate when the engine rejects the move before Pass 2 is reached.
+        Exactly 2 calls is the contract; 3 would mean Pass 2 fired.
+        """
+        from tests.conftest import MockLLMClient
+        mock = MockLLMClient([self._PASS1_MOVE_ROOM_A, self._BLOCKED_PROSE])
+        hostel_engine.llm = mock
+
+        hostel_engine.step("go to room a")
+
+        assert mock.call_count == 2, (
+            f"Expected exactly 2 LLM calls for a blocked move "
+            f"(Pass 1 + move-blocked Pass 3); got {mock.call_count}. "
+            f"Pass 2 must not run when the engine pre-empts the move."
+        )
+
+    def test_player_location_unchanged(self, hostel_engine):
+        """
+        After a blocked move, the player must remain at their original location.
+
+        No location_change should be written to the DB — _render_move_blocked()
+        uses a synthetic outcome with an empty location_change list and no
+        elapsed_minutes, so the player stays put.
+        """
+        from tests.conftest import MockLLMClient
+
+        original_loc = hostel_engine._player["current_location_id"]  # Common Room (1)
+
+        hostel_engine.llm = MockLLMClient([
+            self._PASS1_MOVE_ROOM_A,
+            self._BLOCKED_PROSE,
+        ])
+        hostel_engine.step("go to room a")
+
+        # Re-read from DB to confirm no side effects were committed.
+        player = hostel_engine.db.get_player_character(game_id=1)
+        assert player["current_location_id"] == original_loc, (
+            f"Player moved from loc {original_loc} to "
+            f"{player['current_location_id']} during a blocked move — "
+            f"location must be unchanged after a quick-move rejection."
         )
