@@ -82,7 +82,7 @@ def create_app() -> Flask:
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
     )
     # Suppress noisy third-party loggers.
-    for noisy in ("httpx", "httpcore", "anthropic", "werkzeug"):
+    for noisy in ("httpx", "httpcore", "anthropic", "openai", "werkzeug"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
     # ------------------------------------------------------------------

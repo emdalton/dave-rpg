@@ -162,6 +162,14 @@ Rules:
   turns without being acted on. If the NPC's intent involves speaking, they
   must produce actual dialogue — not a smile, a nod, or a description of
   their expression.
+- TARGET PRIMACY: The player's action_record defines who is being addressed
+  and what is happening. The primary outcome must resolve the player's intended
+  action toward action_record.target. NPC pending_intent discharges are
+  secondary events: they belong in npc_initiated_actions and may colour the
+  narrative_beat as background action, but they must not replace or override
+  the resolution of the player's action. If the player is speaking to
+  Character A, do not make Character B's pending_intent the dominant narrative
+  event of the turn. Both happen; the player's stated action takes precedence.
 - AUTONOMOUS NPC BEHAVIOR: when an NPC at the current location has an internal
   state ≥ 0.75 that an available item or plausible action could satisfy, they
   may act on it without a pending_intent — a hungry NPC eats food that is
@@ -921,6 +929,61 @@ class GameEngine:
         logger.debug("Opening scene prose: %.120s", prose)
         return prose
 
+    def _render_move_blocked(self, reason: str) -> str:
+        """
+        Run Pass 3 on a synthetic 'move blocked' outcome so the player receives
+        module-appropriate prose rather than a raw engine constraint message.
+
+        Called when _resolve_multistep_move() returns reachable=False. The raw
+        no_path_reason string is used only as a narrative cue to Pass 3 — it is
+        never shown to the player directly.
+
+        No state is changed (elapsed_minutes=0, all delta lists empty). The
+        player remains at their current location.
+
+        Args:
+            reason: The block reason from route["no_path_reason"], e.g.
+                    "You haven't been to Supper Room yet."
+
+        Returns:
+            Rendered prose string from Pass 3.
+        """
+        synthetic_outcome = {
+            "outcome_type": "failure",
+            "narrative_beat": (
+                f"The player attempts to move but is blocked: {reason} "
+                "Render this as an in-world moment — the character realises "
+                "they cannot navigate directly to the destination because they "
+                "are not yet familiar with the route. Stay in character and in "
+                "the module's tone. Do not use system or game-mechanic language."
+            ),
+            "elapsed_minutes": 0,
+            "attitude_deltas": [],
+            "internal_state_deltas": [],
+            "emotional_state_updates": [],
+            "location_change": [],
+            "item_changes": [],
+            "item_transfers": [],
+            "new_location_details": [],
+            "faction_reputation_changes": [],
+            "pending_intent_updates": [],
+            "activity_updates": [],
+            "npc_initiated_actions": [],
+            "new_characters": [],
+            "narrative_point_delta": 0,
+            "adjudication_notes": f"Move blocked (engine pre-check): {reason}",
+        }
+
+        pass3_packet = build_pass3_packet(self.db, self.game_id, synthetic_outcome)
+        pass3_prompt = PASS3_PROMPT_TEMPLATE.format(
+            context_json=json.dumps(pass3_packet, indent=2)
+        )
+        logger.debug("Move-blocked Pass 3 prompt:\n%s", pass3_prompt)
+
+        prose = self.llm.call(pass3_prompt)
+        logger.debug("Move-blocked prose: %.120s", prose)
+        return prose
+
     # -------------------------------------------------------------------------
     # Green Room character creation stage (v11+)
     # -------------------------------------------------------------------------
@@ -1518,10 +1581,14 @@ class GameEngine:
                 action_record["route"] = route
 
                 if not route["reachable"]:
-                    logger.info(
-                        "Move blocked: %s", route.get("no_path_reason")
+                    reason = (
+                        route.get("no_path_reason")
+                        or "There's no way to get there from here."
                     )
-                    return route["no_path_reason"] or "There's no way to get there from here."
+                    logger.info("Move blocked: %s", reason)
+                    # Render through Pass 3 so the player gets module-appropriate
+                    # prose rather than a raw engine constraint string.
+                    return self._render_move_blocked(reason)
 
         # Pass 2 — Outcome Adjudication
         instance_id = self._instance["id"] if self._instance else None
