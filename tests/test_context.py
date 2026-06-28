@@ -279,3 +279,44 @@ class TestBuildPass3Packet:
             db=tmp_db, game_id=1, outcome=_OUTCOME
         )
         assert "speech_filter" in packet["game"] or "speech_filter" in packet
+
+    def test_characters_present_has_current_activity_key(self, tmp_db: Database):
+        """
+        Every entry in characters_present must carry a current_activity key.
+        The value may be None (no recorded activity), but the key must be present
+        so Pass 3 can distinguish "no activity set" from "field missing".
+        Guard is in the Antechamber (same location as the player) and has no
+        activity seeded, so current_activity should be None.
+        """
+        packet = build_pass3_packet(db=tmp_db, game_id=1, outcome=_OUTCOME)
+        chars = packet["characters_present"]
+        guard = next((c for c in chars if c.get("name") == "Guard"), None)
+        assert guard is not None, "Guard should be present at Antechamber"
+        assert "current_activity" in guard, (
+            "characters_present entries must include current_activity key"
+        )
+        assert guard["current_activity"] is None, (
+            "Guard has no seeded activity; current_activity should be None"
+        )
+
+    def test_characters_present_current_activity_reflects_db(self, tmp_db: Database):
+        """
+        When an NPC has a current_activity set in the DB, it must appear
+        verbatim in the characters_present packet so Pass 3 can reference it.
+        """
+        # Give the Guard a current activity so Pass 3 can describe it accurately.
+        tmp_db.set_character_activity(
+            character_id=2,
+            activity="standing watch at the door",
+            started_at=180,
+            duration_minutes=30,
+            confidence=0.8,
+            renewable=0,
+        )
+        packet = build_pass3_packet(db=tmp_db, game_id=1, outcome=_OUTCOME)
+        chars = packet["characters_present"]
+        guard = next((c for c in chars if c.get("name") == "Guard"), None)
+        assert guard is not None, "Guard should be present at Antechamber"
+        assert guard["current_activity"] == "standing watch at the door", (
+            "current_activity in packet must match the value set in the DB"
+        )
