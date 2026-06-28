@@ -967,6 +967,13 @@ CREATE TABLE action_log (
     -- without re-querying the full adjudication history.
     narrative_beat  TEXT,
 
+    -- Rendered player-facing prose produced by Pass 3 for this turn.
+    -- NULL at row creation time; written after the LLM call completes via
+    -- update_action_log_prose(). Fetched by get_recent_prose() and included
+    -- in Pass 3 context packets so the renderer can avoid reusing the same
+    -- imagery, metaphors, or internal-state descriptors across consecutive turns.
+    prose           TEXT,
+
     created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -1185,3 +1192,5 @@ VALUES (11, 'Fresh install at v11: player_definition_mode adds green_room; add c
 
 INSERT INTO schema_version (version, description)
 VALUES (12, 'Fresh install at v12: add module_flags JSON column to game table for Green Room prompts and future feature config');
+INSERT INTO schema_version (version, description)
+VALUES (13, 'Fresh install at v13: add prose column to action_log for Pass 3 anti-repetition context');

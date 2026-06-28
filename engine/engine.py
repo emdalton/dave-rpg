@@ -485,6 +485,15 @@ Rules:
   not a dedicated sentence of its own. Omit the reminder if the player's current
   action already directly addresses that state (eating while hungry, resting
   while sleepy, etc.) — the prose of that action already carries the weight.
+- ANTI-REPETITION: the `recent_prose` field contains the rendered prose from
+  the last 2–3 turns. Before writing, check it for repeated phrases, images,
+  and sensory descriptors — then use different ones. This applies to ALL prose
+  elements: atmospheric details, character descriptions, internal-state
+  reminders, and figurative language. If recent turns have used "curiosity hums
+  beneath your skin", reach for a different physical sensation entirely (a flicker
+  of interest at the edge of your thoughts, a slight sharpening of attention,
+  etc.). If the candlelight has been mentioned, let it stand. Variety is not
+  optional — a skilled narrator does not repeat themselves turn after turn.
 
 Context:
 {context_json}
@@ -1617,8 +1626,9 @@ class GameEngine:
             outcome.get("narrative_beat", ""),
         )
 
-        # Write all adjudication results to the database.
-        self._apply_outcome(action_record, outcome)
+        # Write all adjudication results to the database. Capture the
+        # action_log_id so we can write Pass 3 prose back after it is rendered.
+        action_log_id = self._apply_outcome(action_record, outcome)
 
         # ------------------------------------------------------------------
         # Advance game clock and tick passive states (v5+).
@@ -1651,6 +1661,11 @@ class GameEngine:
 
         prose = self.llm.call(pass3_prompt)
         logger.debug("Pass 3 prose: %.120s", prose)
+
+        # Write prose back to the action_log row so future turns can fetch it
+        # for anti-repetition context via build_pass3_packet() → get_recent_prose().
+        self.db.update_action_log_prose(action_log_id, prose)
+
         return prose
 
     # -------------------------------------------------------------------------
@@ -2053,13 +2068,17 @@ class GameEngine:
     # Outcome application (DB writes)
     # -------------------------------------------------------------------------
 
-    def _apply_outcome(self, action_record: dict, outcome: dict) -> None:
+    def _apply_outcome(self, action_record: dict, outcome: dict) -> int:
         """
         Write all adjudication results from the outcome dict to the database.
 
         This method is the only place where the engine writes game state. It
         processes each field of the outcome in a defined order and logs any
         unexpected fields for debugging.
+
+        Returns:
+            The action_log id for this turn, so the caller can write the Pass 3
+            prose back via update_action_log_prose() once it is available.
 
         Args:
             action_record: The Pass 1 action record (used for logging context).
@@ -2623,12 +2642,13 @@ class GameEngine:
         # ------------------------------------------------------------------
         # Action log
         # ------------------------------------------------------------------
-        self.db.write_action_log(
+        action_log_id = self.db.write_action_log(
             game_id=self.game_id,
             character_id=self._player["id"] if self._player else 0,
             action_json=action_record,
             narrative_beat=outcome.get("narrative_beat"),
         )
+        return action_log_id
 
         # ------------------------------------------------------------------
         # Interaction history (increment for each NPC present at the location)

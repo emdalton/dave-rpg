@@ -46,6 +46,7 @@ Covers every method in `engine/db.py` that the engine relies on.
 - **Activity system** — set, clear, and the expiry query: expired activities returned, non-expired not returned, renewable activities not returned, low-confidence activities not returned.
 - **Location queries** — get location by ID; `is_location_connected()` in both directions; `get_location_connections()` returns neighbors.
 - **Character creation** — `create_character()` inserts a row and returns the full character dict; new character appears in location queries.
+- **`TestActionLogProse`** — `update_action_log_prose()` and `get_recent_prose()` (v13+): empty result before any prose is written; prose written via update appears in get; rows with null prose are excluded; multiple entries returned oldest-first; `limit` parameter returns only the N most recent. Sort is by `id` (not `created_at`) to avoid sub-second timestamp collisions in tests.
 
 ### `tests/test_context.py`
 
@@ -71,6 +72,8 @@ Verifies that `build_pass1_packet()`, `build_pass2_packet()`, and `build_pass3_p
 - `characters_present` includes the correct NPCs.
 - `adjacent_locations` lists neighbors by name.
 - Game block includes `speech_filter`.
+- `characters_present` entries include `current_activity` key: null when no activity is set, populated verbatim when set via `set_character_activity()`.
+- `recent_prose` key is present; empty list when no prose has been written; populated from `action_log.prose` after `update_action_log_prose()` is called.
 
 ### `tests/test_engine.py`
 
@@ -101,7 +104,7 @@ Tests the three main engine subsystems that are independent of LLM output qualit
 
 ### `tests/test_hidden_hostel.py`
 
-37 tests across 8 classes. Uses the Hidden Hostel module (`modules/hidden_hostel/seed.sql`) as a richer test world that exercises features the minimal two-location test world cannot cover. All Tier 1, no LLM calls.
+45 tests across 13 classes. Uses the Hidden Hostel module (`modules/hidden_hostel/seed.sql`) as a richer test world that exercises features the minimal two-location test world cannot cover. All Tier 1, no LLM calls.
 
 Uses two module-specific fixtures defined at the top of the file (not in `conftest.py`):
 - `tmp_hostel_db` — function-scoped; loads schema + Hidden Hostel seed into a temp file, yields a `Database` instance.
@@ -128,6 +131,8 @@ Uses two module-specific fixtures defined at the top of the file (not in `confte
 **`TestAttitudes` (§K, §L)** — The Old Soldier's attitude toward the Traveller is −0.30 (negative path); Gin-chan's is +0.50 (positive path). Delta application test: +0.10 on −0.30 yields −0.20. Clamping tests: large positive delta clamps at 1.0, large negative at −1.0.
 
 **`TestLocationDetail` (§M)** — Common Room has a pre-seeded `location_detail` (testing retrieval path); Kitchen has none (testing that lazy generation starts clean). Field name in `location_detail` table is `detail`, not `detail_text`.
+
+**`TestMoveBlockedProse` (§N)** — Verifies that a blocked quick-move (player attempts to reach an unvisited non-adjacent room) goes through Pass 3 rather than returning a raw engine string. Uses Room A (id=4) as target: non-adjacent to Outside the Hostel Door (id=6, player start) and not visited. Four tests: (1) raw constraint string never reaches the player; (2) Pass 3 mock prose is returned; (3) exactly 2 LLM calls are made (Pass 1 + blocked Pass 3, no Pass 2); (4) player location is unchanged in the DB after the block. MockLLMClient is constructed per-test with `[PASS1_MOVE_ROOM_A, BLOCKED_PROSE]` responses. Patch target: `engine.engine.get_llm_client` (import site, not definition site).
 
 ### `tests/test_mechanics.py`
 

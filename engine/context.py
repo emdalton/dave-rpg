@@ -618,6 +618,17 @@ def build_pass3_packet(
         if s.get("display_mode") == "prose"
     }
 
+    # ------------------------------------------------------------------
+    # Recent prose (anti-repetition context)
+    #
+    # The last 2–3 Pass 3 prose outputs for this game. Pass 3 uses these
+    # to avoid reusing the same imagery, metaphors, or internal-state
+    # descriptors (e.g. "curiosity hums beneath your skin") across
+    # consecutive turns. The current turn's action_log row has prose=NULL
+    # and is excluded by get_recent_prose()'s IS NOT NULL filter.
+    # ------------------------------------------------------------------
+    recent_prose = db.get_recent_prose(game_id, limit=3)
+
     packet = {
         "pass": 3,
         "description": (
@@ -634,6 +645,9 @@ def build_pass3_packet(
         "characters_present": characters_present,
         "characters_referenced": characters_referenced,
         "player_internal_states": player_internal_states,
+        # recent_prose: last 2–3 rendered turns, oldest first. May be empty
+        # at the start of a session. See anti-repetition rule in PASS3_PROMPT_TEMPLATE.
+        "recent_prose": recent_prose,
     }
 
     logger.debug(

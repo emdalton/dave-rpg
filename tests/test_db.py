@@ -470,3 +470,68 @@ class TestCreateCharacter:
         chars = tmp_db.get_characters_at_location(location_id=1)
         names = {c["name"] for c in chars}
         assert "Wanderer" in names
+
+
+# =============================================================================
+# Action log prose persistence (v13+)
+# =============================================================================
+
+# Minimal action record for write_action_log calls.
+_ACTION_JSON = {"action_type": "examine", "target": "room", "raw_input": "look around"}
+
+
+class TestActionLogProse:
+    """
+    Tests for update_action_log_prose() and get_recent_prose().
+
+    These methods underpin the Pass 3 anti-repetition feature: prose is written
+    back to the action_log row after Pass 3 completes, then fetched in
+    subsequent turns to give the renderer visibility into recent imagery.
+    """
+
+    def test_get_recent_prose_empty_before_any_prose(self, tmp_db: Database):
+        """Before any prose has been written, get_recent_prose returns []."""
+        result = tmp_db.get_recent_prose(game_id=1)
+        assert result == []
+
+    def test_update_action_log_prose_writes_value(self, tmp_db: Database):
+        """Prose written via update_action_log_prose is returned by get_recent_prose."""
+        log_id = tmp_db.write_action_log(
+            game_id=1, character_id=1, action_json=_ACTION_JSON
+        )
+        tmp_db.update_action_log_prose(log_id, "The antechamber is cold and still.")
+        result = tmp_db.get_recent_prose(game_id=1)
+        assert result == ["The antechamber is cold and still."]
+
+    def test_get_recent_prose_excludes_null_rows(self, tmp_db: Database):
+        """Rows where prose is NULL (the in-flight turn) are not returned."""
+        # Create a row but do not write prose — simulates the current in-flight turn.
+        tmp_db.write_action_log(
+            game_id=1, character_id=1, action_json=_ACTION_JSON
+        )
+        result = tmp_db.get_recent_prose(game_id=1)
+        assert result == []
+
+    def test_get_recent_prose_chronological_order(self, tmp_db: Database):
+        """Multiple prose entries are returned oldest-first."""
+        for prose in ("First turn prose.", "Second turn prose.", "Third turn prose."):
+            log_id = tmp_db.write_action_log(
+                game_id=1, character_id=1, action_json=_ACTION_JSON
+            )
+            tmp_db.update_action_log_prose(log_id, prose)
+        result = tmp_db.get_recent_prose(game_id=1)
+        assert result == [
+            "First turn prose.",
+            "Second turn prose.",
+            "Third turn prose.",
+        ]
+
+    def test_get_recent_prose_respects_limit(self, tmp_db: Database):
+        """With limit=2, only the two most recent prose entries are returned."""
+        for prose in ("Turn 1.", "Turn 2.", "Turn 3.", "Turn 4."):
+            log_id = tmp_db.write_action_log(
+                game_id=1, character_id=1, action_json=_ACTION_JSON
+            )
+            tmp_db.update_action_log_prose(log_id, prose)
+        result = tmp_db.get_recent_prose(game_id=1, limit=2)
+        assert result == ["Turn 3.", "Turn 4."]

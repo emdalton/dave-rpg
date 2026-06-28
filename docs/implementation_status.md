@@ -54,6 +54,37 @@
   - `test_player_location_unchanged` — no DB side effects after block.
   - All pass with `source .venv/bin/activate && pytest` (227 passed, 43 skipped).
 
+- **Pass 3 NPC activity rule (`engine/context.py`, `engine/engine.py`):**
+  - `current_activity` added to each entry in the `characters_present` context packet.
+  - New NPC activity rule in `PASS3_PROMPT_TEMPLATE`: NPCs with null `current_activity`
+    must not be described as engaged in specific actions (dancing, playing cards, etc.).
+    Addresses Lydia/Kitty dancing hallucination and Jane's mid-session disappearance
+    observed in the 2026-06-28 Meryton playtest.
+
+- **Pass 3 anti-repetition — recent prose context (schema v13):**
+  - `prose TEXT` column added to `action_log` (migration `migrate_v12_to_v13.sql`).
+  - `db.update_action_log_prose(action_log_id, prose)` writes Pass 3 output back after
+    each turn. `db.get_recent_prose(game_id, limit=3)` fetches the last N rendered turns.
+  - `build_pass3_packet()` includes `recent_prose` (last 3 turns, oldest-first).
+  - `_apply_outcome()` now returns the `action_log_id`; `_process_turn()` captures it
+    and writes prose back after Pass 3 returns.
+  - ANTI-REPETITION rule added to `PASS3_PROMPT_TEMPLATE`: check `recent_prose` for
+    repeated phrases, imagery, and internal-state descriptors before writing; use
+    different language. Addresses "curiosity hums/prickles" appearing every turn.
+  - Cost impact: ~200–600 extra input tokens per Pass 3 call (<10% total per-turn cost).
+
+- **New Tier 1 tests:**
+  - `TestActionLogProse` (5 tests in `test_db.py`): empty result before any prose;
+    prose written via update appears in get; null rows excluded; chronological order;
+    limit respected. Sort uses `id` not `created_at` (sub-second timestamp collision).
+  - `TestBuildPass3Packet` extended (2 new tests in `test_context.py`): `recent_prose`
+    key present and empty at session start; populated after `update_action_log_prose()`.
+  - `test_context.py` also has 2 tests for `current_activity` in `characters_present`
+    (null when not set; verbatim when set).
+
+- **`docs/test_suite.md` updated:** §N (TestMoveBlockedProse), TestActionLogProse,
+  Pass 3 packet section, Hidden Hostel count corrected to 45 tests / 13 classes.
+
 **Pending / in progress:**
 
 - **Fix 3 — Model quantization (in progress this session):**

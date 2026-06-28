@@ -320,3 +320,28 @@ class TestBuildPass3Packet:
         assert guard["current_activity"] == "standing watch at the door", (
             "current_activity in packet must match the value set in the DB"
         )
+
+    def test_pass3_packet_includes_recent_prose_key(self, tmp_db: Database):
+        """
+        The Pass 3 packet must include a recent_prose key. At session start,
+        before any prose has been written, it should be an empty list.
+        """
+        packet = build_pass3_packet(db=tmp_db, game_id=1, outcome=_OUTCOME)
+        assert "recent_prose" in packet, "Pass 3 packet must include recent_prose key"
+        assert packet["recent_prose"] == [], (
+            "recent_prose should be empty when no prose has been written yet"
+        )
+
+    def test_pass3_packet_recent_prose_populated_from_db(self, tmp_db: Database):
+        """
+        Prose written to action_log via update_action_log_prose() appears in
+        the recent_prose field of the next turn's Pass 3 packet.
+        """
+        log_id = tmp_db.write_action_log(
+            game_id=1,
+            character_id=1,
+            action_json={"action_type": "examine", "target": "room", "raw_input": "look"},
+        )
+        tmp_db.update_action_log_prose(log_id, "The stone walls glisten with cold damp.")
+        packet = build_pass3_packet(db=tmp_db, game_id=1, outcome=_OUTCOME)
+        assert "The stone walls glisten with cold damp." in packet["recent_prose"]

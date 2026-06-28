@@ -1040,6 +1040,58 @@ class Database:
             )
         return new_id
 
+    def update_action_log_prose(self, action_log_id: int, prose: str) -> None:
+        """
+        Write the Pass 3 rendered prose back to the action_log row created
+        at the start of the turn.
+
+        Called after Pass 3 returns so that subsequent turns can fetch recent
+        prose for anti-repetition context. The row is created by write_action_log()
+        before Pass 1 runs; this method fills in the prose column once Pass 3
+        has completed.
+
+        Args:
+            action_log_id: The id returned by write_action_log() for this turn.
+            prose:         The rendered player-facing text from Pass 3.
+        """
+        self._execute(
+            """UPDATE action_log
+               SET prose = ?
+               WHERE id = ?""",
+            (prose, action_log_id),
+        )
+        logger.debug("action_log prose written: id=%d (%.60s...)", action_log_id, prose)
+
+    def get_recent_prose(self, game_id: int, limit: int = 3) -> list[str]:
+        """
+        Return the most recent Pass 3 prose entries for a game, in
+        chronological order (oldest first), excluding turns where prose
+        is NULL (i.e. the in-flight turn whose prose has not yet been written).
+
+        Used by build_pass3_packet() to supply recent_prose anti-repetition
+        context. The current turn's action_log row exists but has prose=NULL,
+        so it is naturally excluded by the IS NOT NULL filter.
+
+        Args:
+            game_id: The active game's id.
+            limit:   Maximum number of prose entries to return (default 3).
+
+        Returns:
+            List of prose strings, oldest-first.
+        """
+        rows = self._rows(
+            """SELECT prose FROM action_log
+               WHERE game_id = ? AND prose IS NOT NULL
+               ORDER BY id DESC
+               LIMIT ?""",
+            (game_id, limit),
+        )
+        # Reverse so the list reads oldest → newest (natural reading order).
+        # Ordered by id (not created_at) because SQLite's datetime() has
+        # second-level precision — rapid inserts within the same second would
+        # produce identical timestamps and an unstable sort order.
+        return [row["prose"] for row in reversed(rows)]
+
     def update_interaction_history(
         self,
         character_a_id: int,
