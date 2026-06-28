@@ -463,6 +463,13 @@ Rules:
   characters who are not listed there. If the outcome's narrative_beat mentions
   an NPC but they are absent from `characters_present`, describe the outcome
   from the player's perspective without referencing that NPC directly.
+- NPC activity is authoritative: each entry in `characters_present` has a
+  `current_activity` field. If it is null, the engine has no recorded activity
+  for that character — describe them as simply present (standing, watching,
+  conversing in general), NOT as engaged in any specific action such as dancing,
+  playing cards, or eating. Only describe an NPC as performing a specific activity
+  if their `current_activity` field explicitly records it, or if the outcome's
+  `narrative_beat` explicitly names them doing it this turn.
 - Navigation: if the player has just moved to a new location (the outcome
   includes a location_change for the player), weave a brief, natural mention
   of the available exits into the arrival prose — a door, a corridor, the

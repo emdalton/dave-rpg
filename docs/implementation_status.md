@@ -1,7 +1,82 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-06-27, session 34 (closed).*
+*Last updated: 2026-06-28, session 35 (open).*
+
+---
+
+## Session 35 notes (2026-06-28)
+
+**Completed this session:**
+
+- **Blocked-move prose fix (`engine/engine.py`) — closes issue from session 34 diagnosis:**
+  - `_render_move_blocked(reason)` method added. When the quick-move guard
+    fires (player tries to navigate to an unvisited non-adjacent location),
+    the engine now runs Pass 3 on a synthetic `outcome_type="failure"` outcome
+    rather than returning the raw constraint string to the player. The raw
+    `no_path_reason` is used only as a narrative cue inside the synthetic
+    `narrative_beat`; it never reaches player-facing prose.
+  - Call site in `_process_turn()` updated accordingly.
+
+- **Pass 2 TARGET PRIMACY rule (`engine/engine.py`):**
+  - New rule added to `PASS2_PROMPT_TEMPLATE` after `PENDING INTENT IS MANDATORY`.
+  - Rule: the primary outcome must resolve the player's stated action toward
+    `action_record.target`. NPC pending_intent discharges for other characters
+    are secondary events (go in `npc_initiated_actions`), not the dominant turn
+    outcome. Addresses the Bingley/Robinson character confusion from the
+    2026-06-27 Meryton playtest.
+
+- **`openai` logger suppressed (`web/app.py`):**
+  - Added `"openai"` to the noisy-logger suppression list. Quiets HTTP-level
+    chatter from the Scaleway client in the systemd journal.
+
+- **Mock patch target fixed (`tests/conftest.py`, `tests/test_hidden_hostel.py`):**
+  - Both `test_engine` (conftest) and `hostel_engine` (test_hidden_hostel)
+    fixtures were patching `engine.llm.get_llm_client` (the definition site).
+    Corrected to `engine.engine.get_llm_client` (the import site). The wrong
+    target silently failed when `ANTHROPIC_API_KEY` was set in the environment;
+    the real `ClaudeLLMClient` was being used in Tier 1 tests that claim to
+    need no API key.
+
+- **Staircase test corrections (`tests/test_hidden_hostel.py`):**
+  - `test_pathfinding_traverses_staircase` and
+    `test_pathfinding_adjacent_staircase_skips_visited_guard` assumed the
+    Traveller starts at Common Room (1). The seed puts the Traveller at
+    Outside the Hostel Door (6). Tests updated to relocate the player to
+    Common Room before testing staircase pathfinding.
+  - File header updated: location 6 added to topology table; Traveller's
+    starting location corrected; connection 1↔6 (the blue door) added.
+
+- **`TestMoveBlockedProse` (§N) — four new Tier 1 tests:**
+  - `test_raw_string_does_not_reach_player` — regression guard.
+  - `test_pass3_prose_is_returned` — confirms mock prose is returned.
+  - `test_pass2_is_skipped` — blocked move triggers exactly 2 LLM calls.
+  - `test_player_location_unchanged` — no DB side effects after block.
+  - All pass with `source .venv/bin/activate && pytest` (227 passed, 43 skipped).
+
+**Pending / in progress:**
+
+- **Fix 3 — Model quantization (in progress this session):**
+  - Mistral Small 3.2 24B is deployed as `mistral-small-3.2-24b-instruct-2506:fp8`
+    (fp8 quantized). The `:fp8` suffix selects the quantized variant; omitting it
+    uses the full-precision model. Testing whether removing `:fp8` improves Pass 2
+    quality (character distinction, pending_intent handling).
+  - Config location: `engine/config.py` — `SCALEWAY_DEFAULT_MODEL`.
+  - If the full-precision model does not meaningfully improve quality, Mistral Small
+    may not be adequate for Pass 2 adjudication at this complexity level.
+
+**Carried forward from session 34:**
+
+- `_record_last_tokens()` in `web/game.py` is a no-op. Budget display €0.0000.
+- Pass 3 repetition failure: Mistral Small repeats imagery across turns. Prompt
+  hardening or model change needed.
+- Issues #63 and #64 are identical (yelling mechanic) — close one as duplicate.
+- Green Room: gender/pronouns not extracted by `_run_green_room()`.
+- Green Room: NPC reaction to player description (HH Wanderer).
+- Green Room: Tier 1 tests (schema, character_aspect CRUD, extraction flow).
+- Green Room: Tier 2 test (HH end-to-end with real LLM).
+- Tier 1 tests: `GameEngine` web API methods (MockLLMClient).
+- Tier 2 test: same-room speech guard (address `characters_nearby` NPC).
 
 ---
 

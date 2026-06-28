@@ -567,6 +567,11 @@ def build_pass3_packet(
             "name": npc["name"],
             "species": npc["species"],
             "emotional_state": npc["emotional_state"],
+            # current_activity is the authoritative engine record of what this
+            # NPC is doing right now (e.g. 'dancing with Mr. Bingley'). null
+            # means the engine has no recorded activity — Pass 3 must not invent
+            # one. See the NPC activity rule in PASS3_PROMPT_TEMPLATE.
+            "current_activity": npc.get("current_activity"),
         }
         for npc in present_npcs
     ]
