@@ -1,7 +1,80 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-06-23, session 32 (closed).*
+*Last updated: 2026-06-27, session 33 (closed).*
+
+---
+
+## Session 33 notes (2026-06-27)
+
+**Completed this session:**
+
+- **Green Room Mode — CLI engine loop (`engine/engine.py`, issue #59):**
+  - `GREEN_ROOM_EXTRACTION_PROMPT` template added (module-level constant after
+    `PASS3_PROMPT_TEMPLATE`). Requests JSON with fields: `high_concept`, `trouble`,
+    `aspects` (0–3), `description`, `skills`, `confirmation_text`.
+  - `_run_green_room()` method added. Reads `character_creation_prompt` and
+    `character_creation_hint` from `module_flags`; collects multi-line free-text
+    character description; calls LLM extraction; writes results to DB before
+    `_render_opening_scene()` runs.
+  - `run()` wired: calls `_run_green_room()` when `player_definition_mode == 'green_room'`
+    and no `character_aspect` records exist for the player (idempotent — resuming a
+    session after creation was completed does not repeat the stage).
+  - **Follow-up prompts:** if `high_concept` or `trouble` are missing after the first
+    extraction pass, targeted follow-up questions are asked for each missing field.
+    Follow-up answers are appended to the original input and a second extraction pass
+    fills in only the missing fields; everything already extracted is preserved.
+  - **Confirmation gate:** after displaying the LLM's interpretation and structured
+    summary, the player is asked "Does this look right? (y/n)". If no, a free-text
+    correction is collected, appended to the running input, and extraction re-runs.
+    Up to 2 refinements (3 total passes); on the final attempt the question is skipped.
+    DB writes happen inside the loop (`clear_character_aspects()` at the top of each
+    iteration); the confirmed result is always what is stored.
+
+- **Hidden Hostel seed + reset updated:**
+  - `modules/hidden_hostel/seed.sql`: `player_definition_mode` changed from `'define'`
+    to `'green_room'`; `module_flags` now contains `character_creation_prompt` (liminal-
+    arrival framing) and `character_creation_hint` (Fate Core aspect explanation).
+    Schema version comment updated to 12.
+  - `modules/hidden_hostel/reset_instance.sql`: `DELETE FROM character_aspect WHERE
+    character_id = 1` added (clears player aspects so Green Room re-runs on next
+    session); stale mirror-invitation comments updated.
+
+- **Playtest (Haiku backend, 2026-06-27):**
+  - Full Green Room flow confirmed working end-to-end.
+  - Haiku found a Trouble from the unreadable-book detail even when no trouble was
+    stated — confirmed the confirmation gate is needed.
+  - Three-pass refinement tested: player corrected on first "n", then again, then
+    accepted on third pass. All aspect and DB state correct after each iteration.
+  - Confirmed: sencha canister is seeded as a real item; lute/journal/book exist only
+    in the character description prose and will be instantiated lazily during play.
+
+**Design notes captured (testing_backlog memory):**
+
+- **Green Room gender/pronouns gap:** `_run_green_room()` extracts description but
+  does not write `gender` or `pronouns` to the character record. The player's gender
+  is in the prose but not in the structured fields Pass 3 uses for pronoun-aware
+  rendering. Fix: extend extraction JSON to include `gender` and `pronouns` and call
+  `update_player_character()` with those values.
+- **NPC reaction to player description:** an NPC (most likely The Wanderer in HH)
+  should react to the player's character description/aspects on first encounter.
+  Consider extending The Wanderer's `pending_intent` to reference visible character
+  cues once `player.description` is populated by Green Room.
+- **Aspect displacement on correction:** adding new material in a correction can push
+  previously-extracted aspects out of the three-slot limit. The book got displaced
+  when the player added apricot preserves in the third pass. Noted; no fix designed yet.
+
+**Pending / known issues (carried forward):**
+
+- Green Room: gender/pronouns not extracted (see design notes above).
+- Green Room: NPC reaction to player description (HH Wanderer; see design notes above).
+- Green Room: Tier 1 tests (schema, character_aspect CRUD, extraction flow with MockLLM).
+- Green Room: Tier 2 test (HH end-to-end with real LLM).
+- `_record_last_tokens()` in `web/game.py` is a no-op. Budget display €0.0000.
+- Tier 1 tests: `GameEngine` web API methods (MockLLMClient).
+- Tier 2 test: same-room speech guard (address `characters_nearby` NPC, assert no
+  attitude delta).
+- Deployment to Scaleway (gunicorn + config) not yet done.
 
 ---
 
