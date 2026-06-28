@@ -1,7 +1,54 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-06-27, session 33 (closed).*
+*Last updated: 2026-06-27, session 34 (closed).*
+
+---
+
+## Session 34 notes (2026-06-27)
+
+**Completed this session:**
+
+- **Deployment to Grizabella (Scaleway VPS) — closes issue #62:**
+  - DAVE web frontend deployed to Grizabella (51.15.211.86, Ubuntu 24.04).
+  - Service: `/etc/systemd/system/dave-rpg-web.service`; working directory
+    `/home/ubuntu/dave-rpg`; venv at `.venv/`. Environment vars loaded from
+    `dave-rpg.env` (EnvironmentFile). Gunicorn: 1 worker, 1 thread, port
+    `127.0.0.1:8001`, 120 s timeout. Logs: `logs/access.log` + `logs/error.log`
+    within the repo directory.
+  - HTTPS at `https://dave.grizabellamemory.net` via Caddy reverse proxy
+    (`caddy.service`). Caddyfile: `dave.grizabellamemory.net` → `localhost:8001`
+    with gzip, security headers, and Caddy access log at
+    `/var/log/caddy/dave-access.log` (readable only with sudo).
+  - Backend: Scaleway (`DAVE_LLM_BACKEND=scaleway`, Mistral Small 3.2 24B).
+  - All three modules (I Am a Cat, Hidden Hostel, The Meryton Assembly) playable
+    via the web interface.
+
+- **Local development instance:**
+  - DAVE running locally on `http://localhost:5001` via gunicorn.
+  - Backend: Scaleway.
+  - Confirmed working: I Am a Cat playable (user_dbs/, session/logout flow).
+
+**Known issues identified this session:**
+
+- `openai._base_client` DEBUG logs not suppressed: the noisy-logger list in
+  `web/app.py` covers `httpx`, `httpcore`, `anthropic`, `werkzeug` but not
+  `openai`. Add `"openai"` to quiet HTTP-level noise from the Scaleway client.
+- Inference quality on Meryton (Mistral Small 3.2): Pass 3 repetition failure
+  (no-repeat rule poorly followed); Pass 1 misrouting "where is X" as a
+  navigation intent; raw engine refusal messages leaking to player prose.
+  Under investigation.
+- Issues #63 and #64 are identical (yelling mechanic) — close one as duplicate.
+
+**Pending / known issues (carried forward):**
+
+- `_record_last_tokens()` in `web/game.py` is a no-op. Budget display €0.0000.
+- Green Room: gender/pronouns not extracted by `_run_green_room()`.
+- Green Room: NPC reaction to player description (HH Wanderer).
+- Green Room: Tier 1 tests (schema, character_aspect CRUD, extraction flow).
+- Green Room: Tier 2 test (HH end-to-end with real LLM).
+- Tier 1 tests: `GameEngine` web API methods (MockLLMClient).
+- Tier 2 test: same-room speech guard (address `characters_nearby` NPC).
 
 ---
 
@@ -100,9 +147,14 @@
 - **Lobby and config updates (committed this session):**
   - `web/config.py`: `AVAILABLE_MODULES` extended with `description` field per
     module; renamed "Meryton Assembly" → "The Meryton Assembly" (key rename
-    affects user DB filename slug).
+    affects user DB filename slug). Also added `game_id` field per module so
+    the web layer knows which game_id to pass to `GameEngine` (Hidden Hostel
+    and I Am a Cat are 1; Meryton is 2).
   - `web/templates/lobby.html`: module card template updated to display
     `module.description` below the module name.
+  - `web/game.py`: removed hardcoded `game_id=1` in the lobby POST handler;
+    now reads `game_id` from `module_cfg`. Without this fix Meryton would fail
+    to start (its game record is at id=2, not id=1).
 
 **Pending / known issues:**
 
