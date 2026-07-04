@@ -95,8 +95,9 @@ exist in the database:
 11. `character_attitude`
 12. `location_detail`
 13. `character_visited_location`
-14. `item`
-15. `character_item`
+14. `item` (schema v10+: `item` rows reference their holder directly via
+    `loc_id`/`char_id`/`item_id` — there is no separate `character_item`
+    join table to insert afterward)
 
 Each section has a `-- === SECTION NAME === --` comment block. Within a section,
 insert in ID order so the file is predictable to read and diff.
@@ -661,15 +662,29 @@ test coverage and for modules where NPC familiarity with the space is relevant.
 
 ### `item`
 
+**Schema v10 migration note:** the pre-v10 shape (`item.current_location_id`
+plus a separate `character_item` join table) was replaced. An item's holder is
+now expressed directly on the `item` row via three mutually exclusive nullable
+foreign keys — `loc_id`, `char_id`, `item_id` — enforced by a table-level
+`CHECK` that exactly one is set. There is no `character_item` table to insert
+into; if you find references to it in older module notes or older versions of
+this doc, they predate v10.
+
 ```sql
-INSERT INTO item (game_id, name, description, current_location_id, properties, is_confirmed)
+INSERT INTO item (game_id, name, description, loc_id, char_id, item_id,
+                   location_description, slot, quality, properties, is_confirmed)
 VALUES ( ... );
 ```
 
-Items are physical objects that persist across turns. They exist either at a
-location (`current_location_id` set, no `character_item` row) or in a character's
-possession (`character_item` row present, `current_location_id` NULL). The engine
-enforces the either/or at the application layer.
+Items are physical objects that persist across turns. Exactly one of
+`loc_id` / `char_id` / `item_id` must be non-NULL at all times:
+
+- **`loc_id`** — item is at a location (on the floor, a table, etc.). Set to a
+  `location.id`; leave `char_id` and `item_id` NULL.
+- **`char_id`** — item is carried or worn by a character. Set to a
+  `character.id`; leave `loc_id` and `item_id` NULL.
+- **`item_id`** — item is inside another item (container contents). Set to the
+  containing item's own `id`; leave `loc_id` and `char_id` NULL.
 
 **`name`** — short, unambiguous canonical name within the module.
 Examples: `'sencha canister'`, `'blue shawl'`, `'leather-bound journal'`.
@@ -680,8 +695,21 @@ item is in scope. Should describe appearance, condition, and salient properties.
 May be NULL for player-claimed items not yet adjudicated. Seeded items should
 always have a description.
 
-**`current_location_id`** — NULL when the item is held by a character (see
-`character_item`). Set when the item is at a location and not currently carried.
+**`location_description`** (added v10) — where within the location / character
+/ container the item currently sits, e.g. `'on the mantelpiece'`, `'tucked into
+the left pocket'`. Generated/updated by Pass 2 on every transfer; NULL is fine
+at seed time if the parent `description` already conveys placement.
+
+**`slot`** (added v10, moved here from `character_item`) — how a character is
+carrying or wearing the item. Only meaningful when `char_id` is set; NULL when
+`loc_id` or `item_id` is set. Descriptive, not enforced for exclusivity by the
+schema — e.g. `'right_hand'`, `'left_hand'`, `'worn'`, `'pocket'`, `'in_pack'`,
+`'carried'`.
+
+**`quality`** (added v10) — tool/material quality, `0.0` (poor) to `1.0`
+(exceptional), or NULL if not applicable. Raises the execution ceiling for
+creative actions without raising the underlying skill float; poor tools
+constrain even high skill.
 
 **`properties`** — JSON object for module-specific attributes that don't warrant
 a schema column. Defaults to `'{}'`. Examples:
@@ -695,42 +723,21 @@ a schema column. Defaults to `'{}'`. Examples:
 not yet adjudicated by Pass 2). Seeded items are always `1`; the engine creates
 unconfirmed items via `item_instantiations` in Pass 2 outcome JSON.
 
+**`is_visible`** (added v10) — `1` (default) or `0`. Hidden items exist in the
+world but require discovery before interaction. Most seeded items should be `1`;
+use `0` for something deliberately concealed at game start.
+
 **Seeded vs. lazy-instantiated items:** seed only items that are definitively
 present at game start. Items the player mentions mid-play ("I have a book in my
 pack") are created by the engine on demand; do not pre-seed speculative items.
 
----
-
-### `character_item`
-
-```sql
-INSERT INTO character_item (character_id, item_id, slot, acquired_at_minutes)
-VALUES ( ... );
-```
-
-Join table recording which character holds which item and how.
-
-**`slot`** — how the character is carrying or wearing the item. Must be one of:
-`'right_hand'`, `'left_hand'`, `'both_hands'`, `'mouth'`, `'worn'`, `'pocket'`,
-`'in_pack'`, `'carried'`. Use `'in_pack'` for items in a bag or container; use
-`'carried'` when the carrying modality is unspecified.
-
-**`acquired_at_minutes`** — game clock minutes when the character acquired the
-item, or NULL for items seeded at game start. Seeded items always use NULL.
-
-**UNIQUE constraint:** `item_id` is unique in `character_item` — an item can only
-be held by one character at a time.
-
-**Ordering:** insert the `item` row first; use `last_insert_rowid()` to reference
-its id in the `character_item` insert immediately following. This keeps seeded
-item+inventory pairs together and readable:
+**Seeding an item already in a character's possession** (replaces the old
+`character_item` two-step): set `char_id` directly on the `item` insert — no
+follow-up insert needed.
 
 ```sql
-INSERT INTO item (game_id, name, description, properties)
-VALUES (1, 'sencha canister', '...', '{"weight": "light"}');
-
-INSERT INTO character_item (character_id, item_id, slot)
-VALUES (1, last_insert_rowid(), 'in_pack');
+INSERT INTO item (game_id, name, description, char_id, slot, properties)
+VALUES (1, 'sencha canister', '...', 1, 'in_pack', '{"weight": "light"}');
 ```
 
 ---
