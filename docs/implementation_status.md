@@ -42,6 +42,22 @@
   on where that line sits before implementing; tracked as a separate, larger
   follow-on, not bundled into this session's fix.
 
+**Pending / in progress:**
+
+- **Need: Tier 2 (`--llm`) test in Hidden Hostel for the ITEM CONSISTENCY rule.**
+  Everything verified this session confirms the rule doesn't *break* anything
+  (Tier 1 `_apply_outcome()` tests still pass on synthetic outcome JSON) — but
+  nothing yet confirms the real model actually *emits* `item_transfers`/
+  `item_changes` when a narrative describes an item being picked up, installed,
+  or consumed. That's exactly the gap that let the original bug through
+  undetected. The tea-making sequence already logged as a test-coverage gap
+  (sencha canister → teapot → cups; see testing backlog memory) is a natural
+  fit to extend for this — pouring tea or serving rolls is the same "consumed/
+  handled" shape as the fuse-install case that surfaced the bug. Test should
+  assert the live Pass 2 response actually includes the right item_transfers/
+  item_changes entries for such an action, not just that the DB ends up correct
+  when fed hand-written outcome JSON.
+
 ---
 
 ## Session 35 notes (2026-06-28)
