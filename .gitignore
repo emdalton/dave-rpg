@@ -45,6 +45,17 @@ CLAUDE.md
 # These may be distributed separately from the open-source engine.
 modules/alice_wonderland/
 
+# IP-sensitive content — never for public repo.
+# suspended/: DOS game files extracted from E's legally-owned "Lost Treasures of
+# Infocom" copy, used only as a personal reference for hand-authoring an original
+# DAVE module. Not open-license source (see historicalsource/suspended README).
+# modules/suspended_demo/: original content inspired by the reference above, for
+# personal use and demonstration only — not for distribution. If a distributable
+# Suspended import feature is ever built (see docs/future_features.md §7), it will
+# be a separate user-verified import utility, not this seed data.
+suspended/
+modules/suspended_demo/
+
 # Reference material (local copies for module development; not for publication)
 # Published modules include a references.md in the module directory listing sources with URLs.
 references/
