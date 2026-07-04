@@ -1,7 +1,46 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-06-28, session 35 (closed).*
+*Last updated: 2026-07-03, session 36 (closed).*
+
+---
+
+## Session 36 notes (2026-07-03)
+
+**Completed this session:**
+
+- **ITEM CONSISTENCY rule (`engine/engine.py`, `PASS2_PROMPT_TEMPLATE`):**
+  - Added a rule mirroring the existing MOVEMENT CONSISTENCY pattern: if
+    `narrative_beat` describes an item being picked up, carried, installed,
+    given, or consumed, that handling MUST be reflected in `item_transfers` or
+    `item_changes` the same turn — the engine only updates item DB records from
+    those fields, it does not read prose. Includes explicit guidance for the
+    "installed/consumed" case (item_transfer to the consuming character, then
+    `is_visible=0` via item_changes) since that pattern had no prior worked
+    example in the prompt.
+  - Root cause: a personal (gitignored, non-public) demo module —
+    `modules/suspended_demo/` — surfaced this live. A robot narrated picking up
+    and installing a replacement part; the `internal_state_delta` correctly
+    fired (confirmed via direct DB query), but the item's own `loc_id`/`char_id`
+    never changed — it was never moved via `item_transfers`, leaving the DB
+    record contradicting the story.
+  - Verified statically: `PASS2_PROMPT_TEMPLATE.format()` still succeeds (no
+    unescaped-brace `IndexError`); `python3 -m py_compile engine/engine.py`
+    clean; no output field names changed, so `test_pass2_contract.py`'s
+    schema-shape assertions are unaffected.
+  - Verified against the full test suite (E, local venv): 236 passed, 43
+    skipped, no failures — skip count matches the session 35 baseline (the
+    same `--llm`-marked Tier 2 tests), so nothing newly skipped either.
+
+**Related, deliberately deferred:**
+
+- Broader "invented facts must stay canon" problem (E's framing, connects to
+  the session 35 Meryton `current_activity` grounding fix): Pass 2 has a real
+  mechanism for this already — `new_location_details` → `db.add_location_detail()`
+  — but nothing mandates its use, and there's no rule distinguishing a
+  canon-worthy claim from one-off NPC flavor commentary. Needs E's design input
+  on where that line sits before implementing; tracked as a separate, larger
+  follow-on, not bundled into this session's fix.
 
 ---
 
