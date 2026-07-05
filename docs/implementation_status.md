@@ -32,6 +32,39 @@
     skipped, no failures — skip count matches the session 35 baseline (the
     same `--llm`-marked Tier 2 tests), so nothing newly skipped either.
 
+- **`remote_capability` table (schema v14) — `schema/schema.sql`,
+  `schema/migrations/migrate_v13_to_v14.sql`, `docs/module_authoring.md`:**
+  - Schema for cross-location communication and remote sensing (E's design):
+    `can_send_to` (owner actively transmits to target; consensual/agentive)
+    and `can_detect_from` (owner passively reads target regardless of
+    consent), each parameterized by owner, target, and sense. Directional and
+    one row per single sense channel (matches `character_attitude`'s
+    directional pattern; a robot sending both dialogue and its native sense
+    needs two rows). Attachable to a character or an item — exactly one of
+    `owner_character_id`/`owner_item_id` set, mirroring the item table's
+    `loc_id`/`char_id`/`item_id` pattern; item-owned capabilities resolve
+    their effective owner dynamically via whichever character currently
+    holds the item.
+  - This is schema only, deliberately scoped down from E's full request.
+    **Not yet implemented:** `context.py` packet assembly, the Pass 1/2/3
+    prompt rules that would consume it, and — the biggest piece — the
+    carve-out this requires in the existing "NPC presence is authoritative"
+    rule (currently: only describe an NPC as present/acting if they're in
+    `characters_present`; a `can_send_to`/`can_detect_from` link needs to
+    let a non-co-located character participate anyway, rendered as remote
+    rather than physically present). Tracked as the direct fix for the
+    cross-location gap noted in `future_features.md` §7 and worked around
+    (not solved) in `modules/suspended_demo/`.
+  - Verified: fresh install via updated `schema.sql` and the migration path
+    (v13 baseline + `migrate_v13_to_v14.sql`) produce byte-identical
+    `remote_capability` column definitions (`PRAGMA table_info` compared
+    programmatically). CHECK constraints exercised directly: both-owners-set,
+    no-owner-set, and invalid `capability` value all correctly rejected;
+    valid character-owned and item-owned rows both insert cleanly; no FK
+    violations. Not yet run against the Python test suite (no new Tier 1/2
+    tests written yet — nothing to test until context.py/prompt integration
+    exists).
+
 **Related, deliberately deferred:**
 
 - Broader "invented facts must stay canon" problem (E's framing, connects to

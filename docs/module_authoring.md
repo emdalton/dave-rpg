@@ -98,6 +98,9 @@ exist in the database:
 14. `item` (schema v10+: `item` rows reference their holder directly via
     `loc_id`/`char_id`/`item_id` — there is no separate `character_item`
     join table to insert afterward)
+15. `remote_capability` (added v14, schema only — no engine integration yet;
+    optional, requires the referenced character and/or item rows to exist
+    first)
 
 Each section has a `-- === SECTION NAME === --` comment block. Within a section,
 insert in ID order so the file is predictable to read and diff.
@@ -739,6 +742,64 @@ follow-up insert needed.
 INSERT INTO item (game_id, name, description, char_id, slot, properties)
 VALUES (1, 'sencha canister', '...', 1, 'in_pack', '{"weight": "light"}');
 ```
+
+---
+
+### `remote_capability` (added v14, schema only)
+
+**Engine integration not yet implemented.** This table exists in the schema
+and can be seeded, but `context.py` does not yet assemble it into a packet
+and no Pass 1/2/3 prompt rule consumes it. A module that seeds these rows
+today gets no behavioral effect from them until that follow-on work lands —
+check `docs/implementation_status.md` before relying on this for a live
+module.
+
+```sql
+INSERT INTO remote_capability (owner_character_id, owner_item_id, target_id, capability, sense)
+VALUES ( ... );
+```
+
+Models long-distance communication and remote sensing (comm links,
+telepathy, scrying, a spy's remote camera) as an explicit override of the
+general rule that a character cannot detect or affect a distant location.
+
+**`owner_character_id` / `owner_item_id`** — exactly one must be set (CHECK
+constraint), mirroring the `loc_id`/`char_id`/`item_id` pattern on `item`.
+Character-owned means the capability belongs to that character specifically.
+Item-owned means the capability belongs to whoever currently holds the item
+(resolved dynamically via the item's `char_id` at query time) — a comm
+implant or remote camera changes hands, and the capability goes with it.
+
+**`target_id`** — the character this capability is directed toward. Always
+a `character.id`, regardless of whether the owner side is a character or item.
+
+**`capability`** — `'can_send_to'` or `'can_detect_from'`. The distinction is
+consent, not sense channel:
+- `'can_send_to'` — the owner actively transmits to the target. Requires the
+  owner's own agency (or a "smart" device acting with some autonomy).
+- `'can_detect_from'` — the owner passively reads the target regardless of
+  the target's cooperation. Use for surveillance-style one-way channels the
+  target may not know exist.
+
+**Directional, one row per direction** — matches `character_attitude`. A
+two-way conversation between two characters needs two rows, one owned by
+each side. Do not assume a `can_send_to` row implies the reverse channel
+also exists.
+
+**`sense`** — open natural-language string, same convention as
+`character_skill.skill_name` and the `capability_beliefs` JSON domains; no
+fixed taxonomy. One row per single sense — a character sending both dialogue
+and a sensory feed needs two rows (e.g. `sense='words'` and
+`sense='visual_perception'`). Use `'words'` (or similar) for language/dialogue;
+match the same sense-domain vocabulary already used in that character's
+`capability_beliefs` for raw sensory relay, so the two stay legible together.
+
+**No conditional/toggle field.** A channel that only works under some
+condition (a device needing to be plugged in, a spell requiring
+concentration) is not modeled here — express that narratively via
+`description`/`capability_beliefs` and let Pass 2 reason about it, consistent
+with DAVE's general no-lookup-table adjudication style. Revisit if this proves
+insufficient in practice.
 
 ---
 
