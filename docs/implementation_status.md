@@ -146,6 +146,22 @@
   on where that line sits before implementing; tracked as a separate, larger
   follow-on, not bundled into this session's fix.
 
+- **Check: does Pass 2 already let perceived warmth diverge from `voice_warmth`?**
+  Design discussion (same session, see `CLAUDE.md` "Narrative parameters over
+  numerical ones") distinguished self-intrinsic character traits (OCEAN —
+  a fact about the character, independent of any observer) from relationally
+  perceived qualities (warmth-as-received — inherently observer-dependent; the
+  same behavior can land as genuine to one listener and cloying or
+  passive-aggressive to another, depending on that listener's own attitude,
+  OCEAN, and history with the speaker). `character_attitude` already models
+  exactly this kind of per-observer divergence for relationship standing, but
+  it's not yet confirmed whether the Pass 2/3 prompt rules let a *listener's*
+  own psychology cause `voice_warmth` to land differently for different
+  characters, or whether high `voice_warmth` is currently treated as a
+  broadcast fact everyone receives identically. Needs a read of the actual
+  prompt rules in `engine.py` before deciding whether this needs a fix or is
+  already fine. Not yet investigated.
+
 **Pending / in progress:**
 
 - **Need: Tier 2 (`--llm`) test in Hidden Hostel for the ITEM CONSISTENCY rule.**
