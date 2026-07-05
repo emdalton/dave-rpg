@@ -1168,93 +1168,149 @@ CREATE INDEX idx_faction_rep_character ON character_faction_reputation(character
 
 
 -- =============================================================================
--- REMOTE_CAPABILITY  (added v14)
--- Selectively overrides the general rule that a player/character cannot
--- detect or affect what is happening in a distant location. Models
--- long-distance communication and remote sensing — comm links, telepathy,
--- magical scrying, a spy's remote camera — as an explicit, directional
--- grant between an owner and a target character, scoped to one sense
--- channel per row.
+-- SPECIAL_CAPABILITY  (added v14 as remote_capability; broadened + renamed v15)
+-- Selectively overrides what a character would normally be able to know or
+-- affect. Distance (comm links, telepathy, magical scrying, a spy's remote
+-- camera) is one instance of this; concealment (a rock's hidden history, a
+-- person's hidden emotion) is another, independent axis — both use the same
+-- owner/target machinery, hence the general name.
 --
--- Two distinct capabilities, distinguished by consent:
---   'can_send_to'     — the owner actively transmits to the target (the
---                       owner is choosing to communicate; requires the
---                       owner's cooperation/agency, or a "smart" device
---                       acting on the owner's behalf).
---   'can_detect_from' — the owner passively reads the target's sense data
---                       regardless of the target's cooperation (surveillance;
---                       a one-way channel the target may not know about).
+-- Three capabilities, distinguished first by read-vs-write, then by consent:
+--   'can_send_to'     — owner actively transmits to target (owner's own
+--                       cooperation/agency, or a "smart" device acting on
+--                       the owner's behalf). A read, owner -> target.
+--   'can_detect_from' — owner passively reads target regardless of the
+--                       target's cooperation (surveillance; a one-way
+--                       channel the target may not know about). A read,
+--                       target -> owner.
+--   'can_affect'      — owner changes a property of the target. A write,
+--                       not a read. Scoped by design intent to temporary or
+--                       environmental effects (a rock made to glow, a
+--                       carpet made to fly for a scene) — NOT permanent
+--                       transformation or a curse imposed on a character.
+--                       Those route through character_aspect + Fate compels
+--                       instead, which already model "something imposed on
+--                       you that you didn't choose."
 --
 -- Directional and one-way per row, matching character_attitude: a two-way
--- conversation between two characters needs two rows, one in each
--- direction. Example (Suspended demo): the player has can_send_to rows
--- targeting each robot (sense='words'); each robot has can_send_to rows
--- targeting the player for both 'words' and their own native sense (e.g.
--- Iris: sense='visual_perception'), matching the domain vocabulary already
--- used in character.capability_beliefs.
+-- channel between two characters needs two rows, one in each direction.
+-- Example (Suspended demo): the player has can_send_to rows targeting each
+-- robot (sense='words'); each robot has can_send_to rows targeting the
+-- player for both 'words' and their own native sense (e.g. Iris:
+-- sense='visual_perception'), matching the domain vocabulary already used
+-- in character.capability_beliefs.
 --
--- Can be attached to a character directly (owner_character_id) or to an
--- item (owner_item_id) — e.g. a comm implant or a remote camera. When
--- attached to an item, the effective owner is resolved dynamically at query
--- time via whichever character currently holds that item (item.char_id);
--- the capability travels with the item, not with any one character.
--- Exactly one of owner_character_id / owner_item_id is set, mirroring the
--- loc_id/char_id/item_id pattern already used on the item table.
+-- OWNER — exactly one of three (CHECK below):
+--   owner_character_id — belongs to that character specifically.
+--   owner_item_id      — belongs to whoever currently holds the item
+--                        (resolved dynamically via item.char_id at query
+--                        time); the capability travels with the item, e.g.
+--                        a comm implant or remote camera. See also: an item
+--                        that grants a capability to whoever is TOUCHING it
+--                        (not necessarily carrying it) — the `distance`
+--                        column expresses that requirement; resolving
+--                        "who is currently in contact" from the current
+--                        turn's action is engine/Pass 2 integration work,
+--                        not yet implemented.
+--   owner_location_id  — the location itself has agency (a warded room that
+--                        detects anyone entering), independent of any one
+--                        character or item.
+--
+-- TARGET — exactly one of four (CHECK below):
+--   target_character_id, target_item_id, target_location_id — a specific,
+--   seeded row. target_description — a free-text filter (e.g. "any distant,
+--   real-world place") adjudicated fresh by Pass 2 each time rather than
+--   resolved to one row; use when the target is a changing or unenumerable
+--   set, not a fixed thing.
 --
 -- sense is an open natural-language string, not a fixed taxonomy — same
 -- convention as character_skill.skill_name and the capability_beliefs JSON
--- domains. Use 'words' (or similar) for dialogue/language communication;
--- use the same sense-domain vocabulary as capability_beliefs for raw
--- sensory relay (e.g. 'visual_perception', 'auditory_perception').
+-- domains. For can_send_to/can_detect_from, this is the sense/channel
+-- ('words', 'visual_perception', 'telepathic_impression'). For can_affect,
+-- this column is reused to name the property being changed ('luminosity',
+-- 'buoyancy') rather than adding a redundant column.
 --
--- This table only says a channel exists — it does not gate on conditions
--- (e.g. a robot needing to be plugged into a peripheral before its
--- data_interface channel works). Conditional/toggled channels are expressed
--- narratively via description/capability_beliefs for now, consistent with
--- DAVE's general "the LLM reasons about it in context" design; a dedicated
--- condition field can be added later if this proves insufficient.
+-- distance — the required spatial relationship between owner and target.
+-- Open string; NOT purely a maximum range — 'touch' is a STRICTER
+-- requirement than ordinary co-location would already satisfy, not a looser
+-- one. NULL if not meaningful for this row. Examples: 'touch',
+-- 'same_location', 'unlimited'.
 --
--- Schema only as of v14 — context.py packet assembly and the Pass 1/2/3
+-- typical_duration / typical_effort — qualitative, free-text hints for Pass
+-- 2, deliberately NOT numeric fields. This project models Fate-weight
+-- narrative capability, not a Hero-System-style crunchy resource system.
+-- Examples: typical_duration = 'fleeting', 'a few minutes', 'all day';
+-- typical_effort = 'effortless', 'requires focused attention and exhausts
+-- character'. Actual per-use runtime tracking (is this active right now,
+-- for how much longer) is NOT modeled here — it rides on the existing
+-- character.current_activity / activity_estimated_duration /
+-- activity_duration_confidence / activity_renewable system already used for
+-- things like a Regency dance commitment; these two fields are calibration
+-- hints for Pass 2 when it sets that activity, not a new tracked resource.
+--
+-- Schema only as of v15 — context.py packet assembly and the Pass 1/2/3
 -- prompt rules that consume this table (including the necessary carve-out
 -- to "NPC presence is authoritative") are a separate, not-yet-implemented
 -- follow-on. See docs/future_features.md and docs/implementation_status.md.
 -- =============================================================================
 
-CREATE TABLE remote_capability (
-    id                  INTEGER PRIMARY KEY,
+CREATE TABLE special_capability (
+    id                   INTEGER PRIMARY KEY,
 
-    -- Exactly one of these two identifies who holds this capability.
-    owner_character_id  INTEGER REFERENCES character(id),
-    owner_item_id       INTEGER REFERENCES item(id),
+    -- Owner: exactly one of these three (CHECK below).
+    owner_character_id   INTEGER REFERENCES character(id),
+    owner_item_id        INTEGER REFERENCES item(id),
+    owner_location_id    INTEGER REFERENCES location(id),
 
-    -- The character this capability is directed toward.
-    target_id           INTEGER NOT NULL REFERENCES character(id),
+    -- Target: exactly one of these four (CHECK below).
+    target_character_id  INTEGER REFERENCES character(id),
+    target_item_id       INTEGER REFERENCES item(id),
+    target_location_id   INTEGER REFERENCES location(id),
+    target_description   TEXT,
 
-    -- 'can_send_to'     — owner actively transmits to target (consensual/agentive)
-    -- 'can_detect_from' — owner passively reads target regardless of consent
-    capability          TEXT    NOT NULL
-        CHECK(capability IN ('can_send_to', 'can_detect_from')),
+    -- 'can_send_to' | 'can_detect_from' | 'can_affect' — see banner comment.
+    capability           TEXT    NOT NULL
+        CHECK(capability IN ('can_send_to', 'can_detect_from', 'can_affect')),
 
-    -- Open natural-language sense/channel label. One row per single sense —
-    -- a character sending both dialogue and a sensory feed needs two rows.
-    -- Examples: 'words', 'visual_perception', 'tactile_perception',
-    -- 'vibration_detection', 'auditory_perception', 'energy_flow_detection',
-    -- 'data_interface', 'telepathic_impression'.
+    -- Open natural-language sense/channel label (or property, for
+    -- can_affect). One row per single sense — a character sending both
+    -- dialogue and a sensory feed needs two rows.
     sense                TEXT    NOT NULL,
+
+    -- Required spatial relationship between owner and target. See banner
+    -- comment — not purely a max range. NULL if not meaningful.
+    distance             TEXT,
+
+    -- Qualitative, free text. NOT a numeric minutes value. See banner comment.
+    typical_duration     TEXT,
+
+    -- Qualitative, free text. NOT a numeric cost/resource. See banner comment.
+    typical_effort       TEXT,
 
     created_at           TEXT    NOT NULL DEFAULT (datetime('now')),
 
-    -- Exactly one owner reference must be set. Enforced at the application
-    -- layer too (see item table precedent), but checked here as well.
+    -- Exactly one owner reference must be set.
     CHECK (
         (owner_character_id IS NOT NULL) +
-        (owner_item_id      IS NOT NULL) = 1
+        (owner_item_id      IS NOT NULL) +
+        (owner_location_id  IS NOT NULL) = 1
+    ),
+
+    -- Exactly one target reference must be set.
+    CHECK (
+        (target_character_id IS NOT NULL) +
+        (target_item_id      IS NOT NULL) +
+        (target_location_id  IS NOT NULL) +
+        (target_description  IS NOT NULL) = 1
     )
 );
 
-CREATE INDEX idx_remote_capability_owner_char ON remote_capability(owner_character_id);
-CREATE INDEX idx_remote_capability_owner_item ON remote_capability(owner_item_id);
-CREATE INDEX idx_remote_capability_target ON remote_capability(target_id);
+CREATE INDEX idx_special_capability_owner_char ON special_capability(owner_character_id);
+CREATE INDEX idx_special_capability_owner_item ON special_capability(owner_item_id);
+CREATE INDEX idx_special_capability_owner_loc  ON special_capability(owner_location_id);
+CREATE INDEX idx_special_capability_target_char ON special_capability(target_character_id);
+CREATE INDEX idx_special_capability_target_item ON special_capability(target_item_id);
+CREATE INDEX idx_special_capability_target_loc  ON special_capability(target_location_id);
 
 
 -- =============================================================================
@@ -1287,3 +1343,6 @@ VALUES (13, 'Fresh install at v13: add prose column to action_log for Pass 3 ant
 
 INSERT INTO schema_version (version, description)
 VALUES (14, 'Fresh install at v14: add remote_capability table (can_send_to / can_detect_from) for cross-location communication and remote sensing; schema only, engine integration not yet implemented');
+
+INSERT INTO schema_version (version, description)
+VALUES (15, 'Fresh install at v15: rename remote_capability -> special_capability; owner/target gain location option; target gains free-text description filter; add can_affect capability; add distance, typical_duration, typical_effort (qualitative, not numeric); schema only, engine integration not yet implemented');

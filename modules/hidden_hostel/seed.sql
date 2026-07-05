@@ -853,3 +853,51 @@ VALUES (1, 'Mysteries of the Hidden Hostel',
     'A battered hardcover with an ornate tooled cover. It contains stories set in the Hidden Hostel.',
     '{"weight": "light", "readable": true, "genre": "stories"}',
     4, 'in_pack');  -- The Scholar (id=4)
+
+-- =============================================================================
+-- Gray crystal sphere (Common Room, location 1) — special_capability test
+-- =============================================================================
+--
+-- Simple test case for special_capability (schema v15, engine integration
+-- not yet implemented — this seed row has no behavioral effect until
+-- context.py/Pass 2 catch up; see docs/implementation_status.md).
+--
+-- Sits on the low table near the hearth (location_description below). Shows
+-- the toucher a brief vision of some faraway place — this is scrying, not
+-- ordinary sight, so it deliberately overrides the normal rule that a
+-- character can't perceive a distant location.
+--
+-- Row shape and why:
+--   owner_item_id     — the sphere, not any one character. The capability
+--                       belongs to whoever is currently touching it, not to
+--                       a fixed owner.
+--   distance='touch'  — for an item-owned row, distance expresses what
+--                       relationship a character needs to the ITEM to gain
+--                       the capability (must be touching it, not merely in
+--                       the room) — NOT how far the granted vision can then
+--                       reach. The vision's own reach is unconstrained by
+--                       design (that's the point of scrying); there's only
+--                       one distance column, so it's doing double duty here
+--                       — worth remembering if this table's shape gets
+--                       revisited later.
+--   target_description — no single fixed place; "faraway places" (plural,
+--                       varied) is exactly the unenumerable-target case this
+--                       field exists for, not a specific target_location_id.
+--   typical_duration='fleeting', typical_effort='effortless' — a brief,
+--                       passive vision on touch, not a sustained or costly
+--                       effort.
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'gray crystal sphere',
+    'A dull gray sphere, about the size of a fist, resting in a shallow wooden dish. It looks unremarkable until touched — travellers who have handled it describe a brief, swimming vision of somewhere else entirely, gone again before they can be sure what they saw.',
+    '{"weight": "light", "portable": true, "material": "crystal"}',
+    1, 'on the low table near the hearth, in a shallow wooden dish');
+
+INSERT INTO special_capability (
+    owner_item_id, target_description, capability, sense,
+    distance, typical_duration, typical_effort
+)
+SELECT id,
+    'any distant, real-world place the toucher has heard of or can imagine — the vision is vague and impressionistic, not guaranteed accurate or currently relevant',
+    'can_detect_from', 'visual_perception',
+    'touch', 'fleeting', 'effortless'
+FROM item WHERE name = 'gray crystal sphere' AND game_id = 1;

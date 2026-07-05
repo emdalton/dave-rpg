@@ -269,6 +269,15 @@ VALUES (
 -- Player-claimed items from a prior session are discarded on reset.
 -- =============================================================================
 
+-- v15: special_capability rows can reference item.id (owner_item_id /
+-- target_item_id) with a plain FK (no ON DELETE clause), so with
+-- foreign_keys=ON, deleting a referenced item row fails unless the
+-- referencing special_capability row is removed first. Must run before the
+-- item delete below, not after.
+DELETE FROM special_capability
+WHERE owner_item_id IN (SELECT id FROM item WHERE game_id = 1)
+   OR target_item_id IN (SELECT id FROM item WHERE game_id = 1);
+
 -- v10: character_item table removed; item FK lives directly on item row (char_id).
 -- No DELETE FROM character_item needed.
 DELETE FROM item WHERE game_id = 1;
@@ -356,6 +365,26 @@ VALUES (1, 'Mysteries of the Hidden Hostel',
     'A battered hardcover with an ornate tooled cover. It contains stories set in the Hidden Hostel.',
     '{"weight": "light", "readable": true, "genre": "stories"}',
     4, 'in_pack');  -- The Scholar (id=4)
+
+-- Re-seed the gray crystal sphere (special_capability test, schema v15)
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'gray crystal sphere',
+    'A dull gray sphere, about the size of a fist, resting in a shallow wooden dish. It looks unremarkable until touched — travellers who have handled it describe a brief, swimming vision of somewhere else entirely, gone again before they can be sure what they saw.',
+    '{"weight": "light", "portable": true, "material": "crystal"}',
+    1, 'on the low table near the hearth, in a shallow wooden dish');
+
+-- Re-seed its special_capability row — re-resolve owner_item_id by name/game_id
+-- since the sphere gets a fresh item.id on every reset (item table was fully
+-- cleared and re-seeded above).
+INSERT INTO special_capability (
+    owner_item_id, target_description, capability, sense,
+    distance, typical_duration, typical_effort
+)
+SELECT id,
+    'any distant, real-world place the toucher has heard of or can imagine — the vision is vague and impressionistic, not guaranteed accurate or currently relevant',
+    'can_detect_from', 'visual_perception',
+    'touch', 'fleeting', 'effortless'
+FROM item WHERE name = 'gray crystal sphere' AND game_id = 1;
 
 
 -- =============================================================================

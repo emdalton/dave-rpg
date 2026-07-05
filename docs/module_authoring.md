@@ -98,9 +98,9 @@ exist in the database:
 14. `item` (schema v10+: `item` rows reference their holder directly via
     `loc_id`/`char_id`/`item_id` — there is no separate `character_item`
     join table to insert afterward)
-15. `remote_capability` (added v14, schema only — no engine integration yet;
-    optional, requires the referenced character and/or item rows to exist
-    first)
+15. `special_capability` (added v14 as `remote_capability`, broadened/renamed
+    v15 — schema only, no engine integration yet; optional, requires the
+    referenced character/item/location rows to exist first)
 
 Each section has a `-- === SECTION NAME === --` comment block. Within a section,
 insert in ID order so the file is predictable to read and diff.
@@ -745,46 +745,74 @@ VALUES (1, 'sencha canister', '...', 1, 'in_pack', '{"weight": "light"}');
 
 ---
 
-### `remote_capability` (added v14, schema only)
+### `special_capability` (added v14 as `remote_capability`; broadened + renamed v15, schema only)
 
 **Engine integration not yet implemented.** This table exists in the schema
 and can be seeded, but `context.py` does not yet assemble it into a packet
-and no Pass 1/2/3 prompt rule consumes it. A module that seeds these rows
-today gets no behavioral effect from them until that follow-on work lands —
-check `docs/implementation_status.md` before relying on this for a live
-module.
+and no Pass 1/2/3 prompt rule consumes it — including the carve-out this
+requires in the existing "NPC presence is authoritative" rule, which
+currently has no exception for a character or object participating without
+being physically co-located. A module that seeds these rows today gets no
+behavioral effect from them until that follow-on work lands — check
+`docs/implementation_status.md` before relying on this for a live module.
 
 ```sql
-INSERT INTO remote_capability (owner_character_id, owner_item_id, target_id, capability, sense)
-VALUES ( ... );
+INSERT INTO special_capability (
+    owner_item_id, target_description, capability, sense,
+    distance, typical_duration, typical_effort
+) VALUES ( ... );
 ```
 
-Models long-distance communication and remote sensing (comm links,
-telepathy, scrying, a spy's remote camera) as an explicit override of the
-general rule that a character cannot detect or affect a distant location.
+Overrides what a character would normally be able to know or affect.
+Distance (comm links, telepathy, scrying, a spy's remote camera) is one
+instance of this; concealment (a rock's hidden history, a person's hidden
+emotion) is a separate, independent axis that uses the same owner/target
+machinery — hence the general name rather than "remote."
 
-**`owner_character_id` / `owner_item_id`** — exactly one must be set (CHECK
-constraint), mirroring the `loc_id`/`char_id`/`item_id` pattern on `item`.
-Character-owned means the capability belongs to that character specifically.
-Item-owned means the capability belongs to whoever currently holds the item
-(resolved dynamically via the item's `char_id` at query time) — a comm
-implant or remote camera changes hands, and the capability goes with it.
+**Owner — exactly one of three** (CHECK constraint):
+- `owner_character_id` — belongs to that character specifically.
+- `owner_item_id` — belongs to whoever currently holds the item (resolved
+  dynamically via the item's `char_id` at query time) — a comm implant or
+  remote camera changes hands, and the capability goes with it. For an item
+  that grants its capability to whoever is *touching* it rather than
+  carrying it (a scrying sphere sitting on a table), see `distance` below —
+  resolving "who is touching this right now" from the current turn's action
+  is engine/Pass 2 integration work, not yet implemented, so seed this shape
+  now knowing the activation logic doesn't exist yet.
+- `owner_location_id` — the location itself has agency (a warded room that
+  detects anyone entering), independent of any character or item.
 
-**`target_id`** — the character this capability is directed toward. Always
-a `character.id`, regardless of whether the owner side is a character or item.
+**Target — exactly one of four** (CHECK constraint):
+- `target_character_id` / `target_item_id` / `target_location_id` — a
+  specific, seeded row.
+- `target_description` — a free-text filter (e.g. `'any distant, real-world
+  place'`) adjudicated fresh by Pass 2 each time rather than resolved to one
+  row. Use when the target is a changing or unenumerable set, not a fixed
+  thing. This is the least stable/efficient option (Pass 2 has to improvise
+  something plausible on every use rather than reading a stored fact) —
+  reach for a specific target reference first; use this when the whole point
+  is that the target varies.
 
-**`capability`** — `'can_send_to'` or `'can_detect_from'`. The distinction is
-consent, not sense channel:
+**`capability`** — `'can_send_to'`, `'can_detect_from'`, or `'can_affect'`.
+The first two are reads, distinguished by consent; the third is a write:
 - `'can_send_to'` — the owner actively transmits to the target. Requires the
   owner's own agency (or a "smart" device acting with some autonomy).
 - `'can_detect_from'` — the owner passively reads the target regardless of
   the target's cooperation. Use for surveillance-style one-way channels the
   target may not know exist.
+- `'can_affect'` — the owner changes a property of the target. Scoped by
+  design intent to temporary or environmental effects (a rock made to glow
+  for a scene, a carpet made to fly) — **not** permanent transformation or a
+  curse imposed on a character. For those, use `character_aspect` and a Fate
+  compel instead; that mechanism already models "something imposed on you
+  that you didn't choose," and duplicating it here would be redundant and
+  heavier than this project wants (see the qualitative-not-numeric note
+  below — this is meant to stay Fate-weight, not Hero-System-weight).
 
 **Directional, one row per direction** — matches `character_attitude`. A
-two-way conversation between two characters needs two rows, one owned by
-each side. Do not assume a `can_send_to` row implies the reverse channel
-also exists.
+two-way channel between two characters needs two rows, one owned by each
+side. Do not assume a `can_send_to` row implies the reverse channel also
+exists.
 
 **`sense`** — open natural-language string, same convention as
 `character_skill.skill_name` and the `capability_beliefs` JSON domains; no
@@ -793,13 +821,27 @@ and a sensory feed needs two rows (e.g. `sense='words'` and
 `sense='visual_perception'`). Use `'words'` (or similar) for language/dialogue;
 match the same sense-domain vocabulary already used in that character's
 `capability_beliefs` for raw sensory relay, so the two stay legible together.
+For `can_affect` rows, this column names the property being changed instead
+(e.g. `'luminosity'`) — reused rather than adding a redundant column.
 
-**No conditional/toggle field.** A channel that only works under some
-condition (a device needing to be plugged in, a spell requiring
-concentration) is not modeled here — express that narratively via
-`description`/`capability_beliefs` and let Pass 2 reason about it, consistent
-with DAVE's general no-lookup-table adjudication style. Revisit if this proves
-insufficient in practice.
+**`distance`** — open string describing the required spatial relationship
+between owner and target. Not purely a maximum range: `'touch'` is a
+*stricter* requirement than ordinary co-location would already satisfy, not
+a looser one — use it for anything requiring actual physical contact (a
+scrying sphere activated by touch), not just "close by." Other examples:
+`'same_location'`, `'unlimited'`. NULL if not meaningful for a given row.
+
+**`typical_duration` / `typical_effort`** — qualitative, free-text hints for
+Pass 2, deliberately *not* numeric fields (no minutes, no cost points — this
+models Fate-weight narrative capability, not a crunchy resource system).
+`typical_duration` examples: `'fleeting'`, `'a few minutes'`, `'all day'`.
+`typical_effort` examples: `'effortless'`, `'requires focused attention and
+exhausts character'`. Neither field tracks an active use in progress — that
+rides on the existing `character.current_activity` /
+`activity_estimated_duration` / `activity_duration_confidence` /
+`activity_renewable` system (the same one used for a Regency dance
+commitment); these two fields are just calibration input for when Pass 2 sets
+that activity, not a parallel resource pool.
 
 ---
 

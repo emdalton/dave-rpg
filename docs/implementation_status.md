@@ -65,6 +65,77 @@
     tests written yet — nothing to test until context.py/prompt integration
     exists).
 
+- **`special_capability` table (schema v15) — rename + broaden `remote_capability`
+  (`schema/schema.sql`, `schema/migrations/migrate_v14_to_v15.sql`,
+  `docs/module_authoring.md`, `modules/hidden_hostel/seed.sql`,
+  `modules/hidden_hostel/reset_instance.sql`):**
+  - Design discussion with E (same session) established this is broader than
+    "remote": distance is one axis this overrides, concealment (a rock's
+    hidden history, a person's hidden emotion) is another, independent one.
+    Renamed accordingly.
+  - Owner gains `owner_location_id` (a location can have agency — a warded
+    room that detects entrants). Target changes from a single required
+    character FK to four mutually exclusive options: `target_character_id`,
+    `target_item_id`, `target_location_id` (scrying targets a place), and
+    `target_description` (free-text filter, e.g. "any distant, real-world
+    place" — adjudicated fresh by Pass 2 each time rather than resolved to a
+    fixed row; for unenumerable/varying targets).
+  - `capability` gains a third value, `'can_affect'` — a write (owner changes
+    a target property), distinct from the two existing reads. Scoped by
+    design intent to temporary/environmental effects only; permanent
+    transformation or a curse imposed on a character routes through
+    `character_aspect` + Fate compels instead (already models "something
+    imposed on you that you didn't choose" — deliberately not duplicating
+    that here). Reuses `sense` to name the affected property rather than
+    adding a column.
+  - Two new nullable, qualitative (NOT numeric) columns: `distance` (the
+    required spatial relationship between owner and target — not just a
+    max range; `'touch'` is *stricter* than ordinary co-location, not
+    looser) and `typical_duration`/`typical_effort` (free-text calibration
+    hints — `'fleeting'`, `'requires focused attention and exhausts
+    character'` — deliberately not numbers; E was explicit about not wanting
+    Hero-System-weight crunch, Fate-weight narrative signal instead). Actual
+    per-use runtime tracking rides on the existing
+    `character.current_activity` system, not a new mechanism.
+  - Migration recreates the table (SQLite can't ALTER a CHECK constraint or
+    an XOR column set in place) — same approach as the v10→v11 `game` table
+    migration. No real data existed at v14 to lose (schema-only, zero
+    consumers), but the copy step is written correctly anyway per migration
+    rules #1/#3 (explicit column list; new columns get literal NULL, not
+    read from a table version that didn't have them).
+  - Verified the same way as v14: fresh install and the v14-baseline +
+    migration path produce byte-identical `PRAGMA table_info` output; CHECK
+    constraints exercised directly (two-target-set and invalid-`capability`
+    both correctly rejected); FK-clean.
+  - **Concrete test case seeded in Hidden Hostel (E's suggestion):** a gray
+    crystal sphere in the Common Room, `owner_item_id`-owned,
+    `target_description`-targeted ("any distant, real-world place..."),
+    `capability='can_detect_from'`, `sense='visual_perception'`,
+    `distance='touch'`, `typical_duration='fleeting'`,
+    `typical_effort='effortless'`. Schema only — no behavioral effect until
+    context.py/prompt integration lands; the item and its description exist
+    and are inert until then.
+  - **Design ambiguity surfaced by actually seeding this, worth remembering:**
+    `distance` is doing double duty. For an item-owned row, it can mean
+    either "what relationship a character needs to the *item* to gain the
+    capability" (this case: must touch the sphere) or "how far the granted
+    capability then reaches to its *target*" (this case: unconstrained by
+    design — that's the point of scrying). Only one column exists; this seed
+    uses it for the former and leaves the latter implicitly unlimited.
+    Revisit if a case needs both constrained at once.
+  - **Real bug caught and fixed by testing the full seed→reset cycle, not
+    just seed→build:** `reset_instance.sql` does `DELETE FROM item WHERE
+    game_id = 1` before re-seeding. With `foreign_keys=ON` and no `ON DELETE`
+    clause on `special_capability`'s item references, this would have failed
+    outright once a `special_capability` row existed pointing at an item —
+    deleting a referenced row with no cascade is a straight FK violation.
+    Added a `DELETE FROM special_capability WHERE owner_item_id IN (...) OR
+    target_item_id IN (...)` immediately before the item delete, and the
+    matching re-seed (re-resolved by item name, not a hardcoded id, since
+    the sphere gets a fresh id every reset) after items are recreated.
+    Verified end-to-end: build → seed → reset all run clean, FK-checked
+    after each step.
+
 **Related, deliberately deferred:**
 
 - Broader "invented facts must stay canon" problem (E's framing, connects to
