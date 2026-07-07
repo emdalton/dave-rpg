@@ -195,6 +195,7 @@ def build_pass2_packet(
     game_id: int,
     action_record: dict[str, Any],
     involuntary_events: list[dict] | None = None,
+    newly_arrived_npcs: list[dict] | None = None,
     instance_id: int | None = None,
 ) -> dict[str, Any]:
     """
@@ -220,6 +221,11 @@ def build_pass2_packet(
       and interaction history with the player
     - involuntary_events: any involuntary events that fired this turn (these are
       injected into adjudication as additional constraints on the outcome)
+    - newly_arrived_npcs_this_turn (v16+): any NPC who autonomously wandered into
+      the player's current location this turn, before this turn's action was
+      processed (see engine._check_npc_wandering()). Lets Pass 2 decide whether
+      an unannounced arrival is narratively salient, instead of the player only
+      learning of it via an unrelated later action.
 
     Not included in Pass 2:
     - Raw player_input (already parsed into action_record)
@@ -232,6 +238,10 @@ def build_pass2_packet(
         involuntary_events: Optional list of involuntary event state dicts that
             fired this turn (from db.get_involuntary_states + roll_involuntary_event).
             May be None or empty if no involuntary events fired.
+        newly_arrived_npcs: Optional list of {id, name} dicts for NPCs who
+            wandered into the player's current location this turn (from
+            engine._check_npc_wandering()). May be None or empty if no NPC
+            arrived this turn.
 
     Returns:
         A dict ready to be JSON-serialised for the Pass 2 prompt.
@@ -383,6 +393,7 @@ def build_pass2_packet(
         "characters_present": characters_present,
         "characters_nearby": characters_nearby,
         "involuntary_events_this_turn": inv_event_summaries,
+        "newly_arrived_npcs_this_turn": newly_arrived_npcs or [],
     }
 
     # Add clock only when available (backwards-compatible with pre-v5 databases).
@@ -434,7 +445,12 @@ def build_pass3_packet(
     - outcome: the structured dict from Pass 2
     - game: genre, tone, speech_filter, cultural_norms (world flavour)
     - player: name, species, emotional_state (perspective anchor)
-    - current_location: name and description (setting anchor)
+    - current_location: name, description, and situation_flags (setting
+      anchor — situation_flags carries transient conditions such as
+      time-of-day; see current_game_time below for why this matters)
+    - current_game_time: minutes-past-midnight and a formatted label, when
+      the instance has a seeded clock (added — see note at its assembly
+      site for the bug this fixes)
 
     Not included in Pass 3:
     - Hidden motivation or hidden attitudes (adjudication-only)
@@ -496,6 +512,18 @@ def build_pass3_packet(
         "id": location["id"],
         "name": location["name"],
         "description": location["description_skeleton"],
+        # situation_flags (added): transient conditions — time-of-day,
+        # weather, ambient state — e.g. ["night", "quiet", "humans_asleep"].
+        # Pass 2 already receives these via _build_location_context(); Pass 3
+        # did not, and description_skeleton is deliberately time-neutral
+        # prose (see module_authoring.md), so Pass 3 had no grounding for
+        # time-of-day at all and would invent one. Concretely: the opening
+        # scene (_render_opening_scene(), which runs Pass 3 on a synthetic
+        # outcome with a generic narrative_beat) rendered "mid-afternoon"
+        # for I Am a Cat's 3am start, repeatedly, with situation_flags
+        # correctly seeded as ["night", "quiet", "humans_asleep", ...] the
+        # whole time — the flags simply never reached the prompt.
+        "situation_flags": location["situation_flags"],
     } if location else {}
 
     # ------------------------------------------------------------------
@@ -629,6 +657,38 @@ def build_pass3_packet(
     # ------------------------------------------------------------------
     recent_prose = db.get_recent_prose(game_id, limit=3)
 
+    # ------------------------------------------------------------------
+    # In-game clock (added — same bug fix as situation_flags above)
+    #
+    # Pass 2 has received this since v5 (see build_pass2_packet); Pass 3 did
+    # not, which meant the renderer had no independent ground truth for time
+    # of day at all — it depended entirely on Pass 2 correctly threading a
+    # time-consistent narrative_beat through for Pass 3 to render, and the
+    # opening scene (a synthetic, Pass-2-bypassing outcome — see
+    # _render_opening_scene()) had no such narrative_beat to inherit from.
+    # Looked up via get_active_instance() rather than a new function
+    # parameter so existing call sites (_render_opening_scene,
+    # _render_move_blocked, the main turn loop) do not need to change.
+    # Omitted (not just null) when unavailable, matching the Pass 2 pattern,
+    # for backwards compatibility with pre-v5 databases.
+    # ------------------------------------------------------------------
+    current_game_time: dict | None = None
+    instance = db.get_active_instance(game_id)
+    if instance is not None:
+        try:
+            minutes = db.get_game_clock(instance["id"])
+            current_game_time = {
+                "minutes_past_midnight": minutes,
+                "label": _format_game_time(minutes),
+            }
+        except ValueError:
+            # Unseeded sentinel or missing instance — omit rather than crash.
+            logger.warning(
+                "Could not fetch game clock for instance_id=%s; "
+                "current_game_time omitted from Pass 3 packet.",
+                instance["id"],
+            )
+
     packet = {
         "pass": 3,
         "description": (
@@ -649,6 +709,10 @@ def build_pass3_packet(
         # at the start of a session. See anti-repetition rule in PASS3_PROMPT_TEMPLATE.
         "recent_prose": recent_prose,
     }
+
+    # Add clock only when available (backwards-compatible with pre-v5 databases).
+    if current_game_time is not None:
+        packet["current_game_time"] = current_game_time
 
     logger.debug(
         "Pass 3 packet built: game=%d player=%d chars_present=%d "

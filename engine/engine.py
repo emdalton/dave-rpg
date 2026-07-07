@@ -183,6 +183,26 @@ Rules:
   filter: a highly conscientious NPC may suppress hunger to finish a task;
   a low-agreeableness NPC may not share food even when hungry. Do not force
   autonomous behaviour when the character's profile makes it implausible.
+- NPC ARRIVAL AWARENESS: newly_arrived_npcs_this_turn lists any NPC who
+  autonomously wandered into the player's current location this turn (background
+  movement the engine applied before this turn's context was assembled — not
+  something the player did). Judge, per NPC, whether their arrival is salient
+  enough to mention in narrative_beat: a character entering a quiet room the
+  player already occupies is hard to miss; the same arrival in a crowded space
+  might reasonably go unremarked. Use the same AUTONOMOUS NPC BEHAVIOR judgment
+  above to decide whether a newly-arrived NPC also acts on the encounter this
+  turn — an unoccupied (current_activity null), sociable, or characteristically
+  playful NPC finding themselves suddenly co-located with the player is a
+  plausible moment for them to initiate contact (record it in
+  npc_initiated_actions). Do NOT use pending_intent to represent a standing
+  personality trait or general disposition ("always wants to play") — a
+  non-null pending_intent suppresses that NPC's autonomous wandering on future
+  turns (see PENDING INTENT IS MANDATORY above), so setting one permanently
+  would silently freeze a character who is supposed to keep roaming. Only set
+  pending_intent here for a genuine, situational follow-up this specific
+  encounter creates (e.g. the NPC now wants the player to keep playing), the
+  same way any other pending_intent is established, and clear it normally once
+  it resolves.
 - RELATIONSHIP REFERENCES: when the player refers to a character by relationship
   ("my cousin", "Charlotte's brother", "Sir William's daughter"), resolve the
   referent from the descriptions in the character profiles before acting. Do not
@@ -208,6 +228,29 @@ Rules:
   If route.interrupted is false, adjudicate the arrival at the destination.
   The narrative_beat for a routed move should briefly name the rooms passed
   through (from route.path_location_names) before describing the arrival.
+- SINGLE-HOP CEILING: if action_record does NOT contain a "route" key, the
+  engine has not pre-resolved any path — you are adjudicating a freehand
+  action, not a targeted move. In this case you may move the player at most
+  one hop: to current_location itself (no move) or to a single location
+  listed in current_location.adjacent_locations. You may NOT narrate the
+  player arriving at, entering, or acting inside any location beyond that
+  one hop, even if the player's phrasing implies traveling further (e.g. a
+  compound command like "walk on them and sit on their face" that assumes
+  the player already knows which room and bed to head for). Concretely: if
+  reaching the player's evident goal would require passing through an
+  intermediate location not in adjacent_locations, your narrative_beat must
+  stop at what is reachable this turn — describe the player setting off,
+  climbing, or reaching the nearest adjacent location, and treat the rest of
+  the journey as unresolved (a natural fit for outcome_type "partial_success"
+  or "failure"). Do NOT write a narrative_beat that describes full arrival
+  at a distant room while location_change only encodes (or is only able to
+  encode) one adjacent hop — the two must agree, and location_change's own
+  adjacent_locations constraint (see above) is the ceiling on how far the
+  narrative may travel this turn. A player who wants to reach a specific,
+  named destination in one turn should get there via a targeted move action
+  (which the engine resolves as a route, per MULTI-STEP MOVEMENT above);
+  this rule exists for the case where they did not, and prevents the
+  narrative from quietly promising more distance than the database records.
 
 Required output fields:
   outcome_type         (string: success | partial_success | failure | involuntary | ambient)
@@ -439,6 +482,16 @@ Rules:
   acts but does not speak — convey intent through what the player perceives
   (light, motion, physical presence), not through words or direct instruction.
   Do not state the intent; let it emerge from what the senses report.
+- TIME AND ATMOSPHERE GROUNDING: `current_location.situation_flags` and
+  `current_game_time` (when present) are authoritative facts about the
+  world, not suggestions — this is the opening scene, so they are your ONLY
+  source of truth for time of day and ambient condition; `description`
+  alone is deliberately time-neutral and must not be used to infer it. Do
+  not describe a time of day, weather, or ambient condition that
+  contradicts them: a location flagged "night"/"humans_asleep" is never
+  rendered as daytime; a location flagged "dark" is never rendered as
+  sunlit. If neither field gives a cue for some ambient detail, invent
+  plausibly — but never invent something that contradicts what is given.
 
 Context:
 {context_json}
@@ -460,10 +513,33 @@ Rules:
   ironic_observational for Meryton).
 - Do not reveal hidden motivation or any information outside the player
   character's direct perception.
-- Length: keep prose tight. Aim for 3–4 sentences for routine actions;
-  a short paragraph (5–6 sentences maximum) only for dramatically significant
-  moments. The ironic_observational register rewards restraint — overwriting
-  dilutes the effect. Involuntary events warrant their own brief beat.
+- Length: prioritize restraint over coverage — a compact beat that lands
+  cleanly outperforms a longer one that dilutes the moment. For a routine
+  action, prose of roughly this length and density is correct:
+  "You cross the room to the window and glance out at the street below.
+  Nothing moves in the gray hour before dawn — just a parked car and a
+  stray cat picking its way along a fence. You turn back toward the room's
+  warmth, this errand answered as fully as it's going to be tonight."
+  Do NOT pad a routine beat out with additional short sentences or
+  fragments for rhythm — three short beats strung together ("Options.
+  Considerations. The stairs await.") are not shorter than one sentence
+  saying the same thing, and both count against the same length budget.
+  Only expand toward a short paragraph — of roughly this length, and only
+  when the outcome is genuinely dramatically significant (a nonzero
+  narrative_point_delta, an involuntary event, or a major social or
+  narrative turn) — like this:
+  "You push through the door and the noise of the room hits you first —
+  raised voices, a chair scraping back, someone's sharp intake of breath.
+  The scene resolves in pieces: an overturned cup, a spreading stain, two
+  people frozen mid-argument, both turning toward you at once. Whatever
+  was happening a second ago has stopped, replaced by the sudden,
+  uncomfortable attention of everyone in the room. Something here just
+  changed, and it changed because you walked in."
+  Match the density and pacing of these examples, not just their sentence
+  count — a string of short fragments is not a substitute for genuine
+  brevity. The ironic_observational register (and others like it) rewards
+  restraint; overwriting dilutes the effect. Involuntary events warrant
+  their own brief beat, not an additional paragraph.
 - Do not repeat atmospheric or environmental details (candlelight, smells,
   ambient sounds) that have already been established in the recent narrative.
   Vary your imagery; if you have described the candlelight once, let it stand.
@@ -511,6 +587,14 @@ Rules:
   of interest at the edge of your thoughts, a slight sharpening of attention,
   etc.). If the candlelight has been mentioned, let it stand. Variety is not
   optional — a skilled narrator does not repeat themselves turn after turn.
+- TIME AND ATMOSPHERE GROUNDING: `current_location.situation_flags` and
+  `current_game_time` (when present) are authoritative facts about the
+  world, not suggestions. Do not describe a time of day, weather, or
+  ambient condition that contradicts them: a location flagged
+  "night"/"humans_asleep" is never rendered as daytime; a location flagged
+  "dark" is never rendered as sunlit. If neither field gives a cue for some
+  ambient detail, invent plausibly — but never invent something that
+  contradicts what is given.
 
 Context:
 {context_json}
@@ -784,7 +868,7 @@ class GameEngine:
             # Move NPCs that roll for autonomous wandering this turn.
             # This happens before Pass 1 so that by the time the context packet
             # is assembled, NPCs are already at their new locations.
-            self._check_npc_wandering()
+            newly_arrived_npcs = self._check_npc_wandering()
 
             # ------------------------------------------------------------------
             # Step 2: Read player input
@@ -811,7 +895,7 @@ class GameEngine:
             # Steps 3–6: Three-pass processing
             # ------------------------------------------------------------------
             try:
-                prose = self._process_turn(raw_input, involuntary_fired)
+                prose = self._process_turn(raw_input, involuntary_fired, newly_arrived_npcs)
             except LLMJSONError as exc:
                 logger.error("LLM JSON parse failure: %s", exc)
                 print("\n[The engine could not parse the LLM response. Please try again.]\n")
@@ -962,6 +1046,50 @@ class GameEngine:
         logger.debug("Opening scene prose: %.120s", prose)
         return prose
 
+    def _check_pass3_length(
+        self, prose: str, outcome: dict, action_log_id: int | None
+    ) -> None:
+        """
+        Log a warning if rendered Pass 3 prose exceeds its word-count target.
+
+        This is observability only — it never rejects, retries, or truncates
+        prose. LLMs do not reliably self-count words or sentences while
+        generating, so the actual length steering lives in the worked
+        exemplar in PASS3_PROMPT_TEMPLATE's Length rule; this check exists so
+        drift away from that steering shows up in the logs (grep for "Pass 3
+        prose exceeded length target") instead of requiring a playtester to
+        notice and a manual sentence count to confirm, as happened
+        2026-07-05.
+
+        Args:
+            prose: The rendered Pass 3 output.
+            outcome: The outcome dict this prose was rendered from (either a
+                     real Pass 2 outcome or a synthetic one, e.g. from
+                     _render_move_blocked). Used only to read
+                     narrative_point_delta and outcome_type for the log line
+                     and threshold choice.
+            action_log_id: The action_log row this prose was written to, or
+                           None for renders that don't write one (e.g. the
+                           move-blocked path).
+        """
+        word_count = len(prose.split())
+        is_significant = (outcome.get("narrative_point_delta") or 0) > 0
+        threshold = (
+            config.PASS3_LENGTH_THRESHOLD_SIGNIFICANT
+            if is_significant
+            else config.PASS3_LENGTH_THRESHOLD_ROUTINE
+        )
+        if word_count > threshold:
+            logger.warning(
+                "Pass 3 prose exceeded length target: %d words (threshold=%d, "
+                "significant=%s, outcome_type=%s, action_log_id=%s)",
+                word_count,
+                threshold,
+                is_significant,
+                outcome.get("outcome_type"),
+                action_log_id,
+            )
+
     def _render_move_blocked(self, reason: str) -> str:
         """
         Run Pass 3 on a synthetic 'move blocked' outcome so the player receives
@@ -1015,6 +1143,7 @@ class GameEngine:
 
         prose = self.llm.call(pass3_prompt)
         logger.debug("Move-blocked prose: %.120s", prose)
+        self._check_pass3_length(prose, synthetic_outcome, action_log_id=None)
         return prose
 
     # -------------------------------------------------------------------------
@@ -1519,7 +1648,9 @@ class GameEngine:
             1. Refreshes the player record
             2. Checks involuntary events
             3. Clears expired NPC activities
-            4. Moves wandering NPCs
+            4. Moves wandering NPCs (and flags any who arrive in the player's
+               own location — see NPC ARRIVAL AWARENESS in
+               _check_npc_wandering())
             5. Runs the three-pass pipeline (Pass 1 → Pass 2 → DB write → Pass 3)
 
         Args:
@@ -1541,14 +1672,14 @@ class GameEngine:
         # Per-turn pre-pass checks (same order as CLI run()).
         involuntary_fired = self._check_involuntary_events()
         self._check_activity_expiry()
-        self._check_npc_wandering()
+        newly_arrived_npcs = self._check_npc_wandering()
 
         # Exit commands signal the caller to end the session.
         if player_input.strip().lower() in ("quit", "exit", "q"):
             logger.info("Player exited via command: %r", player_input.strip())
             return None
 
-        return self._process_turn(player_input.strip(), involuntary_fired)
+        return self._process_turn(player_input.strip(), involuntary_fired, newly_arrived_npcs)
 
     # -------------------------------------------------------------------------
     # Turn processing
@@ -1558,6 +1689,7 @@ class GameEngine:
         self,
         raw_input: str,
         involuntary_fired: list[dict],
+        newly_arrived_npcs: list[dict] | None = None,
     ) -> str:
         """
         Run all three LLM passes for one turn and return the prose output.
@@ -1566,8 +1698,14 @@ class GameEngine:
         so the database always reflects the current world state.
 
         Args:
-            raw_input:         The player's raw text input for this turn.
-            involuntary_fired: Involuntary event state dicts that fired this turn.
+            raw_input:          The player's raw text input for this turn.
+            involuntary_fired:  Involuntary event state dicts that fired this turn.
+            newly_arrived_npcs: NPCs (from _check_npc_wandering()) who wandered
+                                 into the player's current location this turn,
+                                 before this turn's action was processed. Passed
+                                 through to Pass 2 as newly_arrived_npcs_this_turn
+                                 so it can react to the arrival. Defaults to None
+                                 (treated as empty) for callers that don't track it.
 
         Returns:
             The rendered prose string for display to the player.
@@ -1628,6 +1766,7 @@ class GameEngine:
         pass2_packet = build_pass2_packet(
             self.db, self.game_id, action_record,
             involuntary_events=involuntary_fired,
+            newly_arrived_npcs=newly_arrived_npcs,
             instance_id=instance_id,
         )
         pass2_prompt = PASS2_PROMPT_TEMPLATE.format(
@@ -1678,6 +1817,7 @@ class GameEngine:
 
         prose = self.llm.call(pass3_prompt)
         logger.debug("Pass 3 prose: %.120s", prose)
+        self._check_pass3_length(prose, outcome, action_log_id=action_log_id)
 
         # Write prose back to the action_log row so future turns can fetch it
         # for anti-repetition context via build_pass3_packet() → get_recent_prose().
@@ -1947,7 +2087,7 @@ class GameEngine:
     # NPC autonomous wandering
     # -------------------------------------------------------------------------
 
-    def _check_npc_wandering(self) -> None:
+    def _check_npc_wandering(self) -> list[dict]:
         """
         Apply autonomous background movement to NPCs with wander_probability > 0.
 
@@ -1965,11 +2105,28 @@ class GameEngine:
         is handled by the LLM in Pass 2 outcome location_change entries.
         This method handles only ambient background drift between turns.
 
-        Nothing is written to the action log or returned — this movement is
-        silent from the player's perspective unless they observe the NPC in
-        its new position.
+        This movement is otherwise silent from the player's perspective —
+        nothing is written to the action log — unless they observe the NPC in
+        its new position. NPC ARRIVAL AWARENESS (v16+) is the one exception:
+        any NPC who wanders into the player character's own current location
+        this pass is collected and returned so the Pass 2 context packet can
+        surface it as newly_arrived_npcs_this_turn, letting Pass 2 decide
+        whether the arrival is narratively salient. This addresses the
+        "Spook teleporting" playtest observation (2026-07-06): NPCs were
+        wandering into the player's room with no way for the player, or
+        Pass 2, to ever learn it had just happened.
+
+        Returns:
+            A list of {id, name} dicts, one per NPC who wandered into the
+            player character's current location this pass. Empty list if
+            none did (the common case).
         """
         import random as _random  # module-level import would shadow stdlib elsewhere
+
+        newly_arrived: list[dict] = []
+        player_location_id = (
+            self._player["current_location_id"] if self._player else None
+        )
 
         npcs = self.db.get_wandering_npcs(self.game_id)
         for npc in npcs:
@@ -2080,6 +2237,19 @@ class GameEngine:
                 "NPC wander: %s (id=%d) loc %d → %d",
                 npc["name"], npc["id"], current_loc, destination,
             )
+
+            # NPC ARRIVAL AWARENESS (v16+): flag arrivals into the player's
+            # own location so Pass 2 has a chance to react to them this turn,
+            # instead of the player only finding out via a later, unrelated
+            # action.
+            if player_location_id is not None and destination == player_location_id:
+                newly_arrived.append({"id": npc["id"], "name": npc["name"]})
+                logger.info(
+                    "NPC arrival: %s (id=%d) wandered into player's location (loc %d)",
+                    npc["name"], npc["id"], destination,
+                )
+
+        return newly_arrived
 
     # -------------------------------------------------------------------------
     # Outcome application (DB writes)
