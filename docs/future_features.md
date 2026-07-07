@@ -1,7 +1,94 @@
 # DAVE RPG Engine — Future Feature Ideas
 
 *Captured May–June 2026. None of these are scoped or designed; this is a reference list.*
-*Last updated: 2026-06-16.*
+*Last updated: 2026-07-06.*
+
+---
+
+## 32. Item-triggered route interruption should be context/module-dependent
+
+*Captured 2026-07-06. Surfaced by I Am a Cat playtest — the hallway runner
+causing a "major skid" on nearly every multi-hop route through the Main
+Floor Hallway.*
+
+`_resolve_multistep_move()`'s interruption check (`engine.py`, ~line 1944)
+treats any visible item at an intermediate location on a multi-hop route the
+same as an NPC: both force a hard stop, trimming the route to that point,
+before Pass 2 ever runs. Confirmed in the logs: two separate routes (one to
+the Kitchen, one upstairs) both got interrupted at the identical location
+because of the same seeded item (the hallway runner). The code's own comment
+says items are "flagged for Pass 2 to adjudicate whether they are
+distracting" — but the implementation doesn't actually give Pass 2 that
+choice; `effective_destination_id` is already committed before adjudication
+runs.
+
+**E's framing (2026-07-06):** whether an item should plausibly interrupt
+passage is context/module dependent, not a fixed engine rule. A loose rug
+underfoot is thematically appropriate for I Am a Cat's low-to-the-ground,
+cat's-eye view of household hazards, even though the current frequency reads
+as overdone. It would not usually fit Meryton or Hidden Hostel, where most
+items sitting in a room (a book, a candle) shouldn't interrupt transit at
+all. Even granting the human-plausible case — a person can trip on a loose
+runner — E's read is that this should be an uncommon event, not something
+that fires close to every time the route is used.
+
+**Open design question, not yet decided:** the fix isn't a simple binary
+(items never interrupt). Live options: (a) make item-interruption
+module-tunable (a per-module or per-item setting for "can this obstruct
+passage"); (b) make it probabilistic/rare rather than deterministic, so it
+doesn't fire on every pass; (c) drop the engine-side hard stop for items
+entirely and let Pass 2 judge plausibility qualitatively from the item's own
+description, matching how the comment already claims it should work, and
+consistent with the qualitative-judgment approach adopted for character
+position (`docs/character_position_design.md`). Whichever direction, this is
+an engine-level mechanism affecting all modules, not something to patch only
+for I Am a Cat.
+
+---
+
+## 31. NPC sleep depth and wake-transition on autonomous wander
+
+*Captured 2026-07-06. Surfaced by I Am a Cat playtest — "the mama" wandering
+from the Upper Hallway to the Bathroom while Pass 2/3 continued describing
+her as asleep.*
+
+`_check_npc_wandering()` suppresses autonomous background movement for three
+reasons: a pending social obligation, `sleepiness` above
+`WANDER_SLEEPINESS_THRESHOLD` (config.py, default 0.60), or an active
+`current_activity`. None of these applied to the mama at the time she
+wandered: her `sleepiness` internal-state value was 0.112 (well under
+threshold), and `current_activity` was null. The only place "she's asleep"
+was actually recorded was her `emotional_state` field
+(`light_sleep_disturbed`) — a field the wander system never reads. Pass 2 had
+correctly narrated her as asleep but never recorded that fact anywhere the
+wander gate checks, so the engine wandered her as if she were fully awake,
+and the next turn's Pass 2/3 — seeing her new location but her unchanged
+`emotional_state` — rendered her as asleep again in the new room, producing
+an unnarrated sleepwalk.
+
+**E's framing (2026-07-06):** the wander itself isn't the bug — a light
+sleeper plausibly waking and walking to the bathroom at 3 AM is normal. The
+actual gap is that nothing transitioned her recorded state to reflect that
+she's now awake (if still sleepy) once that happened. This implies the
+engine's sleep model may need to distinguish sleep *depth*, not just
+presence: a light sleeper (the mama, already established via
+`light_sleep_disturbed`) can plausibly be woken and move around, while a deep
+sleeper (Guy, established elsewhere as needing "actual catastrophe to
+disturb") should not wander at all regardless of the sleepiness float.
+
+**Open design question, not yet decided:** how should a wake-transition be
+triggered and recorded when a light sleeper's wander roll fires? Candidates:
+(a) extend the existing `current_activity` mechanism to represent sleep
+state generally (an NPC "asleep" via `activity_updates`, the same pattern
+already used for dance commitments — this would also make deep-sleeper
+suppression work cleanly via the existing suppression-3 check, with no new
+engine mechanism); (b) have the wander event itself nudge `emotional_state`
+or `sleepiness` mechanically when it fires for a character whose recorded
+state indicates sleep; (c) leave wander purely mechanical (per its existing
+docstring — "engine-driven, not LLM-driven") and instead ensure Pass 2 always
+re-evaluates and corrects an NPC's sleep-related `emotional_state` on the
+next turn that references them, using their current location as a cue. Not
+yet decided which layer should own this correction.
 
 ---
 
