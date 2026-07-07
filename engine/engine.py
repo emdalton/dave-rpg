@@ -2835,10 +2835,21 @@ class GameEngine:
             action_json=action_record,
             narrative_beat=outcome.get("narrative_beat"),
         )
-        return action_log_id
 
         # ------------------------------------------------------------------
         # Interaction history (increment for each NPC present at the location)
+        #
+        # Regression fix (2026-07-07): this block was unreachable — a
+        # `return action_log_id` had been added directly above it (session 35,
+        # when _apply_outcome() was changed to return the action_log_id for
+        # Pass 3's prose-writeback), and nothing after a return executes.
+        # npc_player_history has not actually been incremented during play
+        # since that session, though it fails silently rather than erroring.
+        # Restoring this as-is for now (player-to-NPC-at-location only, still
+        # a rolling summary rather than a precise fact ledger); tracked as an
+        # interim step toward broader personal-history tracking (NPC-to-NPC
+        # pairs, object modifications) via the semantic action-log-retrieval
+        # feature already in docs/future_features.md (#23).
         # ------------------------------------------------------------------
         if self._player:
             location_id = self._player["current_location_id"]
@@ -2851,6 +2862,8 @@ class GameEngine:
                     character_b_id=other["id"],
                     increment_count=True,
                 )
+
+        return action_log_id
 
         logger.info(
             "Outcome applied: type=%s attitudes=%d states=%d moves=%d "
