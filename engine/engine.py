@@ -71,6 +71,17 @@ the player's raw input into a structured action record.
 Rules:
 - Return a single JSON object. No prose, no explanation, no markdown fences.
 - Resolve pronoun references and ambiguous names using the context provided.
+  When the player uses a pronoun ("him", "her", "them", "it") or a vague
+  reference ("the other one", "the little one"), resolve it as follows:
+  1. Check characters_present (co-located characters) first. If only one
+     character of the implied type is present, that is the referent.
+  2. If still ambiguous, scan recent_actions for the most recent character
+     the player interacted with or mentioned. Prefer a character who is also
+     in characters_present. Do NOT resolve a pronoun to a character who is
+     absent from the current location unless no co-located candidate exists.
+  3. If no character can be confidently resolved, leave target_character_id
+     null and set target to the pronoun itself (e.g. "him") so Pass 2 can
+     apply its own presence check.
 - If the input is ambiguous, choose the most plausible interpretation given
   the player's current location and recent actions.
 - Valid action types: move, interact, speak, examine, take, drop, use, wait,
@@ -145,6 +156,16 @@ Rules:
   can observe: their own words going unanswered. Do not route the speech to a
   different character as a substitute. Yelling across rooms to reach a nearby
   character is a future feature; for now, absence means no interaction.
+- PHYSICAL ACTIONS REQUIRE PRESENCE: any action involving direct physical
+  contact or interaction with a specific character (grooming, touching,
+  striking, giving, handing an object, restraining, or similar) can only
+  complete if that character appears in characters_present. If the intended
+  target is absent or listed only in characters_nearby, adjudicate it as a
+  failed or blocked attempt — do not redirect the action to a different
+  character as a substitute. When resolving a pronoun target ("him", "her")
+  from the action_record, cross-check against characters_present: if the
+  named or inferred target is not present, the action cannot complete
+  regardless of what the pronoun seemed to refer to.
 - NPC ACTIONS ARE AUTHORITATIVE: only describe NPCs acting, speaking, or
   reacting in the narrative_beat if they appear in characters_present.
   Do not attribute actions or reactions to NPCs who are not listed there.
