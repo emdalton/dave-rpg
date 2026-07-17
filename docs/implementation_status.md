@@ -107,6 +107,12 @@ committed. Design work only.*
 - All session 37 / 38 items above still apply.
 - God-mode implementation not yet started — design complete, implementation
   is the next session's first priority.
+- Prose length enforcement (future_features.md #33): prompt-level word-count
+  instructions confirmed non-functional across two approaches (sentence-count
+  rule, worked exemplar). Proposed fix: post-generation compression pass after
+  Pass 3 when `_check_pass3_length()` fires. The logging backstop already
+  detects the condition; the fix is to act on it. Root cause is architectural:
+  counting and generating are incompatible within the same forward pass.
 
 ---
 

@@ -1,7 +1,50 @@
 # DAVE RPG Engine — Future Feature Ideas
 
 *Captured May–June 2026. None of these are scoped or designed; this is a reference list.*
-*Last updated: 2026-07-06.*
+*Last updated: 2026-07-17.*
+
+---
+
+## 33. Pass 3 prose-length enforcement via post-generation compression pass
+
+*Captured 2026-07-17. Surfaced by repeated playtest failure (sessions 37–39):
+prompt-level word-count instructions do not reliably constrain LLM output length.*
+
+**Problem:** Pass 3 prose routinely exceeds target length (90 words routine /
+150 words significant) despite explicit prompt instructions. Two approaches
+failed: (a) abstract sentence-count rule ("3–4 sentences routine"); (b) worked
+exemplar showing short and long cases. The logging backstop in `engine/config.py`
+confirms the problem persists across sessions.
+
+**Root cause (design principle):** Asking an LLM to count its own words while
+generating is an arithmetic task performed inside the same forward pass as the
+generation itself. The model cannot hold a running word-count while composing —
+the two tasks compete. This is the same class of mismatch as asking a
+qualitative reasoner to evaluate a numeric value (see OCEAN float note in
+implementation_status.md). The model *can* produce shorter output in isolation
+when directly asked, but loses the constraint when generation is doing something
+else simultaneously.
+
+**Proposed fix:** post-generation compression pass. After Pass 3 returns, if
+`_check_pass3_length()` finds the output over threshold, run a short fourth LLM
+call: "Compress the following to under N words while preserving tone and
+narrative content: [prose]." This separates the arithmetic constraint from the
+generative task, placing each where it can be done reliably.
+
+**Design notes:**
+- The compression pass should use the same model as Pass 3 (not a weaker one —
+  tone preservation matters).
+- It should be attempted at most once; if the result is still over threshold,
+  log and accept rather than looping.
+- Cost impact: one additional LLM call per over-length turn only; expected to
+  be infrequent if the prompt is also steering toward brevity.
+- `PASS3_LENGTH_THRESHOLD_ROUTINE` / `PASS3_LENGTH_THRESHOLD_SIGNIFICANT` in
+  `engine/config.py` already provide the thresholds; `_check_pass3_length()`
+  already detects the condition. The fix is to act on the detection rather than
+  only logging it.
+- Alternative considered: hard truncation after a sentence boundary. Rejected —
+  truncation produces abrupt endings and can cut a thought mid-idea. Compression
+  preserves narrative coherence.
 
 ---
 
