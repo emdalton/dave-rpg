@@ -164,6 +164,23 @@ ACTIVITY_AUTO_CLEAR_CONFIDENCE: float = float(
     os.environ.get("DAVE_ACTIVITY_AUTO_CLEAR_CONFIDENCE", "0.60")
 )
 
+# Word-count thresholds for Pass 3 prose, used only as an observability
+# backstop (logging, not enforcement — LLMs do not reliably self-count words
+# or sentences while generating, so the actual length steering lives in the
+# PASS3_PROMPT_TEMPLATE worked exemplar; these numbers just tell us from the
+# logs whether that steering is holding). A turn's outcome is judged
+# "significant" by outcome.narrative_point_delta > 0; routine turns use the
+# lower threshold. Starting values are back-of-envelope from playtest data
+# (2026-07-05, I Am a Cat) — expect to retune after more sessions.
+# Override with env vars: DAVE_PASS3_LENGTH_THRESHOLD_ROUTINE,
+# DAVE_PASS3_LENGTH_THRESHOLD_SIGNIFICANT
+PASS3_LENGTH_THRESHOLD_ROUTINE: int = int(
+    os.environ.get("DAVE_PASS3_LENGTH_THRESHOLD_ROUTINE", "90")
+)
+PASS3_LENGTH_THRESHOLD_SIGNIFICANT: int = int(
+    os.environ.get("DAVE_PASS3_LENGTH_THRESHOLD_SIGNIFICANT", "150")
+)
+
 
 # =============================================================================
 # DATABASE
@@ -219,4 +236,12 @@ def validate() -> None:
         raise ValueError(
             f"DAVE_INVOLUNTARY_MAX_PROB must be between 0.0 (exclusive) and 1.0 "
             f"(inclusive), got: {INVOLUNTARY_MAX_PROB}."
+        )
+
+    if PASS3_LENGTH_THRESHOLD_ROUTINE >= PASS3_LENGTH_THRESHOLD_SIGNIFICANT:
+        raise ValueError(
+            "DAVE_PASS3_LENGTH_THRESHOLD_ROUTINE "
+            f"({PASS3_LENGTH_THRESHOLD_ROUTINE}) must be less than "
+            "DAVE_PASS3_LENGTH_THRESHOLD_SIGNIFICANT "
+            f"({PASS3_LENGTH_THRESHOLD_SIGNIFICANT})."
         )
