@@ -133,6 +133,12 @@ AVAILABLE_MODULES: dict = {
         "game_id":      2,
         "description":  "Elizabeth Bennet attends the Assembly to dance and socialize.",
     },
+    "The Vintage Village": {
+        "db":           "modules/vintage_village/vintage_village.db",
+        "reset_script": "modules/vintage_village/reset_instance.sql",
+        "game_id":      1,
+        "description":  "A liminal hostel opens onto a quiet village lane. Explore at your own pace.",
+    },
 }
 
 # Contact URL shown when the user limit is reached or budget is exhausted.

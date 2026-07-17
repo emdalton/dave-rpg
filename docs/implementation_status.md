@@ -1,7 +1,361 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-07-03, session 36 (closed).*
+*Last updated: 2026-07-17, session 39 (closed).*
+
+---
+
+## Session 38 notes (2026-07-16)
+
+*Session was conducted detached from the RPG project folder; no code was
+committed. Design work only.*
+
+**Completed this session:**
+
+- **Vintage Village module — seed and reset scripts written
+  (`modules/vintage_village/seed.sql`, `modules/vintage_village/reset_instance.sql`):**
+  - Full module extending the Hidden Hostel into a small iyashikei village.
+    Hostel locations and NPCs inherited unchanged; five village locations added
+    (Village Lane, Kitchen Garden, Apothecary, Bookshop, Tea House).
+  - Two new NPCs: The Bookseller (stays in Bookshop) and The Villager (wanders
+    the lane actively, high wander probability). Apothecary and Tea House have
+    no pre-seeded NPCs — both are skeleton locations for lazy generation /
+    god-mode authoring.
+  - Wanderer's wander_range extended to include Village Lane.
+  - Bookshop seeded with three items; Kitchen Garden seeded with three items.
+    All other village location items are lazy-generated on first visit.
+  - Green Room character creation enabled (same as Hidden Hostel).
+  - Schema v15. DB verified: 9 characters, 11 locations, 10 connections, 28
+    items, 1 special_capability. FK-clean, integrity_check ok.
+  - Reset script verified: all mutable state resets correctly, items and
+    special_capability restored, action_log cleared.
+
+- **God-mode design specification (`docs/god_mode.md`):**
+  - Full design doc written; all 9 open questions resolved. Ready for
+    implementation. Key decisions:
+    - Activated by `--god-mode` CLI flag or `DAVE_GOD_MODE=1` env var; no
+      schema changes required; leaves no trace in saved game state.
+    - Pass 1 in god-mode returns `action_record` + `world_assertions` list.
+      Classification is LLM-evaluated (Qwen 3.5 or stronger, not Haiku).
+    - Assertion types: `location_detail`, `npc_description`, `item`.
+      `npc_attribute` and `spatial_relation` deferred to Phase 2.
+    - Pass 2 in god-mode is a canonization gatekeeper: writes assertions via
+      existing DB paths; suppresses unprompted lazy generation; detects and
+      logs contradictions without blocking.
+    - Pass 3 renders a full arrival scene incorporating newly canonized
+      details; surfaces contradictions as light parentheticals.
+    - Cross-location assertions accepted; CLI-only for now.
+    - Personality assertions stored in character `description` field; OCEAN
+      floats not touched by god-mode.
+  - Implementation plan: `engine/config.py` (GOD_MODE bool), `engine/__main__.py`
+    (--god-mode flag), `engine/engine.py` (god_mode branch, new prompt
+    template, `_canonize_assertions()` method). No schema or `db.py` changes
+    needed.
+
+- **OCEAN float / qualitative representation note (added to `docs/implementation_status.md`
+  design decisions section, session 38):**
+  - OCEAN traits are fed to the LLM as raw floats but consumed exclusively as
+    qualitative signals — no engine arithmetic uses them. This is an instance
+    of the numeric-representation habit the engine's own design principles
+    warn against: a description string would do the same Pass 2 job with less
+    false precision. Floats are preserved (a future rule-based layer could use
+    them) but god-mode does not overwrite them from natural-language assertions.
+
+- **Paper working notes updated (`docs/DAVE_paper_working_notes_consolidated.md`):**
+  - New §3.2: representation mismatch — qualitative reasoners and numeric
+    values (OCEAN float observation as self-critical case study).
+  - New §3.4: hybrid computation tasks — family-tree / cousin-counting as the
+    concrete illustration of why both symbolic and associative reasoning are
+    needed; human analogue included.
+
+**Pending / known issues (carried forward from session 37, unchanged):**
+
+- Full pytest suite not run against session 37 changes (movement fix,
+  prose-length fix + backstop, NPC arrival awareness, interaction-history fix,
+  reset script). Run `source .venv/bin/activate && pytest` before treating
+  those as fully verified.
+- Prose length fix (session 37) did not hold — needs stronger mechanism.
+- Character position spec (`docs/character_position_design.md`) — design only;
+  implementation not started.
+- Personal action/item-history attribution — not yet a numbered future_features
+  entry.
+- `future_features.md` #31 (NPC sleep depth) and #32 (item-interruption
+  module-dependency) — open design questions, not decided.
+- Session 37 git commits not confirmed as actually run.
+
+---
+
+## Session 39 notes (2026-07-17)
+
+**Completed this session:**
+
+- **Vintage Village database built and verified
+  (`modules/vintage_village/vintage_village.db`):**
+  - Built from `schema/schema.sql` + `modules/vintage_village/seed.sql`.
+  - Verified: integrity_check ok, FK-clean, all expected row counts confirmed
+    (9 chars, 11 locs, 10 connections, 28 items, 1 special_capability).
+  - Reset script verified end-to-end: clock resets to 1200, traveller returns
+    to loc 6, description/gender/pronouns nulled, items and special_capability
+    restored, action_log cleared.
+
+- **Vintage Village registered in web frontend (`web/config.py`):**
+  - Added to `AVAILABLE_MODULES` with `game_id=1`, correct db and reset_script
+    paths, and lobby description.
+
+**Pending / known issues (carried forward):**
+
+- All session 37 / 38 items above still apply.
+- God-mode implementation not yet started — design complete, implementation
+  is the next session's first priority.
+
+---
+
+## Session 37 notes (2026-07-07)
+
+*Covers three I Am a Cat playtests spanning 2026-07-05 through 2026-07-07,
+worked in a single continuous session.*
+
+**Completed this session:**
+
+- **Movement bug — SINGLE-HOP CEILING rule (`engine/engine.py`,
+  `PASS2_PROMPT_TEMPLATE`):**
+  - Root cause, traced through `transcripts/i_am_a_cat_20260705_155203.txt`,
+    `logs/i_am_a_cat_20260705_155203.log`, and `action_log`: a compound
+    command bundling implicit navigation with an interaction ("walk on them,
+    sit my fluffy butt on their face and meow for food") was classified by
+    Pass 1 as `interact`, not `move`, bypassing the router entirely. Pass 2
+    then narrated a full three-hop journey (Living Room → Main Stairs → Upper
+    Hallway → Bedroom, ending "at the foot of the bed") while only emitting a
+    one-hop `location_change` (to Main Stairs) — the next turn correctly
+    adjudicated from the true DB location (Main Stairs) and re-narrated
+    climbing the same stairs, reading as an inexplicable regression to the
+    player.
+  - Fix: new rule inserted after MULTI-STEP MOVEMENT — when `action_record`
+    has no `route` key, Pass 2 may move the player at most one adjacent hop,
+    and the narrative must not describe arrival beyond what `location_change`
+    can truthfully encode.
+  - Confirmed via a later playtest (2026-07-06, "go upstairs to the
+    bedroom"): a clearly-targeted move correctly triggers the pre-existing
+    router (`Multi-step move: Living Room → Bedroom`), showing the bug is
+    specific to freehand/compound commands, not the router itself.
+  - Verified: `python3 -m py_compile` clean; `PASS2_PROMPT_TEMPLATE.format()`
+    succeeds (no unescaped-brace `IndexError`); content assertions confirm
+    the new rule text is present. **Not run against the full pytest suite**
+    — no `pytest`/network access in this working environment; flagged for E
+    to run locally before treating this as fully verified.
+
+- **Prose length — fix attempted, did not hold (`engine/engine.py`
+  `PASS3_PROMPT_TEMPLATE`, `engine/config.py`):**
+  - Diagnosis: the existing "3–4 sentences routine / 5–6 max significant"
+    rule was being exceeded 2–3x on Haiku (96–174 words measured against an
+    implied ~40–90 word target), partly via short-sentence-fragment stacking
+    that inflates sentence count without reducing actual length ("Options.
+    Considerations. The stairs await.").
+  - Fix attempted: replaced the abstract sentence-count instruction with a
+    tone-neutral worked exemplar (short/long examples) plus an explicit
+    anti-fragment-stacking callout. Added `PASS3_LENGTH_THRESHOLD_ROUTINE`
+    (90) / `PASS3_LENGTH_THRESHOLD_SIGNIFICANT` (150) to `config.py`
+    (env-overridable, validated in `validate()`), and a
+    `_check_pass3_length()` helper that logs — never truncates or
+    retries — when rendered prose exceeds threshold, keyed on
+    `narrative_point_delta`, called from both Pass 3 render sites
+    (`_process_turn()` and `_render_move_blocked()`).
+  - Verified statically (py_compile, `.format()` success, content
+    assertions) and functionally (the logging fires correctly in play).
+  - **Outcome: the logging backstop works exactly as designed, but the
+    underlying prompt fix did not reduce length.** Playtest 2026-07-07, six
+    consecutive turns: 157, 134, 158, 162, 130, 189 words — all against the
+    90-word routine threshold, no clear improvement over the pre-fix
+    diagnostic session (96–174 words), and one turn (189) worse than
+    anything measured before the fix. Open, unresolved going into next
+    session: a prompt-level nudge — whether phrased as a sentence count or
+    demonstrated via exemplar — does not reliably constrain Haiku's output
+    length on its own. No persistent design doc exists for this fix (the
+    draft spec stayed in scratch space and was never copied into `docs/`);
+    this session-notes entry is its only durable record so far.
+
+- **Character position / sub-location — design spec only, not implemented
+  (`docs/character_position_design.md`, new file, captured 2026-07-06,
+  amended 2026-07-07):**
+  - Full design captured for tracking a character's position relative to
+    furniture within a location ("in the kitchen, on the counter"):
+    `character.position_item_id` + `character.position_description`,
+    mirroring `item.location_description`. No property-flag taxonomy on
+    furniture — Pass 2 judges plausibility of a proposed spatial relation
+    qualitatively, consistent with the narrative-parameters-over-numerical
+    principle. Applies to NPCs as well as the player (Hidden Hostel chair
+    contention — two characters wanting the same chair — is the motivating
+    case E specifically wants supported). Location-match validation mirrors
+    the existing `location_change` adjacency check, including resolving
+    nested item chains upward to find the eventual location. A
+    vehicle/portable-furniture case (a wheelchair moving its rider) is
+    resolved as a purely mechanical engine-side cascade on `item_transfers`,
+    never LLM-emitted — avoiding the "LLM must remember two things at once"
+    failure class already found and fixed for plain movement.
+  - New outcome field needed: `position_updates`. New `context.py` plumbing
+    needed: occupancy visibility per item in location packets (required, not
+    optional, for chair contention to work at all).
+  - Deliberately unmodeled: numeric seating capacity; involuntary events
+    dislodging a position (both left to Pass 2's qualitative judgment, with
+    capacity flagged as a possible fallback if that judgment proves
+    unreliable in practice).
+  - Open, unresolved: implementation staging (one pass vs. two — §7 in the
+    doc).
+  - Playtest note added 2026-07-07 (§8 in the doc): confirms the need for
+    this spec from the *absence* of the mechanism — with no implementation
+    yet, "on the counter" is held together only by Pass 1's 5-turn
+    `recent_actions` / Pass 3's 3-turn `recent_prose`, so the counter arrival
+    got needlessly re-narrated at least twice more across a single unbroken
+    stay on it ("You spring onto the counter…", then two turns later "You
+    hop onto the counter by the sink…"). Refined §5's planned Pass 3
+    rendering rule accordingly: narrate the transition only on the turn
+    `position_updates` actually changes it, not on every turn the position
+    happens to still be true.
+
+- **NPC arrival awareness — implemented (`engine/engine.py`,
+  `engine/context.py`):**
+  - Fixes the "Spook teleporting" observation (2026-07-06 playtest, traced to
+    two legitimate single-hop autonomous wander moves — Study→Upper Hallway,
+    then Upper Hallway→Main Stairs — both silent by design). `_check_npc_wandering()`
+    now returns `{id, name}` for any NPC whose wander move landed them in the
+    player's own location; threaded through `run()`/`step()`/`_process_turn()`
+    into `build_pass2_packet(newly_arrived_npcs=...)`, surfaced as
+    `newly_arrived_npcs_this_turn` (same wiring pattern as
+    `involuntary_events_this_turn`). New Pass 2 rule (NPC ARRIVAL AWARENESS)
+    lets Pass 2 judge per-arrival salience and have an idle/sociable NPC
+    proactively engage via `npc_initiated_actions` — explicitly steered away
+    from using a standing `pending_intent` to encode a personality
+    disposition ("always wants to play"), since a permanent `pending_intent`
+    would suppress that NPC's autonomous wandering (PENDING INTENT IS
+    MANDATORY already gates wander on it) — this was a real conflict with
+    E's explicit direction to leave Spook's wander behavior unchanged,
+    identified and resolved before writing any code.
+  - This closes the already-documented "NPC arrival awareness" pending item
+    (first observed Meryton playtest, 2026-05-25) — same gap, second module.
+  - Verified: py_compile clean; `.format()` succeeds; ran
+    `build_pass2_packet()` directly against `i_am_a_cat.db` with the new
+    parameter both omitted (defaults to `[]` — confirmed every existing
+    `build_pass2_packet()` call site across `tests/` stays compatible) and
+    supplied. **Not run against the full pytest suite** (sandbox limitation,
+    as above).
+
+- **`modules/i_am_a_cat/reset_instance.sql` — items were never reset
+  (fixed):**
+  - Root cause: the script's own header comment explicitly excluded items
+    from reset on the assumption they're static furniture — invalidated by
+    `item_transfers`/`item_changes` making items mutable during play.
+    `docs/module_authoring.md`'s documented reset convention already
+    specifies items should be `DELETE`d and re-seeded (Hidden Hostel's reset
+    script already does this correctly); I Am a Cat's reset script simply
+    never implemented it, so a prior session's damage (e.g. the hallway
+    runner rug pounced into a permanently "destroyed" description) silently
+    carried into every subsequent "fresh" session.
+  - Fix: added `DELETE FROM item WHERE game_id = 1` + re-INSERT of all 37
+    seeded items (copied verbatim from `seed.sql`, not hand-reconstructed) as
+    new section 6; updated the header comment accordingly.
+  - Verified functionally: ran the corrected script against a scratch copy
+    of the live (pre-fix, already-damaged) DB — 37 items restored, the
+    hallway runner's mutated description/quality correctly reset to seed
+    values, `PRAGMA foreign_key_check` clean.
+
+- **`_apply_outcome()` interaction-history dead code — fixed
+  (`engine/engine.py`):**
+  - Root cause: a session-35 change ("`_apply_outcome()` now returns the
+    `action_log_id`") added `return action_log_id` directly above the
+    existing interaction-history-increment block without moving the block
+    ahead of it, making the block unreachable ever since —
+    `npc_player_history` silently stopped being incremented during play,
+    with no error raised.
+  - Fix: moved the `return` to the end of the function, after the
+    interaction-history block.
+  - Verified functionally: bypassed the LLM-client requirement (no
+    `anthropic` package available in this sandbox) by constructing the
+    engine via `object.__new__()` and calling `_apply_outcome()` directly
+    against a scratch DB copy — confirmed `interactions_since_summary` for a
+    co-located player/NPC pair incremented 0→1, and `action_log_id` still
+    returns correctly (session 35's Pass-3-prose-writeback dependency
+    unaffected).
+  - Framed by E as an interim step — current form is player-NPC pairs only,
+    a rolling summary rather than a precise fact ledger — toward broader
+    personal-history tracking (see below) via the semantic action-log
+    retrieval feature already in `docs/future_features.md` #23, which E
+    thinks is the better fit for longer games specifically.
+
+- **Two new design-backlog entries added to `docs/future_features.md`**
+  (#31, #32; "Last updated" bumped to 2026-07-06):
+  - **#32 — item-triggered route interruption should be module/context-
+    dependent:** `_resolve_multistep_move()` forces a hard stop for *any*
+    visible item at an intermediate location on a multi-hop route,
+    contradicting its own comment ("flagged for Pass 2 to adjudicate") —
+    surfaced by the hallway runner "major skid" recurring on nearly every
+    multi-hop route through it. E's framing: obstacle plausibility is
+    module/context-dependent (fits I Am a Cat's cat's-eye-view tone; would
+    not usually fit Meryton or Hidden Hostel), not a fixed engine rule, and
+    should be rare even where plausible (a human tripping on a loose runner
+    is not a common event), not near-guaranteed as it currently is. Options
+    recorded (module-tunable, probabilistic, or drop the engine-side hard
+    stop and let Pass 2 judge from the item's own description); not decided.
+  - **#31 — NPC sleep depth and wake-transition on autonomous wander:** the
+    mama wandered from Upper Hallway to the Bathroom while Pass 2/3 kept
+    narrating her as asleep, because the wander-suppression gate (sleepiness
+    threshold + `current_activity`) never reads `emotional_state`, where
+    "asleep" was actually recorded (`light_sleep_disturbed`, `sleepiness`
+    value 0.112 — well under the 0.60 suppression threshold). E's framing:
+    the wander itself is plausible (a light sleeper waking to use the
+    bathroom); the actual gap is that nothing transitions her recorded state
+    to reflect being awake (if still sleepy) afterward — implies the engine
+    may need to model sleep *depth*, distinguishing light sleepers (can
+    plausibly wake and wander) from deep sleepers (Guy — should not wander
+    regardless of the sleepiness float). Options recorded (extend
+    `current_activity` to represent sleep generally; have the wander event
+    itself nudge state; or have Pass 2 re-evaluate sleep state each
+    referencing turn); not decided.
+
+- **Design discussion: personal action/item-history attribution — not yet
+  written up as its own backlog entry.** Surfaced by asking whether Toulouse
+  would recognize the rug as his own handiwork versus a fresh discovery:
+  no structural mechanism currently attributes an item's mutated state, or
+  an NPC's own past actions, to the specific character who caused them.
+  Pass 2 gets zero turn-history at all; Pass 1 gets 5 turns; Pass 3 gets 3;
+  nothing beyond an item's current (attribution-free) description persists
+  past those windows. E generalized this beyond items to any character
+  (player or NPC) needing durable, attributable personal history — e.g. Jane
+  should be able to correctly answer "who have you danced with tonight" many
+  turns later, and this generalizes to NPC-NPC facts the player never
+  witnessed. E's framing: this is a better fit for a precise structured fact
+  ledger than for semantic/RAG retrieval (`future_features.md` #23), since
+  the ask is exact recall of a fact set, not fuzzy relevance-based retrieval.
+  The interaction-history dead-code fix above is treated as an interim,
+  narrower step in this direction, not a solution to it.
+
+**Pending / known issues (carried forward):**
+
+- **Full pytest suite has not been run against any of today's changes**
+  (movement fix, prose-length fix + backstop, NPC arrival awareness,
+  interaction-history fix, reset script). Only manual `py_compile`,
+  `.format()` sanity checks, and direct scratch-DB functional tests were
+  possible from this working environment — no `pytest` package, no network
+  access to install it, and the project's own `.venv` is macOS-native and
+  cannot execute here. **E should run `source .venv/bin/activate && pytest`
+  locally before treating any of today's changes as fully verified**, and
+  before committing.
+- Prose length fix did not hold (see above) — needs a stronger mechanism
+  next session; the logging backstop confirms the problem persists rather
+  than solving it.
+- Character position spec (`docs/character_position_design.md`) — design
+  only; implementation not started; open staging question (§7 in the doc)
+  unresolved.
+- Personal action/item-history attribution (items and NPC-to-NPC facts) —
+  discussed at length this session; not yet written up as a
+  `future_features.md` entry. Next session should give this its own numbered
+  entry rather than leaving it only in these session notes.
+- `future_features.md` #31 (NPC sleep depth) and #32 (item-interruption
+  module-dependency) — both open design questions with recorded options,
+  neither decided.
+- None of today's git commits (reset script fix, interaction-history fix,
+  movement fix, prose-length fix, NPC arrival awareness) have been confirmed
+  as actually run — commands were provided to E in-session but committing is
+  manual per project convention.
 
 ---
 
@@ -2979,6 +3333,21 @@ for Phase 1.
 ---
 
 ## Key design decisions (not obvious from code)
+
+**OCEAN floats are currently LLM-consumed qualitative signals, not numeric inputs.**
+The five OCEAN trait fields (`ocean_openness`, etc.) are stored as precise floats
+and passed to Pass 2 in the context packet under `"personality"`. However, the
+engine performs no arithmetic on them — no comparisons, thresholds, or weighted
+sums. Pass 2 is simply instructed to "apply OCEAN traits consistently," which
+means the LLM interprets them qualitatively (0.88 openness reads as "highly
+curious and imaginative"). A prose descriptor would do equivalent work for Pass 2.
+
+The floats are preserved because a future rule-based layer could genuinely compute
+on them — attitude decay rates, wander probability weighting, behavioral trigger
+thresholds. Until such a layer exists, they function as seeded adjectives. Do not
+add new numeric precision to the OCEAN system without a concrete arithmetic consumer
+in mind. When god-mode canonizes personality assertions, they go into the character
+`description` field, not the OCEAN floats. (Design decision: 2026-07-16.)
 
 **LLM handles language; engine handles logic.** The engine and database own all
 state management, threshold evaluation, trigger decisions, and pathfinding. The
