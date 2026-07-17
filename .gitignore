@@ -67,3 +67,5 @@ models/
 modules/**/.fuse_hidden*
 *.db-shm
 *.db-wal
+docs/*paper*
+docs/*working_notes*
