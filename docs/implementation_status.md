@@ -1,7 +1,49 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-07-17, session 39 (closed).*
+*Last updated: 2026-07-30, session 40 (closed).*
+
+---
+
+## Session 40 notes (2026-07-30)
+
+**Completed this session:**
+
+- **Vintage Village — full village layout designed and seeded
+  (`modules/vintage_village/seed.sql`, `modules/vintage_village/vintage_village.db`):**
+  - Extended the village from 5 locations to 21; hostel unchanged at 6.
+    Total: 27 locations, 26 connections, 10 characters, 51 items.
+  - New locations: Village Green, Community Hall, Weaver's Workshop, Tearoom/Bakery,
+    Smithy, Chandler's Shop (general store), Stable, Chapel, Shrine, Tea House
+    (moved to shrine garden — no longer on Village Lane), Dock, Portmaster's Office,
+    Wright's Workshop (boatwright/carpenter/cartwright combined), Mill, Dairy Farm,
+    Orchard, Butcher's Shop. Audio crystal items added to existing Bookshop.
+  - Key design decisions: Tea House (Japanese aesthetic) relocated to Shrine garden,
+    accessible only via Shrine (11↔20 connection); Mill is downstream of Dock, not
+    directly on Village Lane; glacier erratic at Shrine predates village; Portmaster
+    doubles as informal postmaster (blue hat signals deliveries); fish seller
+    (char 10, npc_background) at Dock with bucket, no table.
+  - New character: The Fish Seller (char 10, npc_background, Dock, no wander).
+  - Villager (char 9) wander_range expanded to include all new public village locations;
+    character_visited_location updated to include all 16 new locations.
+  - Verified: integrity_check ok, foreign_key_check clean, all counts correct.
+
+**Pending / known issues (carried forward):**
+
+- `reset_instance.sql` not yet updated for new locations, character 10, or new items.
+  Must be done before using the reset script.
+- NPCs for new locations not yet seeded: The Weaver, The Baker (weaver's cousin),
+  The Portmaster, The Wright, The Chandler, Tea House keeper. Occupational family
+  surnames TBD — E is deciding these.
+- Bookshop `description_skeleton` does not yet mention the crystal alcove (items
+  seeded, description not updated).
+- Hostel expansion design (Dining Room, Marta's Room, Pantry, Bathhouse, Cellar,
+  Tower rooms, shared rooms) — designed in session 2026-07-23, not yet implemented.
+  Design notes in memory file `project_vintage_village_layout.md`.
+- Proposal file not yet deleted (sandbox permission): 
+  `rm ~/dev/RPG/modules/vintage_village/village_expansion_proposal.sql`
+- All session 37–39 pending items still apply (pytest suite, prose length, god-mode
+  implementation, character position spec, etc.).
 
 ---
 

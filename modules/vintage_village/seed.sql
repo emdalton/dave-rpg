@@ -16,8 +16,9 @@
 -- to anyone.
 --
 -- Schema version: 15
--- Characters: 9 (1 player, 7 NPC, 1 npc_object — The Blue Door)
--- Locations: 11 (6 hostel, 5 village)
+-- Characters: 10 (1 player, 8 NPC, 1 npc_object — The Blue Door)
+-- Locations: 27 (6 hostel, 21 village — civic core, trade district, river zone, 2 farms)
+-- Connections: 26
 -- Factions: 1 (hosts_of_the_hostel)
 --
 -- Village locations and connections:
@@ -215,13 +216,14 @@ VALUES (
 INSERT INTO location (id, game_id, name, location_type, description_skeleton,
                       social_setting, witness_count, situation_flags)
 VALUES (
-    -- Tea House: a low-ceilinged room with a counter and a few seats.
-    -- Skeleton only; no NPC seeded. Lazy generation fills in the keeper
-    -- and the specific quality of tea available.
-    11, 1, 'The Tea House', 'shop',
-    'A low-ceilinged room with paper screens and a narrow wooden counter. A single table and four chairs face a window with a view of the lane. Tea is always available; the person who tends the counter may not always be visible but the cups are never empty.',
+    -- Tea House: a small room tucked into the shrine garden. Not on the lane;
+    -- reached only through the shrine gate. Paper screens, a narrow counter,
+    -- a window facing the garden rather than the lane. Skeleton only; no NPC
+    -- seeded. Lazy generation fills in the keeper and the quality of tea.
+    11, 1, 'The Tea House', 'tea_house',
+    'A small, low-ceilinged room tucked into the corner of the shrine garden, reachable only through the shrine gate. Paper screens diffuse the lamplight into something softer than light usually is. A narrow counter, a single table, four chairs. The window faces the garden and the old tree, not the lane. Tea is always available; whoever tends the counter is not always immediately visible, but the cups are never empty and the water is always hot.',
     'semi_private', 0,
-    '["evening", "lamp_lit", "quiet"]'
+    '["evening", "lamp_lit", "quiet", "garden"]'
 );
 
 
@@ -261,10 +263,9 @@ VALUES
     (7, 9, 'door', 1, NULL),
 
     -- Village Lane ↔ The Bookshop
-    (7, 10, 'door', 1, NULL),
-
-    -- Village Lane ↔ The Tea House
-    (7, 11, 'door', 1, NULL);
+    (7, 10, 'door', 1, NULL);
+    -- Note: Tea House (loc 11) is no longer on Village Lane.
+    -- It is in the shrine garden; connection (11, 20) is in village_expansion_proposal.sql.
 
 
 -- =============================================================================
@@ -596,7 +597,10 @@ INSERT INTO character (
     '{"village_as_home": 0.92, "strangers_as_potential_friends": 0.80, "trouble_nearby": 0.15}',
     'Going about his business, which is never entirely clear but always seems purposeful. Happy to stop and talk.',
     'casual_warm', 0.90, 0.70,
-    '[7, 9, 10, 11]',   -- Village Lane, Apothecary, Bookshop, Tea House
+    '[7, 9, 10, 11, 12, 13, 14, 15, 16, 17, 19, 20, 21, 27]',
+    -- Village Lane, Apothecary, Bookshop, Tea House (via Shrine),
+    -- Village Green, Community Hall, Weaver's, Tearoom, Smithy,
+    -- Chandler's, Chapel, Shrine, Dock, Butcher's
     0.80                 -- wanders the lane actively
 );
 
@@ -965,3 +969,534 @@ VALUES (1, 'Herbalism of the Old Ways',
     'A practical guide to medicinal and culinary plants, written for someone who intends to actually use it. The margins are full of handwritten additions in several inks and at least two languages. The section on plants that grow in walled gardens has been heavily consulted.',
     '{"weight": "medium", "readable": true, "genre": "practical_reference", "condition": "well_used", "annotated": true}',
     10, 'on the shelf labeled USEFUL in small painted letters');
+
+-- =============================================================================
+-- DAVE RPG Engine — Village Expansion (PROPOSAL FOR REVIEW)
+-- Additions to The Vintage Village module
+--
+-- Developed with the assistance of Claude (model: claude-sonnet-4-6, Anthropic)
+--
+-- This file contains proposed additions to modules/vintage_village/seed.sql.
+-- Once reviewed and approved, its contents will be integrated into seed.sql
+-- and the database rebuilt from scratch.
+--
+-- What this adds:
+--   Locations 12–26: full village layout (civic core, trade district, river
+--   zone, and two nearby farms)
+--   15 new location_connections
+--   Audio crystal items in The Bookshop (location 10)
+--   Minimal anchor items per new location (skeleton for lazy generation)
+--
+-- What is NOT in this pass (next pass):
+--   - New NPCs (The Weaver, The Baker, The Wright, The Chandler, etc.)
+--   - character_visited_location updates for existing characters
+--   - wander_range updates for The Villager (character 9)
+--   - Bookshop description update in main seed (to mention crystal alcove)
+--   - reset_instance.sql updates
+--   - Module header counts update
+--
+-- Location map (full village):
+--   Civic core:
+--     Village Lane (7) → Village Green (12) → Community Hall (13)
+--   Trade district (all from Village Lane):
+--     Village Lane (7) → Weaver's Workshop (14)
+--     Village Lane (7) → Tearoom/Bakery (15)  [cousin of weaver]
+--     Village Lane (7) → Smithy (16)
+--     Village Lane (7) → Chandler's Shop (17)
+--     Village Lane (7) → Stable (18)
+--     Village Lane (7) → Chapel (19)
+--     Village Lane (7) → Shrine (20)
+--   River and harbor zone:
+--     Village Lane (7) → Dock (21)
+--     Dock (21) → Portmaster's Office (22)
+--     Dock (21) → Wright's Workshop (23)
+--     Dock (21) → Mill (24)  [downstream, along riverbank]
+--   Nearby farms:
+--     Village Lane (7) → Dairy Farm (25)
+--     Village Lane (7) → Orchard (26)
+--
+-- Note on existing locations:
+--   The Bookshop (10): audio crystal items added below; description update
+--     to mention the crystal alcove is needed in seed.sql (next pass)
+--   The Tea House (11): unchanged — it has a different aesthetic (paper screens,
+--     Japanese-adjacent) from the new Tearoom/Bakery; they coexist
+-- =============================================================================
+
+PRAGMA foreign_keys = ON;
+
+
+-- =============================================================================
+-- NEW LOCATIONS (IDs 12–26)
+-- =============================================================================
+
+-- ---------------------------------------------------------------------------
+-- Civic core
+-- ---------------------------------------------------------------------------
+
+INSERT INTO location (id, game_id, name, location_type, description_skeleton,
+                      social_setting, witness_count, situation_flags)
+VALUES (
+    -- Village Green: the civic center. Theatre troupe performs here in good
+    -- weather; Community Hall used in bad. Connects to Village Lane and Hall.
+    12, 1, 'Village Green', 'exterior',
+    'A small open green in front of the Community Hall, bounded by a low stone wall and a few old trees whose roots have lifted the paving in places without anyone having got round to relaying it. There is a broad flat stone at one end — old enough that no one quite remembers what it was originally for — that now serves as an informal stage when the troupe performs. On mild evenings the village seems to drift this way without quite meaning to.',
+    'public', 1,
+    '["evening", "lanterns_lit", "quiet"]'
+);
+
+INSERT INTO location (id, game_id, name, location_type, description_skeleton,
+                      social_setting, witness_count, situation_flags)
+VALUES (
+    -- Community Hall: multipurpose interior. Meetings, indoor performances in
+    -- bad weather, market overflow. Plain and functional; good acoustics.
+    13, 1, 'Community Hall', 'community_hall',
+    'A plain, high-ceilinged hall that smells of old timber and candle wax. Long tables are folded flat against one wall; chairs stacked to the rafters on the other. A raised platform at the far end serves as a stage when needed. The acoustics are better than they look — voices carry cleanly without effort — and the building is several degrees warmer inside than you expect from outside.',
+    'semi_private', 0,
+    '["evening", "unlit", "empty"]'
+);
+
+-- ---------------------------------------------------------------------------
+-- Trade district (shops along Village Lane)
+-- ---------------------------------------------------------------------------
+
+INSERT INTO location (id, game_id, name, location_type, description_skeleton,
+                      social_setting, witness_count, situation_flags)
+VALUES (
+    -- Weaver's Workshop: the village textile hub. Raw fiber, spun yarn, finished
+    -- cloth, tailoring and mending. A family operation working both wool and linen.
+    -- Flax and wool follow different seasonal peaks. Lazy generation populates
+    -- family members, current work in progress, and specific stock.
+    14, 1, "The Weaver's Workshop", 'shop',
+    'A wide shop with a working loom visible through the open door, its shuttle resting mid-thread in dark wool as if the weaver stepped away moments ago. The smell is wool and lanolin and something damp that is probably linen. Bolts of cloth are arranged along one wall — plain weaves, a few finer things — and baskets of spun yarn along another. A work table near the back holds half-finished garments and a pair of shears. The shop is busier in spring when the wool comes in and again in autumn when the flax harvest arrives.',
+    'semi_private', 0,
+    '["evening", "lamp_lit", "quiet"]'
+);
+
+INSERT INTO location (id, game_id, name, location_type, description_skeleton,
+                      social_setting, witness_count, situation_flags)
+VALUES (
+    -- Tearoom/Bakery: owned by the weaver's cousin, who correctly identified that
+    -- people waiting for fittings next door would appreciate somewhere to sit and
+    -- have tea. Also a working bakery; the bread is exceptional.
+    15, 1, 'The Tearoom', 'shop',
+    'A warm, bright room next door to the Weaver — the proximity is not accidental; the owner is the weaver''s cousin and will tell you so. A counter runs along one wall with a glass case of pastries and a row of mismatched teapots. Four small tables, each with a candle. The smell of fresh bread has thoroughly colonized the space. Most people who come in for a quick cup end up staying considerably longer than they intended, which the owner finds gratifying.',
+    'semi_private', 0,
+    '["evening", "lamp_lit", "warm", "bread_smell"]'
+);
+
+INSERT INTO location (id, game_id, name, location_type, description_skeleton,
+                      social_setting, witness_count, situation_flags)
+VALUES (
+    -- Smithy: open-fronted forge, visible from the lane. The Smith family handles
+    -- ironwork, farriery, and general metalwork. Forge banked for the evening.
+    16, 1, 'The Smithy', 'smithy',
+    'An open-fronted workshop where the forge dominates the back wall, banked for the evening but still radiating heat that spills onto the lane. Horseshoes hang in bundles from the ceiling joists. Iron tools of varying purposes are ranked on the walls in an order that probably makes sense to someone. The anvil is enormous and ancient, its face worn smooth. The smell is hot metal, coal, and the leather of the bellows.',
+    'public', 0,
+    '["evening", "forge_banked", "quiet"]'
+);
+
+INSERT INTO location (id, game_id, name, location_type, description_skeleton,
+                      social_setting, witness_count, situation_flags)
+VALUES (
+    -- Chandler's General Store: candles, rope, salt, preserved goods, and the
+    -- famous back corner. The Chandler has been here long enough to have become
+    -- a fixture. The corner of odd things is real and unpredictable.
+    17, 1, "The Chandler's Shop", 'shop',
+    'A shop crammed from floor to ceiling with practical things and their impractical cousins. Rope in sizes from thread to cable. Candles in every length and color. Salt in paper cones. Preserved goods in ceramic jars with handwritten labels. And behind a half-height door in the back corner, a collection of crates, boxes, and wrapped parcels of indeterminate age and origin. The chandler has been here long enough that the shop has accreted around them like a reef. It would be inaccurate to say they know what is in every crate. But they know roughly.',
+    'semi_private', 0,
+    '["evening", "lamp_lit", "crowded"]'
+);
+
+INSERT INTO location (id, game_id, name, location_type, description_skeleton,
+                      social_setting, witness_count, situation_flags)
+VALUES (
+    -- Stable: serves arriving travelers and visiting farmers. A few stalls, tack
+    -- storage, water trough. Clean and functional.
+    18, 1, 'The Stable', 'stable',
+    'A low building of stone and heavy timber, smelling of hay and horse and old leather. Three stalls run along one wall; a fourth has had its partition removed to make a tack room. The water trough outside is full and clean. Someone has hung lantern hooks at every point where light is actually needed, which suggests they thought about it.',
+    'semi_private', 0,
+    '["evening", "lantern_lit", "quiet"]'
+);
+
+INSERT INTO location (id, game_id, name, location_type, description_skeleton,
+                      social_setting, witness_count, situation_flags)
+VALUES (
+    -- Chapel: a small, unpretentious building associated with the more recently
+    -- arrived tradition. Door never locked. Coexists with the Shrine cheerfully.
+    19, 1, 'The Chapel', 'chapel',
+    'A small plain building with two rows of wooden pews and a window of clear glass looking onto the lane. No pretension to grandeur; someone painted a border of flowers around the window frame in spring and no one has suggested removing them. A candle burns on the altar. The door is never locked. People from the village who don''t come regularly will still stop in occasionally — for quiet, mainly.',
+    'semi_private', 0,
+    '["evening", "candle_lit", "quiet", "open"]'
+);
+
+INSERT INTO location (id, game_id, name, location_type, description_skeleton,
+                      social_setting, witness_count, situation_flags)
+VALUES (
+    -- Shrine: older than the chapel, probably older than most of the village.
+    -- Outdoor, near the river; a place to leave offerings. The coexistence of
+    -- chapel and shrine is genuinely friendly and unremarkable to the villagers.
+    -- The Tea House (loc 11) is tucked into the corner of the shrine garden.
+    20, 1, 'The Shrine', 'exterior',
+    'A small wooden gate in a stone wall, leading into a space that feels quieter than the lane despite having no roof. The space is organized around a boulder the size of a small house — gray granite, glacier-dropped, here before the shrine and probably before the village. The altar stone and its offering bowl sit at the boulder''s base. An old tree grows against the far wall, a lantern hanging from its branch and kept lit. In one corner, almost unobtrusive, a small room with paper screens: the Tea House. People tend to speak quietly here, if at all, and leave feeling approximately better than they arrived.',
+    'public', 0,
+    '["evening", "lantern_lit", "quiet", "still"]'
+);
+
+-- ---------------------------------------------------------------------------
+-- River and harbor zone
+-- ---------------------------------------------------------------------------
+
+INSERT INTO location (id, game_id, name, location_type, description_skeleton,
+                      social_setting, witness_count, situation_flags)
+VALUES (
+    -- Dock: the main public area at the river. Boats stop; goods are loaded and
+    -- unloaded; children are the informal historians. A good place to fish.
+    21, 1, 'The Dock', 'exterior',
+    'A wooden dock extending into the river, solid and well-maintained, with rope bollards at intervals and a lantern at the far end. The water here is dark and slow and smells of somewhere further downstream. A few children can usually be found at the end keeping a serious record of the boats that have passed; they take this work earnestly. Most evenings someone is fishing from the near end, not necessarily successfully.',
+    'public', 1,
+    '["evening", "lantern_lit", "river_sound", "quiet"]'
+);
+
+INSERT INTO location (id, game_id, name, location_type, description_skeleton,
+                      social_setting, witness_count, situation_flags)
+VALUES (
+    -- Portmaster's Office: a small, warm shed at the shore end of the dock.
+    -- Everything that passes through this village on the river passes through
+    -- this room in written form. Letters and parcels left for the boats
+    -- accumulated; the habit of leaving things for village neighbors followed
+    -- naturally. On good days the portmaster puts on a blue hat of uncertain
+    -- origin and delivers the uncollected ones by hand — to the village, and
+    -- in good weather, to the farms beyond. No one appointed them to this role.
+    22, 1, "The Portmaster's Office", 'building',
+    'A small, warm shed at the shore end of the dock, smelling of coal smoke and damp wool and tea. A potbellied stove in the corner; a battered desk under ledgers, sealed letters, and parcels in various stages of waiting — some bound for the next boat, some for a house on the lane, some apparently for no one in particular. The kettle is always on. A blue hat hangs on a peg by the door; when the portmaster wears it, the village understands this to mean the post is going out.',
+    'semi_private', 0,
+    '["evening", "stove_lit", "warm", "paperwork"]'
+);
+
+INSERT INTO location (id, game_id, name, location_type, description_skeleton,
+                      social_setting, witness_count, situation_flags)
+VALUES (
+    -- Boatwright / Carpenter / Cartwright: one family, one workshop. The skills
+    -- overlap substantially and the village couldn't support three separate shops.
+    -- Near the dock; riverbank access at the back for larger boat work.
+    23, 1, "The Wright's Workshop", 'workshop',
+    'A large, high-roofed workshop smelling of sawdust and linseed oil and fresh shavings. A half-finished rowboat occupies most of the floor. Wagon wheels are stacked against one wall; a chair waits on the workbench for its fourth leg. The tools are old and kept in excellent condition. A wide door at the back opens onto the riverbank where larger repairs get done when the weather permits.',
+    'semi_private', 0,
+    '["evening", "lamp_lit", "quiet", "sawdust"]'
+);
+
+INSERT INTO location (id, game_id, name, location_type, description_skeleton,
+                      social_setting, witness_count, situation_flags)
+VALUES (
+    -- Mill: downstream of the dock on the river. Grinds grain year-round; flax
+    -- processing is a natural extension of seed threshing — the retting vat and
+    -- breaking work happen here because the equipment and the river are already
+    -- present. Wool is not handled here; it goes from farm directly to the weaver.
+    24, 1, 'The Mill', 'watermill',
+    'A stone building where the river narrows and the current quickens. The wheel is still for the evening — the day''s work is done — but the millstone is never quite clean, and flour dust has settled into every surface over the years. Grain sacks are ranked along one wall, ready for collection. Near the back door a retting vat holds flax at some stage of processing, smelling of the river and something green and damp. The mill cat has a bed on top of the grain sacks and is not moved by visitors.',
+    'semi_private', 0,
+    '["evening", "wheel_still", "dusty", "quiet"]'
+);
+
+-- ---------------------------------------------------------------------------
+-- Nearby farms
+-- ---------------------------------------------------------------------------
+
+INSERT INTO location (id, game_id, name, location_type, description_skeleton,
+                      social_setting, witness_count, situation_flags)
+VALUES (
+    -- Dairy Farm: the nearest farm, a short walk from the village. Supplies milk,
+    -- butter, and cheese to the village and the hostel.
+    25, 1, 'The Dairy Farm', 'exterior',
+    'A working farm close enough to the village that you can hear the cows on still mornings. A stone farmhouse; a dairy kept cool and clean; a small stand of apple trees along the fence. The lane to the farm is worn smooth from years of twice-daily use. The family grows grain for winter fodder and brews a serviceable ale from the surplus — not their primary trade, but available if you ask. They sell milk, butter, and a firm yellow cheese at market, and will sell direct if you knock at the dairy door.',
+    'semi_private', 0,
+    '["evening", "cows_settled", "quiet"]'
+);
+
+INSERT INTO location (id, game_id, name, location_type, description_skeleton,
+                      social_setting, witness_count, situation_flags)
+VALUES (
+    -- Butcher's Shop: standard village shop on the lane. Skeleton only; no NPC
+    -- seeded. Lazy generation populates the butcher and current stock.
+    27, 1, "The Butcher's Shop", 'shop',
+    'A narrow shop with a scrubbed wooden counter and hooks on the wall, most of them occupied. The smell is cold and iron and sawdust. A chalkboard beside the door lists what is available today in handwriting that has not changed in years.',
+    'semi_private', 0,
+    '["evening", "lamp_lit", "quiet"]'
+);
+
+INSERT INTO location (id, game_id, name, location_type, description_skeleton,
+                      social_setting, witness_count, situation_flags)
+VALUES (
+    -- Orchard: a little further than the dairy. Fruit and cider. The cider press
+    -- is one of the reliable seasonal markers. Also: one enormous quince tree.
+    26, 1, 'The Orchard', 'exterior',
+    'A farm whose primary crop is fruit — apple, pear, and a single enormous quince tree whose output has never quite found its purpose. In late summer the smell of ripening fruit carries to the lane. The cider press runs from harvest through to the first frost, and the sound of it is one of the dependable markers of the season. The farmer is difficult to find in summer, being always somewhere in the trees.',
+    'semi_private', 0,
+    '["evening", "fruit_trees", "quiet"]'
+);
+
+
+-- =============================================================================
+-- NEW LOCATION CONNECTIONS
+-- Convention: location_a_id < location_b_id (schema constraint).
+-- All new; no changes to existing connections.
+-- =============================================================================
+
+INSERT INTO location_connection (location_a_id, location_b_id, connection_type,
+                                  is_passable, passage_note)
+VALUES
+    -- Civic core
+    (7,  12, 'open', 1, NULL),   -- Village Lane ↔ Village Green (open space)
+    (12, 13, 'door', 1, NULL),   -- Village Green ↔ Community Hall
+
+    -- Trade district (all off Village Lane)
+    (7,  14, 'door', 1, NULL),   -- Village Lane ↔ Weaver's Workshop
+    (7,  15, 'door', 1, NULL),   -- Village Lane ↔ Tearoom (next door to Weaver's)
+    (7,  16, 'open', 1, NULL),   -- Village Lane ↔ Smithy (open-fronted forge)
+    (7,  17, 'door', 1, NULL),   -- Village Lane ↔ Chandler's Shop
+    (7,  18, 'open', 1, NULL),   -- Village Lane ↔ Stable
+    (7,  19, 'door', 1, NULL),   -- Village Lane ↔ Chapel
+    (7,  20, 'open', 1, NULL),   -- Village Lane ↔ Shrine (outdoor, gated wall)
+
+    -- River and harbor zone
+    (7,  21, 'open', 1, NULL),   -- Village Lane ↔ Dock
+    (21, 22, 'door', 1, NULL),   -- Dock ↔ Portmaster's Office
+    (21, 23, 'open', 1, NULL),   -- Dock ↔ Wright's Workshop (near the water)
+    (21, 24, 'open', 1, NULL),   -- Dock ↔ Mill (path along riverbank, downstream)
+
+    -- Farms (paths from Village Lane)
+    (7,  25, 'open', 1, NULL),   -- Village Lane ↔ Dairy Farm
+    (7,  26, 'open', 1, NULL),   -- Village Lane ↔ Orchard
+
+    -- Shrine garden: Tea House is tucked into the shrine garden, not on the lane.
+    -- Replaces the (7, 11) Village Lane ↔ Tea House connection removed from seed.sql.
+    (11, 20, 'open', 1, NULL),   -- Tea House ↔ Shrine (same garden)
+
+    -- Butcher's Shop
+    (7,  27, 'door', 1, NULL);   -- Village Lane ↔ Butcher's Shop
+
+
+-- =============================================================================
+-- NEW CHARACTER: THE FISH SELLER (character 10)
+-- npc_background — minimal record. She is at the end of the dock most evenings
+-- with a bucket of whatever she caught. No table, no shop. Coins for fish;
+-- a few more coins if you want it gutted. She does not wander.
+-- =============================================================================
+
+INSERT INTO character (
+    id, game_id, name, role, species, gender, pronouns,
+    description, apparent_status, current_location_id,
+    maslow_tier, emotional_state,
+    capability_beliefs, context_beliefs,
+    surface_motivation,
+    voice_register, voice_warmth, voice_verbosity,
+    wander_range, wander_probability
+) VALUES (
+    10, 1, 'The Fish Seller', 'npc_background', 'human', 'female',
+    '[{"case":"nominative","form":"she"},{"case":"accusative","form":"her"},{"case":"genitive","form":"her"}]',
+    'A weathered woman of indeterminate middle age, sitting on an upturned crate at the end of the dock with a bucket beside her and a gutting knife on her knee. She is there most evenings when the catch has been good. She does not have a table or a sign. If you walk to the end of the dock she will tell you what she has. If you want it gutted she will do that too, for a bit more.',
+    'vendor',
+    21,  -- The Dock
+    'physiological',
+    'patient',
+    '{}',
+    '{}',
+    'Selling the day''s catch. Not in a hurry; the fish will keep until morning if they have to.',
+    'terse_gruff', 0.55, 0.30,
+    NULL, 0.0
+);
+
+
+-- =============================================================================
+-- CHARACTER VISITED LOCATIONS — updates for existing and new characters
+-- The Villager (char 9) knows the whole village; add all new locations.
+-- The Fish Seller (char 10) does not wander; no visited locations needed.
+-- =============================================================================
+
+INSERT INTO character_visited_location (character_id, location_id)
+VALUES
+    -- The Villager: new village locations (existing [7,9,10,11] already in seed.sql)
+    (9, 12),   -- Village Green
+    (9, 13),   -- Community Hall
+    (9, 14),   -- Weaver's Workshop
+    (9, 15),   -- Tearoom
+    (9, 16),   -- Smithy
+    (9, 17),   -- Chandler's Shop
+    (9, 18),   -- Stable
+    (9, 19),   -- Chapel
+    (9, 20),   -- Shrine
+    (9, 21),   -- Dock
+    (9, 22),   -- Portmaster's Office
+    (9, 23),   -- Wright's Workshop
+    (9, 24),   -- Mill
+    (9, 25),   -- Dairy Farm
+    (9, 26),   -- Orchard
+    (9, 27);   -- Butcher's Shop
+
+
+-- =============================================================================
+-- AUDIO CRYSTAL ITEMS — THE BOOKSHOP (location 10)
+-- The existing Bookshop description in seed.sql should be updated to mention
+-- the crystal alcove (next pass). These items establish the stock.
+-- The backstory (personal book collection → mage arrived → theatre troupe
+-- got involved → now a going concern) lives in NPC and location_detail records
+-- to be seeded next pass.
+-- =============================================================================
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'listening crystal: "The Song of the Loom"',
+    'A faceted crystal the size of a large egg, faintly warm when held. It releases a slow, complex piece of music — plucked strings and a sustained low note — with what sounds like a working loom audible in the background, as though the recording was made in the workshop itself. The label in small careful handwriting reads: "The Song of the Loom. Local composition. First pressing."',
+    '{"weight": "light", "crystal": true, "audio_type": "music", "local_recording": true}',
+    10, 'in the crystal alcove, on a padded cloth stand');
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'listening crystal: "Three Voices Reading"',
+    'A smoky gray crystal with a faint audible hum when held. Three distinct voices read the same passage in rotation — the same text, three different readings, then silence, then continuing. Whether this is artistic intention or an editorial accident is unclear. The label reads: "Three Voices Reading. A work in progress."',
+    '{"weight": "light", "crystal": true, "audio_type": "reading", "local_recording": true}',
+    10, 'in the crystal alcove, beside the first pressing');
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'crystal alcove sign',
+    'A small handwritten card in a wooden frame: "Audio crystals — local recordings by the village troupe and visiting practitioners. Imports available on request. Handle with care. Please ask before purchasing if you are uncertain what you are purchasing."',
+    '{"weight": "negligible", "portable": false, "readable": true}',
+    10, 'on a small shelf above the crystal display, facing the shop floor');
+
+
+-- =============================================================================
+-- ANCHOR ITEMS — NEW LOCATIONS
+-- Minimal seed per location to establish the space for lazy generation.
+-- Detailed inventory and furnishings generated on first visit.
+-- =============================================================================
+
+-- Weaver's Workshop (14)
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'floor loom',
+    'A large working loom, shuttle resting mid-thread in a length of dark wool. The frame is old and has been repaired and adjusted many times; none of the repairs are ugly. The current work is a plain twill, but the tension is even throughout.',
+    '{"weight": "immovable", "portable": false}',
+    14, 'taking up most of the workshop floor, facing the window');
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'basket of undyed wool',
+    'A large wicker basket of washed natural wool — white, cream, and occasional gray — clean and dry. The smell is faint lanolin.',
+    '{"weight": "medium", "portable": true, "container": true, "material": "wool"}',
+    14, 'beside the loom, on the floor');
+
+-- Tearoom/Bakery (15)
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'tearoom table (window)',
+    'A small round table beside the front window. Two mismatched chairs. The window is lightly fogged from the warmth inside. It is the best table for watching the lane.',
+    '{"weight": "heavy", "portable": false, "surface": true}',
+    15, 'beside the front window, facing the lane');
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'bread loaf',
+    'A round loaf on the counter, its crust dark and cracked from the oven. Baked today; the smell is still present. A small card beside it gives the price in whatever denomination seems current.',
+    '{"weight": "medium", "portable": true, "edible": true, "surface": false}',
+    15, 'on the counter, in a cloth-lined basket');
+
+-- Smithy (16)
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'anvil',
+    'A massive iron anvil, its working face worn to a near-polish from years of use. It sits on a section of elm trunk bolted to the floor. The anvil does not move. It has not moved in a long time.',
+    '{"weight": "immovable", "portable": false}',
+    16, 'at the center of the smithy, on its elm-trunk base');
+
+-- Chandler's Shop (17)
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'mystery crate',
+    'A wooden crate in the back corner behind a half-height door, its slats slightly sprung, muffled inside with straw packing. The chandler will tell you it came in some years ago and they have not gotten around to opening it properly. This is either true or a very good story.',
+    '{"weight": "unknown", "portable": false, "container": true, "contents": "unknown"}',
+    17, 'in the back corner, behind the half-height door');
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'rope coil (heavy)',
+    'A coil of thick hemp rope, perhaps fifteen feet, neatly wound and hanging from a ceiling hook. There are several more behind it in descending sizes.',
+    '{"weight": "medium", "portable": true, "material": "hemp"}',
+    17, 'hanging from a ceiling hook, front of the shop');
+
+-- Stable (18)
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'hay bale',
+    'A tightly bound bale of dry summer hay stacked against the stable wall. The smell is good — dry grass and a little dust. It would make an adequate seat in the absence of anything better.',
+    '{"weight": "heavy", "portable": false, "sittable": true}',
+    18, 'stacked against the stable wall, beside the tack room');
+
+-- Community Hall (13)
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'trestle table (folded)',
+    'A long trestle table folded flat and leaning against the wall with several others. When open it seats eight. The wood is clean; this is a well-maintained piece of community property.',
+    '{"weight": "heavy", "portable": false, "surface": false, "foldable": true}',
+    13, 'folded against the left wall with the other tables');
+
+-- Village Green (12)
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'flat stage stone',
+    'A broad flat stone set into the ground at one end of the green, large enough for four people to stand on without crowding. Old enough that its original purpose has been forgotten. It now serves as a stage for the troupe''s outdoor performances, which it does without complaint.',
+    '{"weight": "immovable", "portable": false, "surface": true}',
+    12, 'at the far end of the green, slightly raised from the surrounding ground');
+
+-- Portmaster's Office (22)
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'blue hat (portmaster)',
+    'A broad-brimmed hat of deep blue wool, hanging on a peg by the door. Its origin is unclear — it arrived on a boat some years ago and was never claimed. When the portmaster wears it, everyone in the village understands that the post is going out. No one decided this; it simply became true.',
+    '{"weight": "negligible", "portable": true, "wearable": true, "worn_by": "portmaster on delivery days"}',
+    22, 'on a peg by the door');
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'portmaster ledger',
+    'A heavy bound ledger, current year, open to today''s page. Entries in a careful hand: boat names, cargo, origin, destination, duties paid or deferred. The handwriting is very small and very legible. A quill and ink pot beside it.',
+    '{"weight": "medium", "portable": false, "readable": true, "surface": false}',
+    22, 'on the desk, open to the current day''s entries');
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'potbellied stove',
+    'A small cast-iron stove in the corner, doing more work than its size suggests. A kettle on top is just beginning to steam. The stove has a small door with a mica window and you can see the fire through it.',
+    '{"weight": "immovable", "portable": false, "heat_source": true}',
+    22, 'in the corner near the door, with a kettle on top');
+
+-- Wright's Workshop (23)
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'rowboat (in progress)',
+    'A rowboat about two-thirds complete, its planks clamped to the frame and the interior ribbing visible. The wood is good-quality ash, steam-bent and fitted carefully. It will be a sound boat when finished.',
+    '{"weight": "immovable", "portable": false}',
+    23, 'occupying most of the workshop floor, hull up on sawhorses');
+
+-- Mill (24)
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'grain sack (full)',
+    'A heavy linen sack of milled flour, neatly tied at the neck and ready for collection. Flour dust has left a faint white ring on the floor around the ranked sacks.',
+    '{"weight": "heavy", "portable": true, "container": true, "contents": "flour"}',
+    24, 'ranked against the millhouse wall, near the door');
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'mill cat bed',
+    'A folded blanket on top of the grain sacks, shaped by long use into a permanent nest. The mill cat is not currently in it. The mill cat is somewhere in the building, however.',
+    '{"weight": "negligible", "portable": false, "sittable": true}',
+    24, 'on top of the grain sacks, near the window');
+
+-- Dock — fish seller's bucket (21)
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'fish bucket',
+    'A wooden bucket at the fish seller''s feet, holding today''s catch in a little water. The contents vary. She will tell you what is in it if you ask; she will not volunteer the information.',
+    '{"weight": "medium", "portable": false, "container": true, "contents": "fish, variable", "for_sale": true}',
+    21, 'beside the fish seller''s crate, at the end of the dock');
+
+-- Shrine (20)
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'glacier rock',
+    'A boulder the size of a small house, gray and rounded, dropped here by a glacier so long ago that the shrine was built around it rather than the other way around. It sits at the bend where the river turns, half in the shrine garden and half beyond the wall. The stone is always slightly cool to the touch regardless of the season. People lean against it, sit on its lower ledges, leave offerings on a flat spot near the base. It does not seem to mind.',
+    '{"weight": "immovable", "portable": false, "sittable": true, "climbable": true, "climb_difficulty": "steep; requires effort and good handholds; the top is worth it", "material": "granite"}',
+    20, 'at the river bend, half inside the shrine wall and half beyond it');
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'offering bowl',
+    'A shallow ceramic bowl on the altar stone, holding clean water and three small flowers from this morning. Someone tends this regularly. The bowl itself is old — the glaze is finely crazed — but unbroken.',
+    '{"weight": "light", "portable": false, "container": true, "fill_state": "full", "contents": "water and flowers"}',
+    20, 'on the flat altar stone, centered');
+
+-- Chapel (19)
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'altar candle',
+    'A single candle burning on the altar, the only light in the chapel at this hour. It is a good thick candle — the kind that burns slowly — and whoever tended it last left a fresh one beside it in case.',
+    '{"weight": "negligible", "portable": true, "light_source": true}',
+    19, 'on the altar, burning');
