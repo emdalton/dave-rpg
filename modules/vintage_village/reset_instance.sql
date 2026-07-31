@@ -11,7 +11,7 @@
 -- What this resets:
 --   - game_instance: clock and status
 --   - character: location, emotional_state, maslow_tier, pending_intent,
---                current_activity and all activity fields
+--                current_activity and all activity fields (characters 1-10)
 --   - player character only: description, gender, pronouns
 --   - character_aspect: player aspects cleared (Green Room re-runs next session)
 --   - internal_state: values (rates are stable; not reset)
@@ -30,6 +30,11 @@
 --     voice parameters, wander_range, wander_probability, speech_filter
 --     (player character description/gender/pronouns ARE reset — see above)
 --   - faction records
+--
+-- Characters covered: 10 (1 player, 8 NPC, 1 npc_object — The Blue Door;
+--   plus 1 npc_background — The Fish Seller)
+-- Locations covered: 27 (6 hostel, 21 village)
+-- Items covered: 51 (all seeded items; re-inserted fresh from scratch)
 --
 -- Usage:
 --   sqlite3 modules/vintage_village/vintage_village.db < modules/vintage_village/reset_instance.sql
@@ -185,6 +190,21 @@ SET current_location_id          = 7,      -- Village Lane
     updated_at                   = datetime('now')
 WHERE id = 9;
 
+-- The Fish Seller (id=10)
+-- npc_background; does not wander; sitting at the dock end with the day's catch.
+UPDATE character
+SET current_location_id          = 21,     -- The Dock
+    emotional_state              = 'patient',
+    maslow_tier                  = 'physiological',
+    pending_intent               = NULL,
+    current_activity             = 'sitting at the end of the dock beside a bucket of today''s catch, available to buyers',
+    activity_started_at          = 1080,   -- 6:00 PM (approximate; fish sell until dark)
+    activity_estimated_duration  = 180,    -- until dark or sold out, whichever comes first
+    activity_duration_confidence = 0.50,
+    activity_renewable           = 0,
+    updated_at                   = datetime('now')
+WHERE id = 10;
+
 
 -- =============================================================================
 -- INTERNAL STATES: reset values to starting levels
@@ -208,8 +228,8 @@ WHERE character_id = 6 AND state_name = 'sleepiness';
 -- =============================================================================
 
 DELETE FROM character_attitude
-WHERE character_id IN (1, 2, 3, 4, 5, 6, 7, 8, 9)
-   OR target_id    IN (1, 2, 3, 4, 5, 6, 7, 8, 9);
+WHERE character_id IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+   OR target_id    IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
 
 -- Attitudes toward The Traveller
 INSERT INTO character_attitude (character_id, target_id, attitude, attitude_type)
@@ -240,7 +260,7 @@ VALUES
 -- =============================================================================
 
 DELETE FROM character_faction_reputation
-WHERE character_id IN (1, 2, 3, 4, 5, 6, 7, 8, 9);
+WHERE character_id IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
 
 INSERT INTO character_faction_reputation (character_id, faction_id, reputation, notes)
 VALUES
@@ -255,27 +275,58 @@ VALUES
 -- =============================================================================
 
 DELETE FROM character_visited_location
-WHERE character_id IN (1, 2, 3, 4, 5, 6, 7, 8, 9);
+WHERE character_id IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
 
 INSERT INTO character_visited_location (character_id, location_id)
 VALUES
+    -- The Traveller: starts outside the hostel door
     (1, 6),
+    -- Marta: knows kitchen, common room, garden
     (2, 1), (2, 2), (2, 8),
+    -- The Wanderer: common room, kitchen, corridor, village lane
     (3, 1), (3, 2), (3, 3), (3, 7),
+    -- The Scholar: corridor and Room A
     (4, 3), (4, 4),
+    -- The Old Soldier: common room
     (5, 1),
+    -- Gin-chan: common room
     (6, 1),
+    -- The Blue Door: outside the hostel
     (7, 6),
+    -- The Bookseller: bookshop and village lane
     (8, 10), (8, 7),
-    (9, 7), (9, 9), (9, 10), (9, 11);
+    -- The Villager: entire village (all 21 village locations)
+    (9, 7),   -- Village Lane
+    (9, 9),   -- Apothecary
+    (9, 10),  -- The Bookshop
+    (9, 11),  -- The Tea House
+    (9, 12),  -- Village Green
+    (9, 13),  -- Community Hall
+    (9, 14),  -- Weaver's Workshop
+    (9, 15),  -- The Tearoom
+    (9, 16),  -- The Smithy
+    (9, 17),  -- Chandler's Shop
+    (9, 18),  -- The Stable
+    (9, 19),  -- The Chapel
+    (9, 20),  -- The Shrine
+    (9, 21),  -- The Dock
+    (9, 22),  -- Portmaster's Office
+    (9, 23),  -- Wright's Workshop
+    (9, 24),  -- The Mill
+    (9, 25),  -- Dairy Farm
+    (9, 26),  -- The Orchard
+    (9, 27);  -- Butcher's Shop
+    -- The Fish Seller (id=10): does not wander; no visited_location rows needed.
 
 
 -- =============================================================================
 -- LOCATION DETAILS: remove lazily generated details; restore seeded details
 -- =============================================================================
 
--- Remove all generated details for all locations
-DELETE FROM location_detail WHERE location_id IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11);
+-- Remove all generated details across all 27 locations
+DELETE FROM location_detail
+WHERE location_id IN (1,2,3,4,5,6,7,8,9,10,11,
+                      12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27);
 
 -- Restore pre-seeded Common Room detail
 INSERT INTO location_detail (location_id, detail, is_valid, invalidation_condition)
@@ -308,14 +359,22 @@ WHERE owner_item_id IN (SELECT id FROM item WHERE game_id = 1)
 
 DELETE FROM item WHERE game_id = 1;
 
+
+-- ---------------------------------------------------------------------------
 -- The Traveller's pack
+-- ---------------------------------------------------------------------------
+
 INSERT INTO item (game_id, name, description, properties, char_id, slot)
 VALUES (1, 'sencha canister',
     'A battered tin canister, half-full of fine Japanese green tea. The lid is engraved with a small crane. A parting gift from someone who loved you.',
     '{"weight": "light", "container": true, "capacity": "small"}',
     1, 'in_pack');
 
--- Common Room furniture
+
+-- ---------------------------------------------------------------------------
+-- Common Room items (location 1)
+-- ---------------------------------------------------------------------------
+
 INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
 VALUES (1, 'chair by the fire (left)',
     'A worn wooden chair angled toward the hearth. Someone has left a cushion on the seat.',
@@ -340,7 +399,28 @@ VALUES (1, 'low table',
     '{"weight": "heavy", "portable": false, "surface": true, "capacity": "small"}',
     1, 'between the two chairs near the hearth');
 
--- Kitchen items
+-- Common Room: gray crystal sphere (special_capability, schema v15)
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'gray crystal sphere',
+    'A dull gray sphere, about the size of a fist, resting in a shallow wooden dish. It looks unremarkable until touched — travellers who have handled it describe a brief, swimming vision of somewhere else entirely, gone again before they can be sure what they saw.',
+    '{"weight": "light", "portable": true, "material": "crystal"}',
+    1, 'on the low table near the hearth, in a shallow wooden dish');
+
+INSERT INTO special_capability (
+    owner_item_id, target_description, capability, sense,
+    distance, typical_duration, typical_effort
+)
+SELECT id,
+    'any distant, real-world place the toucher has heard of or can imagine — the vision is vague and impressionistic, not guaranteed accurate or currently relevant',
+    'can_detect_from', 'visual_perception',
+    'touch', 'fleeting', 'effortless'
+FROM item WHERE name = 'gray crystal sphere' AND game_id = 1;
+
+
+-- ---------------------------------------------------------------------------
+-- Kitchen items (location 2)
+-- ---------------------------------------------------------------------------
+
 INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
 VALUES (1, 'kitchen worktable',
     'A heavy wooden worktable that takes up most of the kitchen wall. Its surface is flour-dusted and work-worn. Currently holding a tray of fresh rolls and a clean plate.',
@@ -353,6 +433,7 @@ VALUES (1, 'tray of hot rolls',
     '{"weight": "medium", "portable": true, "surface": true, "capacity": "medium"}',
     2, 'on the worktable');
 
+-- Twelve rolls nested inside the tray
 INSERT INTO item (game_id, name, description, properties, item_id)
 SELECT 1, 'hot roll', 'A small soft roll, still warm. The crust is golden.', '{"weight": "negligible", "edible": true, "temperature": "hot"}', id FROM item WHERE name = 'tray of hot rolls' AND game_id = 1;
 INSERT INTO item (game_id, name, description, properties, item_id)
@@ -384,31 +465,22 @@ VALUES (1, 'plate',
     '{"weight": "light", "portable": true, "surface": true, "capacity": "small"}',
     2, 'on the worktable');
 
+
+-- ---------------------------------------------------------------------------
 -- The Scholar's pack
+-- ---------------------------------------------------------------------------
+
 INSERT INTO item (game_id, name, description, properties, char_id, slot)
 VALUES (1, 'Mysteries of the Hidden Hostel',
     'A battered hardcover with an ornate tooled cover. It contains stories set in the Hidden Hostel.',
     '{"weight": "light", "readable": true, "genre": "stories"}',
     4, 'in_pack');
 
--- Common Room: gray crystal sphere
-INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
-VALUES (1, 'gray crystal sphere',
-    'A dull gray sphere, about the size of a fist, resting in a shallow wooden dish. It looks unremarkable until touched — travellers who have handled it describe a brief, swimming vision of somewhere else entirely, gone again before they can be sure what they saw.',
-    '{"weight": "light", "portable": true, "material": "crystal"}',
-    1, 'on the low table near the hearth, in a shallow wooden dish');
 
-INSERT INTO special_capability (
-    owner_item_id, target_description, capability, sense,
-    distance, typical_duration, typical_effort
-)
-SELECT id,
-    'any distant, real-world place the toucher has heard of or can imagine — the vision is vague and impressionistic, not guaranteed accurate or currently relevant',
-    'can_detect_from', 'visual_perception',
-    'touch', 'fleeting', 'effortless'
-FROM item WHERE name = 'gray crystal sphere' AND game_id = 1;
+-- ---------------------------------------------------------------------------
+-- Kitchen Garden items (location 8)
+-- ---------------------------------------------------------------------------
 
--- Kitchen Garden items
 INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
 VALUES (1, 'garden bench',
     'A wooden bench against the far wall of the walled garden. The wood is weathered but solid. It is a good place to sit when the kitchen feels too warm.',
@@ -427,7 +499,11 @@ VALUES (1, 'watering can',
     '{"weight": "medium", "portable": true, "container": true, "fill_state": "half_full", "contents": "water"}',
     8, 'on the stone path near the raised beds');
 
--- Bookshop items
+
+-- ---------------------------------------------------------------------------
+-- Bookshop items (location 10)
+-- ---------------------------------------------------------------------------
+
 INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
 VALUES (1, 'The Art of Arriving',
     'A slim, worn volume with a plain cloth cover. The title is stamped in faded gold. The pages are densely written in a hand that changes partway through, as though two people finished it. It is about crossing thresholds — between places, between lives, between who you were and who you are becoming.',
@@ -445,6 +521,213 @@ VALUES (1, 'Herbalism of the Old Ways',
     'A practical guide to medicinal and culinary plants, written for someone who intends to actually use it. The margins are full of handwritten additions in several inks and at least two languages. The section on plants that grow in walled gardens has been heavily consulted.',
     '{"weight": "medium", "readable": true, "genre": "practical_reference", "condition": "well_used", "annotated": true}',
     10, 'on the shelf labeled USEFUL in small painted letters');
+
+-- Audio crystals and alcove sign
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'listening crystal: "The Song of the Loom"',
+    'A faceted crystal the size of a large egg, faintly warm when held. It releases a slow, complex piece of music — plucked strings and a sustained low note — with what sounds like a working loom audible in the background, as though the recording was made in the workshop itself. The label in small careful handwriting reads: "The Song of the Loom. Local composition. First pressing."',
+    '{"weight": "light", "crystal": true, "audio_type": "music", "local_recording": true}',
+    10, 'in the crystal alcove, on a padded cloth stand');
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'listening crystal: "Three Voices Reading"',
+    'A smoky gray crystal with a faint audible hum when held. Three distinct voices read the same passage in rotation — the same text, three different readings, then silence, then continuing. Whether this is artistic intention or an editorial accident is unclear. The label reads: "Three Voices Reading. A work in progress."',
+    '{"weight": "light", "crystal": true, "audio_type": "reading", "local_recording": true}',
+    10, 'in the crystal alcove, beside the first pressing');
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'crystal alcove sign',
+    'A small handwritten card in a wooden frame: "Audio crystals — local recordings by the village troupe and visiting practitioners. Imports available on request. Handle with care. Please ask before purchasing if you are uncertain what you are purchasing."',
+    '{"weight": "negligible", "portable": false, "readable": true}',
+    10, 'on a small shelf above the crystal display, facing the shop floor');
+
+
+-- ---------------------------------------------------------------------------
+-- Village Green items (location 12)
+-- ---------------------------------------------------------------------------
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'flat stage stone',
+    'A broad flat stone set into the ground at one end of the green, large enough for four people to stand on without crowding. Old enough that its original purpose has been forgotten. It now serves as a stage for the troupe''s outdoor performances, which it does without complaint.',
+    '{"weight": "immovable", "portable": false, "surface": true}',
+    12, 'at the far end of the green, slightly raised from the surrounding ground');
+
+
+-- ---------------------------------------------------------------------------
+-- Community Hall items (location 13)
+-- ---------------------------------------------------------------------------
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'trestle table (folded)',
+    'A long trestle table folded flat and leaning against the wall with several others. When open it seats eight. The wood is clean; this is a well-maintained piece of community property.',
+    '{"weight": "heavy", "portable": false, "surface": false, "foldable": true}',
+    13, 'folded against the left wall with the other tables');
+
+
+-- ---------------------------------------------------------------------------
+-- Weaver's Workshop items (location 14)
+-- ---------------------------------------------------------------------------
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'floor loom',
+    'A large working loom, shuttle resting mid-thread in a length of dark wool. The frame is old and has been repaired and adjusted many times; none of the repairs are ugly. The current work is a plain twill, but the tension is even throughout.',
+    '{"weight": "immovable", "portable": false}',
+    14, 'taking up most of the workshop floor, facing the window');
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'basket of undyed wool',
+    'A large wicker basket of washed natural wool — white, cream, and occasional gray — clean and dry. The smell is faint lanolin.',
+    '{"weight": "medium", "portable": true, "container": true, "material": "wool"}',
+    14, 'beside the loom, on the floor');
+
+
+-- ---------------------------------------------------------------------------
+-- The Tearoom items (location 15)
+-- ---------------------------------------------------------------------------
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'tearoom table (window)',
+    'A small round table beside the front window. Two mismatched chairs. The window is lightly fogged from the warmth inside. It is the best table for watching the lane.',
+    '{"weight": "heavy", "portable": false, "surface": true}',
+    15, 'beside the front window, facing the lane');
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'bread loaf',
+    'A round loaf on the counter, its crust dark and cracked from the oven. Baked today; the smell is still present. A small card beside it gives the price in whatever denomination seems current.',
+    '{"weight": "medium", "portable": true, "edible": true, "surface": false}',
+    15, 'on the counter, in a cloth-lined basket');
+
+
+-- ---------------------------------------------------------------------------
+-- The Smithy items (location 16)
+-- ---------------------------------------------------------------------------
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'anvil',
+    'A massive iron anvil, its working face worn to a near-polish from years of use. It sits on a section of elm trunk bolted to the floor. The anvil does not move. It has not moved in a long time.',
+    '{"weight": "immovable", "portable": false}',
+    16, 'at the center of the smithy, on its elm-trunk base');
+
+
+-- ---------------------------------------------------------------------------
+-- Chandler's Shop items (location 17)
+-- ---------------------------------------------------------------------------
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'mystery crate',
+    'A wooden crate in the back corner behind a half-height door, its slats slightly sprung, muffled inside with straw packing. The chandler will tell you it came in some years ago and they have not gotten around to opening it properly. This is either true or a very good story.',
+    '{"weight": "unknown", "portable": false, "container": true, "contents": "unknown"}',
+    17, 'in the back corner, behind the half-height door');
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'rope coil (heavy)',
+    'A coil of thick hemp rope, perhaps fifteen feet, neatly wound and hanging from a ceiling hook. There are several more behind it in descending sizes.',
+    '{"weight": "medium", "portable": true, "material": "hemp"}',
+    17, 'hanging from a ceiling hook, front of the shop');
+
+
+-- ---------------------------------------------------------------------------
+-- The Stable items (location 18)
+-- ---------------------------------------------------------------------------
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'hay bale',
+    'A tightly bound bale of dry summer hay stacked against the stable wall. The smell is good — dry grass and a little dust. It would make an adequate seat in the absence of anything better.',
+    '{"weight": "heavy", "portable": false, "sittable": true}',
+    18, 'stacked against the stable wall, beside the tack room');
+
+
+-- ---------------------------------------------------------------------------
+-- The Chapel items (location 19)
+-- ---------------------------------------------------------------------------
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'altar candle',
+    'A single candle burning on the altar, the only light in the chapel at this hour. It is a good thick candle — the kind that burns slowly — and whoever tended it last left a fresh one beside it in case.',
+    '{"weight": "negligible", "portable": true, "light_source": true}',
+    19, 'on the altar, burning');
+
+
+-- ---------------------------------------------------------------------------
+-- The Shrine items (location 20)
+-- ---------------------------------------------------------------------------
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'glacier rock',
+    'A boulder the size of a small house, gray and rounded, dropped here by a glacier so long ago that the shrine was built around it rather than the other way around. It sits at the bend where the river turns, half in the shrine garden and half beyond the wall. The stone is always slightly cool to the touch regardless of the season. People lean against it, sit on its lower ledges, leave offerings on a flat spot near the base. It does not seem to mind.',
+    '{"weight": "immovable", "portable": false, "sittable": true, "climbable": true, "climb_difficulty": "steep; requires effort and good handholds; the top is worth it", "material": "granite"}',
+    20, 'at the river bend, half inside the shrine wall and half beyond it');
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'offering bowl',
+    'A shallow ceramic bowl on the altar stone, holding clean water and three small flowers from this morning. Someone tends this regularly. The bowl itself is old — the glaze is finely crazed — but unbroken.',
+    '{"weight": "light", "portable": false, "container": true, "fill_state": "full", "contents": "water and flowers"}',
+    20, 'on the flat altar stone, centered');
+
+
+-- ---------------------------------------------------------------------------
+-- The Dock items (location 21)
+-- ---------------------------------------------------------------------------
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'fish bucket',
+    'A wooden bucket at the fish seller''s feet, holding today''s catch in a little water. The contents vary. She will tell you what is in it if you ask; she will not volunteer the information.',
+    '{"weight": "medium", "portable": false, "container": true, "contents": "fish, variable", "for_sale": true}',
+    21, 'beside the fish seller''s crate, at the end of the dock');
+
+
+-- ---------------------------------------------------------------------------
+-- Portmaster's Office items (location 22)
+-- ---------------------------------------------------------------------------
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'blue hat (portmaster)',
+    'A broad-brimmed hat of deep blue wool, hanging on a peg by the door. Its origin is unclear — it arrived on a boat some years ago and was never claimed. When the portmaster wears it, everyone in the village understands that the post is going out. No one decided this; it simply became true.',
+    '{"weight": "negligible", "portable": true, "wearable": true, "worn_by": "portmaster on delivery days"}',
+    22, 'on a peg by the door');
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'portmaster ledger',
+    'A heavy bound ledger, current year, open to today''s page. Entries in a careful hand: boat names, cargo, origin, destination, duties paid or deferred. The handwriting is very small and very legible. A quill and ink pot beside it.',
+    '{"weight": "medium", "portable": false, "readable": true, "surface": false}',
+    22, 'on the desk, open to the current day''s entries');
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'potbellied stove',
+    'A small cast-iron stove in the corner, doing more work than its size suggests. A kettle on top is just beginning to steam. The stove has a small door with a mica window and you can see the fire through it.',
+    '{"weight": "immovable", "portable": false, "heat_source": true}',
+    22, 'in the corner near the door, with a kettle on top');
+
+
+-- ---------------------------------------------------------------------------
+-- Wright's Workshop items (location 23)
+-- ---------------------------------------------------------------------------
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'rowboat (in progress)',
+    'A rowboat about two-thirds complete, its planks clamped to the frame and the interior ribbing visible. The wood is good-quality ash, steam-bent and fitted carefully. It will be a sound boat when finished.',
+    '{"weight": "immovable", "portable": false}',
+    23, 'occupying most of the workshop floor, hull up on sawhorses');
+
+
+-- ---------------------------------------------------------------------------
+-- The Mill items (location 24)
+-- ---------------------------------------------------------------------------
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'grain sack (full)',
+    'A heavy linen sack of milled flour, neatly tied at the neck and ready for collection. Flour dust has left a faint white ring on the floor around the ranked sacks.',
+    '{"weight": "heavy", "portable": true, "container": true, "contents": "flour"}',
+    24, 'ranked against the millhouse wall, near the door');
+
+INSERT INTO item (game_id, name, description, properties, loc_id, location_description)
+VALUES (1, 'mill cat bed',
+    'A folded blanket on top of the grain sacks, shaped by long use into a permanent nest. The mill cat is not currently in it. The mill cat is somewhere in the building, however.',
+    '{"weight": "negligible", "portable": false, "sittable": true}',
+    24, 'on top of the grain sacks, near the window');
+
+-- Dairy Farm (25), The Orchard (26), and Butcher's Shop (27):
+-- no seeded items; lazy generation populates these on first visit.
 
 
 -- =============================================================================
