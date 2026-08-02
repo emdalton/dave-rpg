@@ -114,6 +114,14 @@ the player gave at the start. The OCEAN profile that emerges over time may confi
 complicate, or quietly contradict those Aspects. That tension is interesting and
 need not be resolved.
 
+**Inconsistent players.** A player who behaves inconsistently — exploring one
+session, staying close to home the next; helpful sometimes, indifferent other times
+— will not accumulate a confident profile. This is not a failure state. Low
+confidence means the engine has less to go on when selecting what to surface, so
+the world presents a wider and more varied mix rather than one tuned to a known
+style. Inconsistency is its own kind of character and the engine accommodates it
+naturally: stay uncertain, keep things varied. The engine notices; it does not judge.
+
 ---
 
 ## Implementation notes

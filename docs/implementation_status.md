@@ -28,6 +28,27 @@
     character_visited_location updated to include all 16 new locations.
   - Verified: integrity_check ok, foreign_key_check clean, all counts correct.
 
+**Design work completed this session (2026-08-01), not yet implemented:**
+
+- **Quest mechanics** (`docs/quest_mechanics.md`): full redesign of generation
+  mechanism (derives from existing OCEAN/goals/Maslow rather than a separate
+  tendency field); three-scale model (neighbor-favors, village errands, arcs);
+  full category taxonomy (displaced items, errands, social needs, lazy-generated
+  animate encounters, found objects, pure exploration); internal task table design
+  with qualitative frequency control; proximity-based presentation; Marta arc
+  documented; tonal references (Aria, Studio Ghibli) added to module header.
+
+- **Emergent player character psychology** (`docs/player_character_profile.md`):
+  OCEAN, goal weights, and Maslow tier for the PC are inferred from play behavior
+  rather than authored at character creation. Fate Aspects from the Green Room
+  provide seed data; the profile builds from action_log patterns over sessions.
+  A consistent player gets a confident profile and a world that gently reflects
+  their style; an inconsistent player's profile stays uncertain and the world
+  remains varied — the engine notices but does not judge, and uncertainty is not
+  a penalty. Requires: nullable PC OCEAN fields, new inference pass module,
+  Maslow tier derivation from internal_state values, Pass 2 prompt updates.
+  Schema addition: `task` table for internal task list (see quest_mechanics.md).
+
 **Pending / known issues (carried forward):**
 
 - `reset_instance.sql` not yet updated for new locations, character 10, or new items.
