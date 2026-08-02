@@ -1,9 +1,93 @@
 # DAVE RPG Engine — Future Feature Ideas
 
 *Captured May–June 2026. None of these are scoped or designed; this is a reference list.*
-*Last updated: 2026-07-17.*
+*Last updated: 2026-08-01.*
 
 ---
+
+## 34. Mystery genre support — cross-consistency enforcement and model requirements
+
+*Captured 2026-08-01. Design discussion: quest mechanics session.*
+
+The quest mechanics developed for the Vintage Village (found objects, inverted
+quest structure, lazy generation with canonical storage, qualitative task list,
+NPC-to-NPC information propagation) scaffold naturally toward mystery-genre play.
+The Marta arc is already a minor mystery in the classical sense. A dedicated
+mystery module would require the same mechanics at higher pressure.
+
+**The cross-consistency requirement.** Standard lazy generation commits: "first
+generation of a detail is canonical." Mystery play requires a stronger constraint:
+new generation in a semantic domain must be cross-consistent with *all* previously
+committed facts in that domain, not just the record being directly generated. If
+three children have been established, generation touching that family must receive
+all three names as hard constraints before producing anything new. A silently
+invented fourth child is a continuity error; a deliberately introduced fourth
+child whose prior absence is justified is a plot device. The system must be able
+to tell the difference — which means detecting the contradiction before committing,
+not patching it afterward. See implementation_status.md for the full design note.
+
+**Context expense.** Domain-scoped fact retrieval before each generation step is
+potentially expensive in context tokens. For an iyashikei village, the relevant
+domain for any given generation is small (one family, one location). For a mystery
+module, domains can be larger and more interconnected — the list of everyone who
+was at a particular event, the sequence of a character's movements across several
+days, the chain of custody of an object. Assembling these as generation constraints
+may require significant context, especially late in a mystery when many facts have
+accumulated. This is a known cost, not a reason to avoid the genre, but it informs
+model selection and prompt design.
+
+**Model requirements.** Mystery adjudication — holding a large established
+fact-set, detecting contradictions, and reasoning about what a new detail implies
+for prior ones — is qualitatively more demanding than iyashikei adjudication. The
+Phase 1 plan (Haiku for game loop testing, Sonnet for construction) may not hold
+for a mystery module's Pass 2. A larger model (Sonnet or equivalent) may be
+required for the game loop itself, not just for authoring. This is a genre
+exception worth flagging explicitly: the narrative-parameters-over-numerical design
+preference does not reduce the cognitive load on Pass 2 for mysteries; if anything,
+qualitative reasoning over a large established fact-set is harder than numeric
+lookup.
+
+**Pass 2 conflict resolution loop.** When a contradiction is detected between
+new generation and the established fact-set, Pass 2 may need a stronger response
+than a single-pass prompt instruction. Two approaches worth evaluating at
+implementation time:
+
+- *Strong conflict-resolution prompt*: Pass 2 receives the contradiction
+  explicitly ("the following new detail conflicts with established facts; you
+  must either revise the new detail to be consistent, or produce a justification
+  that makes the inconsistency deliberate and plot-meaningful") and resolves it
+  in a single pass. Cheaper; may be sufficient for small conflicts.
+
+- *Escalating model invocation*: if the standard Pass 2 model cannot resolve
+  the conflict cleanly — detected by a consistency check on its output — the
+  engine re-runs that adjudication step with a larger model. This is more
+  expensive but appropriate for complex conflicts where the standard model is
+  likely to paper over rather than genuinely resolve the tension. The larger
+  model call is bounded to the conflict-resolution step only, not the full pass.
+
+These are not mutually exclusive: the strong prompt is the first attempt; model
+escalation is the fallback. The engine already has model-selection logic (Haiku
+vs. Sonnet by pass type); conflict escalation would extend that pattern rather
+than introduce a new one.
+
+**Embeddings and semantic search.** For anything beyond the simplest mystery
+modules, domain-scoped retrieval by table and character ID will not scale.
+Structural lookup works when the relevant prior facts are enumerable in advance
+— the Weaver's family, a location's established details. It fails when the facts
+that constrain a new generation step are scattered across many characters,
+locations, and sessions, and their relevance is not structurally obvious. For a
+complex mystery, you cannot know which established facts bear on a new detail
+until you measure semantic similarity against the full fact-set.
+
+The required architecture is a RAG (retrieval-augmented generation) pattern over
+world-state: canonical facts are embedded as they are committed to the DB, and at
+generation time a semantic search over the fact-store retrieves the most relevant
+established facts as context constraints for that generation step. This is a
+significant infrastructure addition — embedding pipeline, vector store (or
+SQLite-vec / similar), retrieval layer — and effectively makes mystery support a
+distinct engine capability tier rather than a configuration of the existing engine.
+It should be scoped and designed separately when a mystery module is actively
+planned, not retrofitted during module authoring.
 
 ## 33. Pass 3 prose-length enforcement via post-generation compression pass
 

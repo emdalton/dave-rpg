@@ -569,6 +569,22 @@ worked in a single continuous session.*
   on where that line sits before implementing; tracked as a separate, larger
   follow-on, not bundled into this session's fix.
 
+  **Sharpened 2026-08-01:** the constraint is stronger than "persist generated
+  details." New generation in a semantic domain must be cross-consistent with
+  all previously committed facts in that domain — not just the record being
+  directly generated. Example: if Angela and Marten have three children (George,
+  Franceska, Louise), later generation touching their family must receive all
+  three names as hard constraints, or risk silently inventing a fourth child
+  (Henry) without awareness of the contradiction. Three outcomes are possible:
+  (a) silent correction — bad, loses information; (b) flagged error — correct
+  for debugging; (c) deliberate mystery promotion — Henry existed but was
+  previously unmentioned, now the gap must be justified. Option (c) is a
+  feature when handled consciously; a bug when it happens by accident.
+  Implementing this requires a domain-scoped fact retrieval step before any
+  new generation commits, and a contradiction-detection pass before the result
+  is written to the DB. See future_features.md §34 for mystery module
+  implications.
+
 - **Check: does Pass 2 already let perceived warmth diverge from `voice_warmth`?**
   Design discussion (same session, see `CLAUDE.md` "Narrative parameters over
   numerical ones") distinguished self-intrinsic character traits (OCEAN —
