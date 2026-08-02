@@ -10,6 +10,18 @@
 -- walled garden. Nothing about the village demands anything of the player;
 -- it is simply there to be explored at whatever pace feels right.
 --
+-- Tonal references:
+--   Aria (anime series, 2005–2008): a terraformed, flooded Mars whose inhabitants
+--   have reconstructed Venice. A young gondolier apprentice explores the city in
+--   episodes that are almost entirely minor tasks and quiet discoveries. The voice
+--   actresses described the show as "nothing ever happens, but in a really nice way."
+--   This is the intended feel of the Vintage Village quest system.
+--
+--   Studio Ghibli (general): the warmth, the found-family households, the sense
+--   that ordinary domestic life is worth lingering over, the way magic is matter-of-fact
+--   rather than dramatic. My Neighbor Totoro, Kiki's Delivery Service, and
+--   Spirited Away are the closest tonal relatives.
+--
 -- Setting: The Hidden Hostel and the village lane it opens onto. Both exist in
 -- the same liminal space; the village has always been here, or arrived recently,
 -- or it always will have been here. The distinction doesn't seem to matter much
