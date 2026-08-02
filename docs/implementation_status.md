@@ -1,7 +1,31 @@
 # DAVE RPG Engine — Implementation Status
 
 *Living document. Update at the end of each session before committing.*
-*Last updated: 2026-07-30, session 40 (closed).*
+*Last updated: 2026-08-01, session 41 (closed).*
+
+---
+
+## Session 41 notes (2026-08-01)
+
+*Design-only session. No code written or committed. All work is documentation.*
+
+The session worked through concepts that were already on the pending list (quest
+mechanics) and extended them into adjacent areas (emergent PC psychology, mystery
+genre prerequisites). This is depth work on systems awaiting implementation, not
+new scope added carelessly. The quest mechanics redesign in particular eliminates
+a planned schema field (tendency description) by deriving the same information
+from existing psychological data — a net simplification.
+
+Longer-term items (mystery infrastructure, knowledge graph, embeddings) are
+captured in future_features.md and the paper notes, not on the active
+implementation queue. The implementation queue remains as inherited from session 40.
+
+**Completed this session:**
+
+See "Design work completed this session" block above (prepended to session 40
+notes at time of writing — these are the session 41 deliverables).
+
+**No new pending implementation items beyond those already listed.**
 
 ---
 
