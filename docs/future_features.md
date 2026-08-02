@@ -123,6 +123,11 @@ The hybrid architecture: semantic search for entry point → graph traversal for
 related nodes → fact-set assembled as generation constraints. This is a distinct
 engine capability tier; design separately when a mystery module is actively planned.
 
+*Note: the full engine-type inventory implied by mystery support (embedding model,
+graph engine, topic model, escalating LLM tier) is a worked extension of the
+paper's core architectural claim. See `AI Migration/DAVE_paper_notes_2026-07-13.md`
+— "Extension: Engine-Type Matching as Architectural Principle."*
+
 ## 33. Pass 3 prose-length enforcement via post-generation compression pass
 
 *Captured 2026-07-17. Surfaced by repeated playtest failure (sessions 37–39):
