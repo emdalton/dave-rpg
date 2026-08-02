@@ -151,17 +151,86 @@ disembark at.
 
 ---
 
+## Internal task list
+
+The engine maintains a `task` table in the DB — not player-visible, not a journal,
+just internal state the engine uses to track what is live and control generation
+frequency. The DB is the source of truth; nothing is held only in session memory.
+
+Proposed schema:
+
+| field | type | notes |
+|---|---|---|
+| `description` | TEXT | prose, Pass 2-readable; describes what is needed |
+| `source_character_id` | INTEGER / NULL | NULL for found objects, animate encounters, exploration |
+| `scale` | TEXT | `minor` / `medium` / `major` |
+| `status` | TEXT | `pending` / `active` / `excused` / `success` / `failure` / `expired` |
+| `expiry_minutes` | INTEGER / NULL | absolute game-clock time; NULL for arcs |
+| `success_outcome` | TEXT / NULL | prose; NULL if success is just "world is fine" |
+| `failure_outcome` | TEXT / NULL | prose; NULL for no failure state; often soft |
+
+**Status lifecycle.** When an NPC mentions something that could become a task, it
+enters as `pending` — heard, not yet responded to. Pass 2 watches for the player's
+next few actions. If the player moves toward the garden, that is implicit acceptance
+and the task becomes `active`. If the player heads upstairs, the pending window
+closes: the task expires quietly and the NPC manages without. There is no explicit
+"accept quest" mechanic.
+
+**Excused status.** If the player communicates a reason for not completing a task
+— "can't, chasing a pixie who stole Mistress Weaver's shuttle" — Pass 2 adjudicates
+the excuse. The world outcome may be unchanged (the soup is still thin) but the
+social outcome differs: Marta hears the reason and responds with amusement or
+understanding rather than mild annoyance. Excuse does not erase failure; it changes
+how the NPC reads it.
+
+**Failure outcomes are usually soft.** Many tasks have no failure outcome at all —
+the world simply continues. Where a failure outcome exists, it is typically a small
+natural consequence: someone else finds the thimble; the soup is a little thin;
+an NPC mentions it in passing and moves on. Hard failures (permanent relationship
+damage, irreversible world changes) are rare and should be designed deliberately.
+
+**Frequency control.** The engine passes the current task list to Pass 2 as context
+whenever a new task might present itself. Pass 2 reasons qualitatively from the
+list state — not from a probability threshold — in keeping with this being an
+association engine rather than a numeric simulator:
+
+- Few active tasks: a new task may naturally present itself.
+- Several active tasks: something might still emerge, but NPCs are less likely
+  to press; a considerate character reads the room and decides not to add to an
+  already-busy traveller's day.
+- Many active tasks: probably nothing new generates. The world is already as
+  busy as it should be.
+
+This frequency reasoning is Pass 2's to do, not a hard cap enforced by the engine.
+The qualitative framing means NPCs hold back for narratively motivated reasons, not
+because a counter tripped.
+
+**When tasks are presented.** Session start is when NPCs *acquire* situations (the
+generation pass sets `pending_intent`). The task actually reaches the player through
+normal co-presence — Marta mentions the tarragon when the player walks into the
+kitchen, not when they arrive at the hostel. Found objects, animate encounters, and
+exploration generate on arrival at a location. The frequency check happens at the
+moment of potential presentation, which is the right place for qualitative reasoning.
+
+**Expired tasks.** When a task's `expiry_minutes` passes, the engine marks it
+`expired`, logs a brief consequence to the action log (the NPC resolved it
+independently, or it simply no longer matters), and removes it from active
+consideration. The world moves on without comment unless the player asks.
+
+---
+
 ## Temporal behavior
 
 The quest pool is a **current-state snapshot**, not an accumulated backlog. A month
 can pass in the world between sessions; NPCs without active player involvement resolve
 their own situations in that time. When the player arrives, the generation pass looks
-at who is present and what their state is *right now*, and generates three hooks from
-that. There is no record of everything that went unsolved while the player was away.
+at who is present and what their state is *right now*, and generates up to the
+frequency cap from that. There is no record of everything that went unsolved while
+the player was away.
 
-Quests that the player started but did not complete within a session are an edge case
-to resolve during implementation — likely they are simply regenerated differently next
-session, consistent with the above principle.
+Tasks that were `active` at the end of a session and have not yet expired persist
+into the next session normally. Tasks whose `expiry_minutes` has passed are marked
+`expired` and the NPC has resolved the situation independently.
 
 ---
 
@@ -255,6 +324,9 @@ remains:
 
 Note: no tendency field is required. The generation pass reads directly from the
 existing psychological schema.
+
+**Schema addition required:** a `task` table (see Internal task list above). This
+is a new table, not a modification to existing tables. Migration script needed.
 
 ---
 
