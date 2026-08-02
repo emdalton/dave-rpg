@@ -98,6 +98,57 @@ they would benefit from company or conversation. No item or delivery involved.
 Resolution: player engages meaningfully → internal_state nudged, `character_attitude`
 improves.
 
+**Lazy-generated animate encounters.** Between NPC-driven quests and found objects:
+a creature or minor character comes into existence because the player notices it.
+A kitten is following you. A bird has landed on your pack and won't leave. A child
+is watching you from a doorway. No one initiated this; the encounter has no
+`pending_intent` and no seeded owner. Personality, history, and needs are generated
+on first meaningful contact and stored canonically. The creature may have an owner
+somewhere in the village, or may not — finding out is a separate thread with the
+same inverted structure as a found object, except the object has opinions about
+the process.
+
+Gin-chan's role as potential translator for non-speaking creatures is entirely
+character-driven. Gin-chan might translate, might watch with visible amusement and
+say nothing, might disappear pointedly. Whether the kitten gets a voice depends on
+a social dynamic the player cannot directly control — and whether Gin-chan deigns
+to help is itself characterization.
+
+**Found objects.** Structurally inverted from the other categories: object-first,
+owner unknown. The player discovers something — a small locked box, a thimble with
+initials, a letter in a language they can't read — and decides whether to follow
+the thread. No `pending_intent` is involved; the trigger is player curiosity, not
+NPC need. Generation logic differs accordingly: the object exists at a location
+(seeded or lazy-generated on first visit) without an obvious owner; the owner,
+history, and connection to other characters are generated on demand as the player
+asks around. The player can ignore the object entirely, which makes choosing to
+investigate feel like genuine agency.
+
+The locked-box variant adds a second layer: the owner and the key may be found
+separately, neither knowing the other is involved until the player connects them.
+This scales naturally — a thimble with a name scratched on the bottom resolves in
+one short conversation; a sealed metal box with unfamiliar markings could take
+several sessions and draw in multiple characters before its history is clear.
+
+**Pure exploration.** Not a quest category so much as what the world is fundamentally
+for. The player decides to walk to the orchard, or knock on a door that looked
+interesting. No hook, no object, no NPC need — just an unvisited location and
+curiosity. The lazy generation mechanic exists precisely for this. Whatever is there
+gets generated on arrival and stored canonically. This is the most Aria-like mode
+of play: Akari rows somewhere she has never been and describes what she sees.
+
+**A note on the river and boats.** The village has a Dock and a Portmaster; boats
+exist and are visible. The barrier to getting on one is social, not mechanical:
+boats have owners, the Portmaster controls dock access, fishermen don't take
+passengers by default. A player who wants passage badly enough has to earn it —
+establish a relationship, offer something, find someone willing. That is interesting
+play, not an obstacle, and is consistent with how a pre-industrial waterfront works.
+A determined player who does get on a boat gets a river ride with generated scenery,
+which is a reasonable play experience. The one constraint on that generation: the
+far shore should feel like horizon, not like a locked door. Distant treelines, the
+silhouette of another village, open water — not a bustling city the player cannot
+disembark at.
+
 ---
 
 ## Temporal behavior
