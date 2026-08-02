@@ -89,6 +89,40 @@ distinct engine capability tier rather than a configuration of the existing engi
 It should be scoped and designed separately when a mystery module is actively
 planned, not retrofitted during module authoring.
 
+**Relationship network / knowledge graph (longer-term research direction).** Pure
+semantic search retrieves relevant facts but cannot do transitive inference.
+A mystery module needs to reason about chains: John was with Mary; Mary spoke to
+Susan (even though John had stepped away just then); therefore all three were at
+the pub, not at the abandoned mill. Flat retrieval cannot establish that chain
+automatically. A graph structure — facts as nodes, relationships as typed edges —
+can: semantic search finds the entry point, then graph traversal pulls connected
+nodes to build the full relevant context.
+
+Use cases in a mystery module: alibi chains, family and social relationship trees,
+location-at-time-of-event tracking, motive mapping (how many characters had reason,
+means, and opportunity). The graph makes these queryable rather than requiring Pass
+2 to hold the entire web in context.
+
+Epistemic status on edges matters: "John was at the pub" (confirmed by three
+witnesses) is a different kind of edge from "Susan thinks she saw John" (single
+uncertain witness). The graph needs to carry source and confidence information on
+relationships, not just connections, so the reasoning layer can distinguish solid
+alibi from contested one.
+
+Technology landscape to evaluate when this becomes active (E to research):
+- *GraphRAG* (Microsoft, open source): combines knowledge graph construction
+  with RAG retrieval; designed for local + global reasoning over a corpus.
+- *Neo4j*: established graph database; heavier dependency than SQLite.
+- *SQLite recursive CTEs*: can model and traverse simple graphs without a
+  separate store; may be sufficient for constrained mystery modules.
+- *BERTopic*: topic/concept modeling without pre-defined categories; useful for
+  clustering committed facts semantically so consistency checks know which prior
+  facts belong to the same domain as a new generation step.
+
+The hybrid architecture: semantic search for entry point → graph traversal for
+related nodes → fact-set assembled as generation constraints. This is a distinct
+engine capability tier; design separately when a mystery module is actively planned.
+
 ## 33. Pass 3 prose-length enforcement via post-generation compression pass
 
 *Captured 2026-07-17. Surfaced by repeated playtest failure (sessions 37–39):
